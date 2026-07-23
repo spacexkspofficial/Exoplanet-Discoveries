@@ -189,7 +189,9 @@ const HELP = {
   noVettedSignal:
     "The search ran, but no signal passed the current automated and human-vetting gates. This does not mean the star has no planet: a planet can be non-transiting, too weak, outside the searched period range, hidden in a data gap, or missed by this pipeline.",
   planetRecoveries:
-    "Known planets recovered by the separate validation benchmark suite. This is a cumulative pipeline-performance count, so it can include benchmark targets that are not mapped survey-star classifications.",
+    "Mapped survey stars whose search recovered an already-known planet. This uses the same per-star classification and live count as the status filter.",
+  validationRecoveries:
+    "Known planets recovered by the separate validation benchmark suite. This measures pipeline performance and is deliberately kept separate from mapped-star classifications.",
   tceRecoveries: "Signals that match existing TESS threshold-crossing events.",
   falsePositives: "Signals rejected after additional vetting because they are probably not planets.",
   newCandidates: "Signals that passed the defined vetting steps but are not confirmed planets.",
@@ -1408,9 +1410,9 @@ export default function App() {
               color="#35d7e8"
             />
             <Metric
-              label="Validation recoveries"
+              label="Mapped planet recoveries"
               description={HELP.planetRecoveries}
-              value={fmtInteger(stats.known_planet_rediscoveries as number)}
+              value={fmtInteger(survey?.status_counts.rediscovery)}
               color="#ffad20"
             />
             <Metric
@@ -1448,6 +1450,10 @@ export default function App() {
             </InfoTerm>
             <InfoTerm description={HELP.campaignRuns}>
               {Number(stats.campaign_runs_logged || 0)} campaign runs
+            </InfoTerm>
+            <InfoTerm description={HELP.validationRecoveries}>
+              {fmtInteger(stats.known_planet_rediscoveries as number)} separate validation
+              recoveries
             </InfoTerm>
             <InfoTerm description={HELP.polling}>
               {now ? "Polling every 5 seconds" : ""}
