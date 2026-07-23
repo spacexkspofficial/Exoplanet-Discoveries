@@ -9,7 +9,7 @@ description = "A small, reproducible TESS transit-search starter project"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-  "astropy>=6.0,<8",
+  "astropy>=6.0,<9",
   "fastapi>=0.116,<1",
   "filelock>=3.13,<4",
   "lightkurve>=2.5,<3",
