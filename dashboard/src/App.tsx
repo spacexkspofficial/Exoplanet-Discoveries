@@ -75,7 +75,7 @@ const STATUS_META: Record<
     className: "cyan",
   },
   rediscovery: {
-    label: "Known-Planet Rediscovery",
+    label: "Mapped Planet Recovery",
     short: "Planet recovered",
     color: "#ffad20",
     className: "amber",
@@ -125,7 +125,8 @@ const STATUS_HELP: Record<Status, string> = {
 
 const HELP = {
   filters: "Controls that decide which analyzed stars are visible on the map.",
-  statusFilters: "Show or hide stars based on how their signals were classified.",
+  statusFilters:
+    "Show or hide mapped stars based on classification. These per-star totals refresh from the live campaign checkpoint every five seconds; they do not include aggregate validation benchmarks.",
   legend: "Explains what each map marker color and shape means.",
   distanceRange:
     "Only show stars closer than this distance. One parsec is about 3.26 light-years.",
@@ -138,7 +139,7 @@ const HELP = {
   tessSector:
     "A TESS sector is one patch of sky observed continuously for roughly 27 days.",
   threeD:
-    "Places stars in a rotatable three-dimensional view using their sky position and estimated distance.",
+    "Places stars in a rotatable Galactic coordinate frame using their sky position and estimated distance.",
   skyProjection:
     "Flattens the celestial sphere into right ascension and declination, like a sky atlas.",
   earthView:
@@ -146,7 +147,9 @@ const HELP = {
   coordinateFrame:
     "The coordinate system used to turn astronomical positions into locations on this map.",
   galacticXyz:
-    "Three perpendicular distance axes used to place stars in a 3D volume around the Sun.",
+    "Sun-centered Galactic axes: X points toward the Milky Way center, Y follows Galactic longitude 90°, and Z points toward the north Galactic pole.",
+  galacticPlane:
+    "The local Milky Way mid-plane, Galactic latitude b = 0°. Its disk, distance rings, and vertical curves rotate rigidly with the stars.",
   raDec:
     "Right ascension and declination are the sky equivalents of longitude and latitude.",
   distanceRa:
@@ -183,8 +186,10 @@ const HELP = {
   eventsSeen: "The number of separate dimming events represented in the searched data.",
   duration: "How long one detected dimming event lasts.",
   targetsMapped: "Unique stars currently represented in the dashboard, including live campaign results.",
-  noVettedSignal: "Mapped stars that do not currently have a human-vetted candidate or known recovery.",
-  planetRecoveries: "Known planets successfully recovered as pipeline checks.",
+  noVettedSignal:
+    "The search ran, but no signal passed the current automated and human-vetting gates. This does not mean the star has no planet: a planet can be non-transiting, too weak, outside the searched period range, hidden in a data gap, or missed by this pipeline.",
+  planetRecoveries:
+    "Known planets recovered by the separate validation benchmark suite. This is a cumulative pipeline-performance count, so it can include benchmark targets that are not mapped survey-star classifications.",
   tceRecoveries: "Signals that match existing TESS threshold-crossing events.",
   falsePositives: "Signals rejected after additional vetting because they are probably not planets.",
   newCandidates: "Signals that passed the defined vetting steps but are not confirmed planets.",
@@ -402,7 +407,7 @@ function StarMap({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointsRef = useRef<Array<{ star: Star; x: number; y: number; r: number }>>([]);
   const dragRef = useRef({ active: false, moved: false, panning: false, x: 0, y: 0 });
-  const [rotation, setRotation] = useState({ x: -0.13, y: -0.42 });
+  const [rotation, setRotation] = useState({ x: -0.36, y: -0.52 });
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [hovered, setHovered] = useState<Star | null>(null);
@@ -470,6 +475,36 @@ function StarMap({
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, w, h);
 
+    const projectGalacticPoint = (pointX: number, pointY: number, pointZ: number) => {
+      const cosY = Math.cos(rotation.y);
+      const sinY = Math.sin(rotation.y);
+      const cosX = Math.cos(rotation.x);
+      const sinX = Math.sin(rotation.x);
+      const x1 = pointX * cosY - pointZ * sinY;
+      const z1 = pointX * sinY + pointZ * cosY;
+      const y1 = pointY * cosX - z1 * sinX;
+      const z2 = pointY * sinX + z1 * cosX;
+      const perspective = 1 / (1 + (z2 / maxDistance) * 0.22);
+      return {
+        x: cx + (x1 / maxDistance) * mapRadius * perspective,
+        y: cy + (y1 / maxDistance) * mapRadius * perspective * 0.74,
+        depth: z2,
+      };
+    };
+
+    const traceProjectedCurve = (
+      points: Array<[number, number, number]>,
+      close = false,
+    ) => {
+      ctx.beginPath();
+      points.forEach(([pointX, pointY, pointZ], index) => {
+        const point = projectGalacticPoint(pointX, pointY, pointZ);
+        if (index === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      });
+      if (close) ctx.closePath();
+    };
+
     ctx.save();
     ctx.strokeStyle = "rgba(91, 138, 158, .22)";
     ctx.lineWidth = 1;
@@ -481,27 +516,94 @@ function StarMap({
         Math.hypot(cx, h - cy),
         Math.hypot(w - cx, h - cy),
       );
-      const shellStep = niceScale(72 / pixelsPerParsec);
-      const visibleLimit = Math.min(maxDistance, farthestCorner / pixelsPerParsec);
-      const shells = Array.from(
-        { length: Math.min(16, Math.floor(visibleLimit / shellStep)) },
-        (_, index) => (index + 1) * shellStep,
+      const planeStep = niceScale(72 / pixelsPerParsec);
+      const visibleLimit = Math.min(
+        maxDistance,
+        Math.max(planeStep, farthestCorner / pixelsPerParsec),
       );
-      shells.forEach((shell) => {
-        const radius = (shell / maxDistance) * mapRadius;
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, radius, radius * 0.74, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.fillStyle = "rgba(206, 230, 239, .76)";
-        ctx.font = "600 11px var(--font-geist-mono)";
-        ctx.fillText(distanceScaleLabel(shell), cx - radius * 0.7, cy - radius * 0.54);
-      });
-      ctx.strokeStyle = "rgba(72, 203, 232, .26)";
-      if (mapRadius < Math.max(w, h) * 10) {
-        ctx.beginPath();
-        ctx.ellipse(cx, cy, mapRadius, mapRadius * 0.17, -0.06, 0, Math.PI * 2);
+      const rings = Array.from(
+        { length: Math.min(12, Math.floor(visibleLimit / planeStep)) },
+        (_, index) => (index + 1) * planeStep,
+      );
+      const diskRadius = rings[rings.length - 1] || visibleLimit;
+      const circlePoints = (radius: number, samples = 96) =>
+        Array.from({ length: samples + 1 }, (_, index) => {
+          const angle = (index / samples) * Math.PI * 2;
+          return [
+            radius * Math.cos(angle),
+            radius * Math.sin(angle),
+            0,
+          ] as [number, number, number];
+        });
+
+      ctx.setLineDash([]);
+      traceProjectedCurve(circlePoints(diskRadius), true);
+      ctx.fillStyle = "rgba(25, 117, 148, .055)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(74, 213, 235, .34)";
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(64, 151, 180, .18)";
+      ctx.setLineDash([2, 6]);
+      for (let index = 0; index < 6; index += 1) {
+        const angle = (index / 6) * Math.PI;
+        const dx = diskRadius * Math.cos(angle);
+        const dy = diskRadius * Math.sin(angle);
+        traceProjectedCurve([
+          [-dx, -dy, 0],
+          [dx, dy, 0],
+        ]);
         ctx.stroke();
       }
+
+      ctx.strokeStyle = "rgba(91, 182, 208, .3)";
+      ctx.setLineDash([3, 5]);
+      rings.forEach((ring) => {
+        traceProjectedCurve(circlePoints(ring));
+        ctx.stroke();
+        const labelPoint = projectGalacticPoint(
+          ring * Math.cos(0.62),
+          ring * Math.sin(0.62),
+          0,
+        );
+        ctx.fillStyle = "rgba(206, 230, 239, .76)";
+        ctx.font = "600 11px var(--font-geist-mono)";
+        ctx.fillText(distanceScaleLabel(ring), labelPoint.x + 4, labelPoint.y - 4);
+      });
+
+      ctx.strokeStyle = "rgba(126, 167, 184, .2)";
+      ctx.setLineDash([3, 7]);
+      [0, Math.PI / 3, (Math.PI * 2) / 3].forEach((longitude) => {
+        const hoop = Array.from({ length: 73 }, (_, index) => {
+          const angle = (index / 72) * Math.PI * 2;
+          const radial = diskRadius * Math.cos(angle);
+          return [
+            radial * Math.cos(longitude),
+            radial * Math.sin(longitude),
+            diskRadius * Math.sin(angle),
+          ] as [number, number, number];
+        });
+        traceProjectedCurve(hoop);
+        ctx.stroke();
+      });
+      traceProjectedCurve([
+        [0, 0, -diskRadius],
+        [0, 0, diskRadius],
+      ]);
+      ctx.stroke();
+
+      ctx.setLineDash([]);
+      const planeLabel = projectGalacticPoint(
+        diskRadius * Math.cos(-0.52),
+        diskRadius * Math.sin(-0.52),
+        0,
+      );
+      const northPoleLabel = projectGalacticPoint(0, 0, diskRadius);
+      ctx.fillStyle = "rgba(94, 221, 239, .82)";
+      ctx.font = "600 10px var(--font-geist-mono)";
+      ctx.fillText("GALACTIC PLANE · b=0°", planeLabel.x + 7, planeLabel.y + 12);
+      ctx.fillStyle = "rgba(178, 204, 215, .66)";
+      ctx.fillText("+Z · NGP", northPoleLabel.x + 6, northPoleLabel.y - 5);
     } else if (mode === "sky") {
       const minRa = 180 + (0 - cx) / skyPixelsPerRaDegree;
       const maxRa = 180 + (w - cx) / skyPixelsPerRaDegree;
@@ -579,20 +681,7 @@ function StarMap({
           depth: star.dec_deg / 90,
         };
       }
-      const cosY = Math.cos(rotation.y);
-      const sinY = Math.sin(rotation.y);
-      const cosX = Math.cos(rotation.x);
-      const sinX = Math.sin(rotation.x);
-      const x1 = star.x * cosY - star.z * sinY;
-      const z1 = star.x * sinY + star.z * cosY;
-      const y1 = star.y * cosX - z1 * sinX;
-      const z2 = star.y * sinX + z1 * cosX;
-      const perspective = 1 / (1 + (z2 / maxDistance) * 0.22);
-      return {
-        x: cx + (x1 / maxDistance) * mapRadius * perspective,
-        y: cy + (y1 / maxDistance) * mapRadius * perspective * 0.74,
-        depth: z2,
-      };
+      return projectGalacticPoint(star.x, star.y, star.z);
     };
 
     const projected = stars
@@ -730,7 +819,7 @@ function StarMap({
   const resetView = () => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
-    setRotation({ x: -0.13, y: -0.42 });
+    setRotation({ x: -0.36, y: -0.52 });
   };
 
   return (
@@ -803,6 +892,11 @@ function StarMap({
             {mode === "3d" ? "GALACTIC XYZ" : mode === "sky" ? "RA / DEC" : "DISTANCE / RA"}
           </InfoTerm>
         </strong>
+        {mode === "3d" ? (
+          <em>
+            <InfoTerm description={HELP.galacticPlane}>DISK: GALACTIC PLANE · b=0°</InfoTerm>
+          </em>
+        ) : null}
         <em>{scaleInfo.location}</em>
         <em>
           <InfoTerm description={HELP.zoom}>
@@ -824,7 +918,7 @@ function StarMap({
       <div className="map-instructions">
         <span>{mode === "3d" ? "↻ Drag to orbit · Shift+drag to pan" : "↔ Drag to pan"}</span>
         <span>⊕ Scroll to zoom at cursor</span>
-        <span>◎ Hover for info</span>
+        <span>{mode === "3d" ? "◎ Rigid Galactic-plane grid" : "◎ Hover for info"}</span>
         <span>⌖ Click to select · Double-click to fit</span>
       </div>
       <div className="scale-bar">
@@ -873,11 +967,18 @@ export default function App() {
 
   useEffect(() => {
     loadSurvey();
-    const poll = window.setInterval(loadSurvey, 20_000);
+    const poll = window.setInterval(loadSurvey, 5_000);
     const clock = window.setInterval(() => setNow(Date.now()), 10_000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") loadSurvey();
+    };
+    window.addEventListener("focus", loadSurvey);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       window.clearInterval(poll);
       window.clearInterval(clock);
+      window.removeEventListener("focus", loadSurvey);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [loadSurvey]);
 
@@ -945,10 +1046,7 @@ export default function App() {
   const observed = new Set(survey?.observed_sectors || []);
   const activeSectors = new Set(activeCampaign?.sectors || []);
   const latestObservedSector = Math.max(0, ...(survey?.observed_sectors || []));
-  const visibleCounts = filteredStars.reduce<Record<string, number>>((counts, star) => {
-    counts[star.status] = (counts[star.status] || 0) + 1;
-    return counts;
-  }, {});
+  const liveStatusCounts = survey?.status_counts || {};
 
   return (
     <main className="app-shell">
@@ -1040,10 +1138,20 @@ export default function App() {
                   <InfoTerm description={STATUS_HELP[status]} focusable={false}>
                     {STATUS_META[status].label}
                   </InfoTerm>
-                  <b>{visibleCounts[status] || 0}</b>
+                  <b
+                    key={`${status}-${liveStatusCounts[status] || 0}`}
+                    className="live-count"
+                  >
+                    {fmtInteger(liveStatusCounts[status])}
+                  </b>
                 </label>
               ))}
             </div>
+            <p className="status-scope-note">
+              <InfoTerm description={HELP.noVettedSignal}>
+                Mapped-star outcomes only. “No vetted signal” does not mean planet-free.
+              </InfoTerm>
+            </p>
             <div className="legend">
               <h2>
                 <InfoTerm description={HELP.legend}>LEGEND / MARKER STATUS</InfoTerm>
@@ -1278,7 +1386,7 @@ export default function App() {
       <footer className="bottom-grid">
         <section className="metrics-panel panel">
           <div className="panel-title">
-            <InfoTerm description="Summary counts from all local results plus the active campaign checkpoint.">
+            <InfoTerm description="Mapped-star outcomes plus cumulative validation and vetting performance. Hover each metric to see its scope.">
               SURVEY METRICS
             </InfoTerm>
             <b>
@@ -1300,7 +1408,7 @@ export default function App() {
               color="#35d7e8"
             />
             <Metric
-              label="Planet recoveries"
+              label="Validation recoveries"
               description={HELP.planetRecoveries}
               value={fmtInteger(stats.known_planet_rediscoveries as number)}
               color="#ffad20"
@@ -1342,7 +1450,7 @@ export default function App() {
               {Number(stats.campaign_runs_logged || 0)} campaign runs
             </InfoTerm>
             <InfoTerm description={HELP.polling}>
-              {now ? "Polling every 20 seconds" : ""}
+              {now ? "Polling every 5 seconds" : ""}
             </InfoTerm>
           </div>
         </section>

@@ -307,6 +307,41 @@ button {
   color: #8ba2ad;
   font-family: var(--font-geist-mono), monospace;
   font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-list b.live-count {
+  animation: live-count-update 480ms ease-out;
+}
+
+.status-scope-note {
+  margin: 9px 0 0;
+  color: #78919d;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.status-scope-note .info-term {
+  text-decoration-style: dotted;
+}
+
+@keyframes live-count-update {
+  0% {
+    color: #f2fcff;
+    text-shadow: 0 0 9px rgba(53, 215, 232, 0.85);
+    transform: translateY(-1px);
+  }
+  100% {
+    color: #8ba2ad;
+    text-shadow: none;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-list b.live-count {
+    animation: none;
+  }
 }
 
 .marker {

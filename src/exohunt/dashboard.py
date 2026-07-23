@@ -87,12 +87,37 @@ def _deterministic_direction(tic_id: int) -> tuple[float, float]:
 
 
 def _cartesian(ra_deg: float, dec_deg: float, distance_pc: float) -> dict[str, float]:
+    """Return Sun-centered Galactic Cartesian coordinates in parsecs.
+
+    The fixed rotation is the standard ICRS/J2000 to Galactic transformation:
+    +X points toward the Galactic center, +Y toward Galactic longitude 90
+    degrees, and +Z toward the north Galactic pole.
+    """
+
     ra = math.radians(ra_deg)
     dec = math.radians(dec_deg)
+    equatorial_x = math.cos(dec) * math.cos(ra)
+    equatorial_y = math.cos(dec) * math.sin(ra)
+    equatorial_z = math.sin(dec)
+    galactic_x = (
+        -0.0548755604 * equatorial_x
+        - 0.8734370902 * equatorial_y
+        - 0.4838350155 * equatorial_z
+    )
+    galactic_y = (
+        0.4941094279 * equatorial_x
+        - 0.4448296300 * equatorial_y
+        + 0.7469822445 * equatorial_z
+    )
+    galactic_z = (
+        -0.8676661490 * equatorial_x
+        - 0.1980763734 * equatorial_y
+        + 0.4559837762 * equatorial_z
+    )
     return {
-        "x": distance_pc * math.cos(dec) * math.cos(ra),
-        "y": distance_pc * math.cos(dec) * math.sin(ra),
-        "z": distance_pc * math.sin(dec),
+        "x": distance_pc * galactic_x,
+        "y": distance_pc * galactic_y,
+        "z": distance_pc * galactic_z,
     }
 
 

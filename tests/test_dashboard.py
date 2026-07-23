@@ -2,7 +2,21 @@ import csv
 import json
 from pathlib import Path
 
-from exohunt.dashboard import export_dashboard_data
+import pytest
+
+from exohunt.dashboard import _cartesian, export_dashboard_data
+
+
+def test_cartesian_uses_the_galactic_plane_and_pole() -> None:
+    galactic_center = _cartesian(266.4051, -28.936175, 10.0)
+    assert galactic_center["x"] == pytest.approx(10.0, abs=0.001)
+    assert galactic_center["y"] == pytest.approx(0.0, abs=0.001)
+    assert galactic_center["z"] == pytest.approx(0.0, abs=0.001)
+
+    north_galactic_pole = _cartesian(192.85948, 27.12825, 10.0)
+    assert north_galactic_pole["x"] == pytest.approx(0.0, abs=0.001)
+    assert north_galactic_pole["y"] == pytest.approx(0.0, abs=0.001)
+    assert north_galactic_pole["z"] == pytest.approx(10.0, abs=0.001)
 
 
 def test_dashboard_includes_active_campaign_checkpoint(tmp_path: Path):

@@ -34,6 +34,11 @@ from .metrics import (
     record_outcome,
     record_validation,
 )
+from .retention import (
+    prune_fits_cache,
+    prune_historical_rejected_plots,
+    prune_rejected_plots,
+)
 from .tce import check_tces
 
 # This command writes PNG files and must also work on headless/portable Python
@@ -295,6 +300,18 @@ def _campaign_settings(args: argparse.Namespace) -> dict[str, object]:
         "period_range_days": [args.min_period, args.max_period],
         "mask_width": args.mask_width,
         "allow_no_known": args.allow_no_known,
+        "storage_retention": {
+            "fits_cache_max_gb": float(getattr(args, "cache_max_gb", 2.0)),
+            "retain_rejected_plots": bool(
+                getattr(args, "retain_rejected_plots", False)
+            ),
+            "durable_artifacts": [
+                "metrics ledger",
+                "campaign JSON/CSV summaries",
+                "per-target JSON diagnostics",
+                "survivor plots",
+            ],
+        },
         "data_pipeline_version": (
             "tesscut-bgsub-commonmode-v3"
             if args.author == "TESScut"
@@ -322,6 +339,27 @@ def _batch_hunt(args: argparse.Namespace) -> int:
     results: list[dict[str, object]] = []
     started_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     progress_path = output_dir / "batch_progress.json"
+    cache_max_bytes = int(float(getattr(args, "cache_max_gb", 2.0)) * 1_000_000_000)
+    cache_dir = Path(os.environ.get("EXOHUNT_CACHE_DIR", "data/lightkurve"))
+    cache_retention = {
+        "files_deleted": 0,
+        "bytes_deleted": 0,
+        "last_bytes_after": 0,
+        "errors": [],
+    }
+
+    def roll_cache() -> None:
+        try:
+            report = prune_fits_cache(cache_dir, max_bytes=cache_max_bytes)
+        except Exception as exc:
+            message = str(exc)
+            if message not in cache_retention["errors"]:
+                cache_retention["errors"].append(message)
+                print(f"storage retention warning: {message}", file=sys.stderr)
+            return
+        cache_retention["files_deleted"] += int(report["files_deleted"])
+        cache_retention["bytes_deleted"] += int(report["bytes_deleted"])
+        cache_retention["last_bytes_after"] = int(report["bytes_after"])
 
     def publish_progress(state: str = "running") -> None:
         progress = {
@@ -407,6 +445,7 @@ def _batch_hunt(args: argparse.Namespace) -> int:
             }
         results.append(result_row)
         publish_progress()
+        roll_cache()
         print(
             f"[{index}/{len(rows)}] {target}: {result_row['status']}"
             + (
@@ -452,11 +491,45 @@ def _batch_hunt(args: argparse.Namespace) -> int:
                 report_payload["campaign_common_mode_peer_count"] = len(peers)
                 report_path.write_text(json.dumps(report_payload, indent=2), encoding="utf-8")
 
+    rejected_plot_retention: dict[str, object] = {
+        "files_deleted": 0,
+        "bytes_deleted": 0,
+        "retained_by_request": bool(getattr(args, "retain_rejected_plots", False)),
+    }
+    if not getattr(args, "retain_rejected_plots", False):
+        try:
+            plot_report = prune_rejected_plots(
+                results,
+                results_root=output_dir,
+                workspace_root=Path.cwd(),
+            )
+            deleted_paths = set(str(value) for value in plot_report["deleted_paths"])
+            for row in results:
+                if row.get("plot"):
+                    raw = Path(str(row["plot"]))
+                    resolved = (raw if raw.is_absolute() else Path.cwd() / raw).resolve()
+                    row["plot_retained"] = str(resolved) not in deleted_paths
+            rejected_plot_retention = {
+                key: value for key, value in plot_report.items() if key != "deleted_paths"
+            }
+            rejected_plot_retention["retained_by_request"] = False
+        except Exception as exc:
+            rejected_plot_retention = {
+                "files_deleted": 0,
+                "bytes_deleted": 0,
+                "retained_by_request": False,
+                "error": str(exc),
+            }
+
     publish_progress("finalizing")
     summary = {
         "target_list": str(target_path),
         "settings": _campaign_settings(args),
         "counts": _campaign_counts(results),
+        "storage_retention": {
+            "fits_cache": cache_retention,
+            "rejected_plots": rejected_plot_retention,
+        },
         "results": results,
     }
     summary_path = output_dir / "batch_summary.json"
@@ -472,6 +545,50 @@ def _batch_hunt(args: argparse.Namespace) -> int:
     print(f"\nSaved {summary_path} and {csv_path}")
     print(f"Metrics snapshot: {json.dumps(stats, sort_keys=True)}")
     return 1 if summary["counts"]["error"] else 0
+
+
+def _storage_prune(args: argparse.Namespace) -> int:
+    """Apply the same bounded retention policy outside a running campaign."""
+
+    cache_report = prune_fits_cache(
+        args.cache_dir,
+        max_bytes=int(float(args.cache_max_gb) * 1_000_000_000),
+        dry_run=args.dry_run,
+    )
+    if args.keep_rejected_plots:
+        plot_report: dict[str, object] = {
+            "root": str(Path(args.results_dir).resolve()),
+            "dry_run": args.dry_run,
+            "files_deleted": 0,
+            "bytes_deleted": 0,
+            "skipped_by_request": True,
+        }
+    else:
+        plot_report = prune_historical_rejected_plots(
+            args.results_dir,
+            workspace_root=Path.cwd(),
+            dry_run=args.dry_run,
+        )
+        plot_report.pop("deleted_paths", None)
+
+    report = {
+        "dry_run": args.dry_run,
+        "fits_cache": cache_report,
+        "rejected_plots": plot_report,
+        "preserved": [
+            "metrics ledger and current statistics",
+            "campaign JSON/CSV summaries and checkpoints",
+            "per-target JSON diagnostics",
+            "survivor and validation plots",
+        ],
+    }
+    if not args.dry_run:
+        manifest = Path(args.results_dir) / "storage_retention.json"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        _atomic_write_json(manifest, report)
+        report["manifest"] = str(manifest)
+    print(json.dumps(report, indent=2))
+    return 0
 
 
 def _plot_pixel_result(
@@ -1767,7 +1884,40 @@ def build_parser() -> argparse.ArgumentParser:
     batch.add_argument("--max-period", type=float, default=20.0)
     batch.add_argument("--mask-width", type=float, default=1.5)
     batch.add_argument("--allow-no-known", action="store_true")
+    batch.add_argument(
+        "--cache-max-gb",
+        type=float,
+        default=2.0,
+        help="Keep at most this many decimal GB of re-downloadable FITS cache (default: 2).",
+    )
+    batch.add_argument(
+        "--retain-rejected-plots",
+        action="store_true",
+        help="Keep PNG diagnostics for rejected targets instead of retaining only their JSON.",
+    )
     batch.set_defaults(func=_batch_hunt)
+
+    storage_prune = subparsers.add_parser(
+        "storage-prune",
+        help="Bound the FITS cache and remove plots for rejected campaign targets.",
+    )
+    storage_prune.add_argument(
+        "--cache-dir",
+        default=os.environ.get("EXOHUNT_CACHE_DIR", "data/lightkurve"),
+    )
+    storage_prune.add_argument("--cache-max-gb", type=float, default=2.0)
+    storage_prune.add_argument("--results-dir", default="results")
+    storage_prune.add_argument(
+        "--keep-rejected-plots",
+        action="store_true",
+        help="Prune only the FITS cache.",
+    )
+    storage_prune.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report exactly what would be removed without deleting anything.",
+    )
+    storage_prune.set_defaults(func=_storage_prune)
 
     pixel = subparsers.add_parser(
         "pixel-vet", help="Create a target-pixel difference image for a signal report."
