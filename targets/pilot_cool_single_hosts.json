@@ -1,0 +1,70 @@
+{
+  "created_utc_date": "2026-07-22",
+  "source": "NASA Exoplanet Archive TOI table plus MAST SPOC availability",
+  "criteria": {
+    "dispositions": [
+      "CP",
+      "KP"
+    ],
+    "unique_transiting_ephemerides_across_toi_and_confirmed": 1,
+    "max_tmag": 11.5,
+    "max_teff_k": 4200.0,
+    "max_stellar_radius_solar": 0.8,
+    "max_distance_pc": 100.0,
+    "known_period_range_days": [
+      0.5,
+      20.0
+    ],
+    "minimum_available_sectors": 2,
+    "selected_sectors_per_target": 3,
+    "cadence_seconds": 120.0,
+    "ordering": "TESS magnitude ascending, then TIC ID"
+  },
+  "catalog_rows_returned": 78,
+  "catalog_rows_sector_checked": 5,
+  "selected_count": 3,
+  "targets": [
+    {
+      "target": "TIC 359271092",
+      "tic_id": 359271092,
+      "toi": "741.01",
+      "disposition": "CP",
+      "tmag": "7.6687400",
+      "teff_k": "3766.0000000",
+      "stellar_radius_solar": "0.5300000",
+      "distance_pc": "10.4540000",
+      "known_period_days": "7.5768334",
+      "unique_transiting_signal_count": 1,
+      "available_sector_count": 7,
+      "sectors": "36;37;62"
+    },
+    {
+      "target": "TIC 138819293",
+      "tic_id": 138819293,
+      "toi": "1796.01",
+      "disposition": "KP",
+      "tmag": "8.4034600",
+      "teff_k": "3456.0000000",
+      "stellar_radius_solar": "0.4254320",
+      "distance_pc": "9.7532100",
+      "known_period_days": "2.6438856",
+      "unique_transiting_signal_count": 1,
+      "available_sector_count": 2,
+      "sectors": "22;49"
+    },
+    {
+      "target": "TIC 37749396",
+      "tic_id": 37749396,
+      "toi": "260.01",
+      "disposition": "CP",
+      "tmag": "8.4991000",
+      "teff_k": "4111.0000000",
+      "stellar_radius_solar": "0.6181730",
+      "distance_pc": "20.1852000",
+      "known_period_days": "13.4758478",
+      "unique_transiting_signal_count": 1,
+      "available_sector_count": 3,
+      "sectors": "3;42;70"
+    }
+  ]
+}

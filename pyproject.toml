@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "exohunt-starter"
+version = "0.1.0"
+description = "A small, reproducible TESS transit-search starter project"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "astropy>=6.0,<8",
+  "fastapi>=0.116,<1",
+  "lightkurve>=2.5,<3",
+  "matplotlib>=3.8,<4",
+  "numpy>=1.26,<3",
+  "reportlab>=4.2,<5",
+  "uvicorn>=0.35,<1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+exohunt = "exohunt.cli:main"
+exohunt-dashboard = "exohunt.dashboard_server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider --basetemp=tmp/pytest"

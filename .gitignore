@@ -1,0 +1,62 @@
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+credentials*.json
+secrets*.json
+
+# Python
+.venv/
+venv/
+.pip-cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Node / dashboard builds
+.npm-cache/
+node_modules/
+dashboard/node_modules/
+dashboard/dist/
+dashboard/work/
+dashboard/CLOUD_TEARDOWN.md
+dashboard/.vinext/
+dashboard/.wrangler/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Generated survey data and local runtime state
+data/
+results/
+output/
+tmp/
+metrics/events.jsonl
+metrics/current_stats.json
+dashboard/public/data/survey.json
+*.log
+
+# Local agent, hosting, editor, and operating-system state
+.agents/
+.codex/
+.openai/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Notebook checkpoints
+.ipynb_checkpoints/

@@ -1,0 +1,23 @@
+# EXOHUNT local dashboard
+
+This dashboard is intentionally local-only. It has no hosting manifest, cloud
+runtime, external database, analytics, or authentication provider.
+
+Build the browser assets:
+
+```powershell
+npm.cmd install
+npm.cmd run build
+```
+
+Start the FastAPI service from the repository root:
+
+```powershell
+.\.venv\Scripts\exohunt-dashboard.exe
+```
+
+Then open `http://127.0.0.1:8765`. The server binds to the loopback interface,
+so it is not reachable from other computers on the LAN or from the internet.
+
+`/data/survey.json` is generated from the local append-only search ledger and
+served with `Cache-Control: no-store`. The UI polls it every 20 seconds.

@@ -1,0 +1,70 @@
+{
+  "created_utc": "2026-07-23T03:23:05+00:00",
+  "source_target_list": "targets\\sector105_2min_targets.csv",
+  "sector": 105,
+  "criteria": {
+    "no_nasa_toi_or_confirmed_planet_host_row": true,
+    "tmag_range": [
+      7.0,
+      11.5
+    ],
+    "max_teff_k": 4500.0,
+    "max_stellar_radius_solar": 0.8,
+    "max_distance_pc": 150.0,
+    "input_pool_size": 800,
+    "ordering": "TESS magnitude ascending, then TIC ID"
+  },
+  "target_list_rows": 13000,
+  "tic_rows_queried": 800,
+  "stellar_rows_passing": 3,
+  "known_hosts_excluded": 0,
+  "selected_count": 3,
+  "targets": [
+    {
+      "target": "TIC 142206123",
+      "tic_id": 142206123,
+      "sector": 105,
+      "sectors": "105",
+      "tmag": 7.17922,
+      "teff_k": 3788.0,
+      "stellar_radius_solar": 0.692694,
+      "distance_pc": 11.5335,
+      "ra_deg": 38.5940260150709,
+      "dec_deg": -43.7963532657194,
+      "camera": "4",
+      "ccd": "2",
+      "known_planet_host_rows": 0
+    },
+    {
+      "target": "TIC 88533834",
+      "tic_id": 88533834,
+      "sector": 105,
+      "sectors": "105",
+      "tmag": 7.9032,
+      "teff_k": 4281.0,
+      "stellar_radius_solar": 0.648253,
+      "distance_pc": 18.6572,
+      "ra_deg": 48.6859349389589,
+      "dec_deg": -26.4462487008217,
+      "camera": "4",
+      "ccd": "4",
+      "known_planet_host_rows": 0
+    },
+    {
+      "target": "TIC 140045538",
+      "tic_id": 140045538,
+      "sector": 105,
+      "sectors": "105",
+      "tmag": 8.23083,
+      "teff_k": 3466.0,
+      "stellar_radius_solar": 0.608233,
+      "distance_pc": 14.854,
+      "ra_deg": 329.421682693545,
+      "dec_deg": -51.0061778687375,
+      "camera": "2",
+      "ccd": "4",
+      "known_planet_host_rows": 0
+    }
+  ],
+  "warning": "NASA catalog absence is not proof of novelty; live ExoFOP, TCE, literature, neighbor, and pixel checks remain required."
+}
