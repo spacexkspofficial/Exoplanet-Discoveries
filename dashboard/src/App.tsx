@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 
 type Status =
   | "searched"
+  | "search_error"
   | "rediscovery"
   | "known_tce_rediscovery"
   | "false_positive"
@@ -25,6 +26,8 @@ type Star = {
   ra_deg: number;
   dec_deg: number;
   distance_pc: number;
+  distance_is_estimated: boolean;
+  direction_is_estimated: boolean;
   coordinate_source: string;
   tmag: number | null;
   teff_k: number | null;
@@ -74,6 +77,12 @@ const STATUS_META: Record<
     color: "#35d7e8",
     className: "cyan",
   },
+  search_error: {
+    label: "Search Error — Retry Needed",
+    short: "Retry needed",
+    color: "#ff7b54",
+    className: "red",
+  },
   rediscovery: {
     label: "Mapped Planet Recovery",
     short: "Planet recovered",
@@ -111,6 +120,8 @@ const ALL_STATUSES = Object.keys(STATUS_META) as Status[];
 const STATUS_HELP: Record<Status, string> = {
   searched:
     "The automated search finished, but no signal has passed the full human-vetting process.",
+  search_error:
+    "This target did not finish successfully because data retrieval or analysis failed. It needs a retry and is not counted as a no-signal result.",
   rediscovery:
     "The search recovered a planet that was already known. This checks the pipeline; it is not a new discovery.",
   known_tce_rediscovery:
@@ -139,7 +150,7 @@ const HELP = {
   tessSector:
     "A TESS sector is one patch of sky observed continuously for roughly 27 days.",
   threeD:
-    "Places stars in a rotatable Galactic coordinate frame using their sky position and estimated distance.",
+    "Places stars in a rotatable Galactic coordinate frame. TIC sky directions are used when available; display-only estimates are clearly marked where catalog coordinates or distances are missing.",
   skyProjection:
     "Flattens the celestial sphere into right ascension and declination, like a sky atlas.",
   earthView:
@@ -162,7 +173,8 @@ const HELP = {
     "TIC means TESS Input Catalog. Its number is the star's identifier in the TESS target catalog.",
   ra: "Right ascension gives east-west position on the sky, similar to longitude.",
   dec: "Declination gives north-south position on the sky, similar to latitude.",
-  distance: "Estimated distance from Earth, shown in parsecs. One parsec is about 3.26 light-years.",
+  distance:
+    "Distance from Earth in parsecs. A leading approximation sign means the dashboard is using a display-only estimate rather than a catalog measurement.",
   tessMagnitude:
     "Brightness measured in the TESS camera's wavelength range. Smaller numbers mean brighter stars.",
   stellarRadiusValue: "The star's estimated radius compared with the Sun's radius.",
@@ -176,7 +188,7 @@ const HELP = {
   catalogueStatus: "The best current classification recorded by this local survey and public checks.",
   coordinateSource: "Where the star's sky position and distance information came from.",
   phaseFolded:
-    "Many repeating cycles are stacked on top of one another so a recurring dip is easier to see.",
+    "An illustrative shape generated from the reported depth and duration. It is not observed or phase-folded TESS photometry.",
   phase:
     "Position within one repeating cycle. Phase zero is centered on the detected event.",
   orbitalDiagram:
@@ -188,6 +200,8 @@ const HELP = {
   targetsMapped: "Unique stars currently represented in the dashboard, including live campaign results.",
   noVettedSignal:
     "The search ran, but no signal passed the current automated and human-vetting gates. This does not mean the star has no planet: a planet can be non-transiting, too weak, outside the searched period range, hidden in a data gap, or missed by this pipeline.",
+  searchErrors:
+    "Targets whose data retrieval or analysis did not finish. They need a retry and are kept separate from completed no-signal searches.",
   planetRecoveries:
     "Mapped survey stars whose search recovered an already-known planet. This uses the same per-star classification and live count as the status filter.",
   validationRecoveries:
@@ -195,7 +209,8 @@ const HELP = {
   tceRecoveries: "Signals that match existing TESS threshold-crossing events.",
   falsePositives: "Signals rejected after additional vetting because they are probably not planets.",
   newCandidates: "Signals that passed the defined vetting steps but are not confirmed planets.",
-  coverage: "The distance span currently summarized by the survey metrics.",
+  coverage:
+    "The map's display-distance scale. Catalog distances are used when available; display-only estimates are marked and are not excluded by the distance filter.",
   sectorsRepresented: "How many distinct TESS observing sectors appear in the local results.",
   campaignRuns: "Completed batches of stars recorded in the permanent survey ledger.",
   polling: "How often the browser asks the local server for new campaign data.",
@@ -340,7 +355,7 @@ function Marker({ status, small = false }: { status: Status; small?: boolean }) 
   );
 }
 
-function PhaseCurve({ star }: { star: Star }) {
+function SignalSchematic({ star }: { star: Star }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -392,7 +407,13 @@ function PhaseCurve({ star }: { star: Star }) {
     }
     ctx.globalAlpha = 1;
   }, [star]);
-  return <canvas ref={canvasRef} className="phase-canvas" aria-label="Phase-folded transit visualization" />;
+  return (
+    <canvas
+      ref={canvasRef}
+      className="phase-canvas"
+      aria-label="Illustrative signal shape; not observed TESS photometry"
+    />
+  );
 }
 
 function StarMap({
@@ -944,14 +965,17 @@ export default function App() {
   const [minSnr, setMinSnr] = useState(0);
   const [sector, setSector] = useState("all");
   const [now, setNow] = useState(Date.now());
+  const loadSequence = useRef(0);
 
   const loadSurvey = useCallback(async () => {
+    const sequence = ++loadSequence.current;
     try {
       const response = await fetch(`/data/survey.json?t=${Date.now()}`, {
         cache: "no-store",
       });
       if (!response.ok) throw new Error(`Survey data returned ${response.status}`);
       const next = (await response.json()) as SurveyData;
+      if (sequence !== loadSequence.current) return;
       setSurvey(next);
       setLoadError("");
       setSelectedId((current) => {
@@ -963,6 +987,7 @@ export default function App() {
         );
       });
     } catch (error) {
+      if (sequence !== loadSequence.current) return;
       setLoadError(error instanceof Error ? error.message : "Unable to load survey data");
     }
   }, []);
@@ -989,7 +1014,7 @@ export default function App() {
     const query = search.trim().toLowerCase();
     return survey.stars.filter((star) => {
       if (!statuses.has(star.status)) return false;
-      if (star.distance_pc > distance) return false;
+      if (!star.distance_is_estimated && star.distance_pc > distance) return false;
       if (star.teff_k && star.teff_k > maxTemp) return false;
       if (star.stellar_radius_solar && star.stellar_radius_solar > maxRadius) return false;
       if ((star.snr || 0) < minSnr) return false;
@@ -1249,7 +1274,9 @@ export default function App() {
               {filteredStars.length} visible targets
             </InfoTerm>
             <InfoTerm description={HELP.coordinateFrame}>
-              {mode === "3d" ? "Real TIC distance + sky position" : "TIC celestial coordinates"}
+              {mode === "3d"
+                ? "TIC sky direction + measured/estimated distance"
+                : "TIC celestial coordinates"}
             </InfoTerm>
             <InfoTerm description={HELP.earthView}>Earth-centered frame</InfoTerm>
           </div>
@@ -1287,7 +1314,10 @@ export default function App() {
               <dl className="target-data">
                 <div>
                   <dt><InfoTerm description={HELP.distance}>Distance</InfoTerm></dt>
-                  <dd>{fmt(selected.distance_pc, 2)} pc</dd>
+                  <dd>
+                    {selected.distance_is_estimated ? "≈ " : ""}
+                    {fmt(selected.distance_pc, 2)} pc
+                  </dd>
                 </div>
                 <div>
                   <dt><InfoTerm description={HELP.tessMagnitude}>TESS Magnitude</InfoTerm></dt>
@@ -1325,14 +1355,16 @@ export default function App() {
                 </div>
                 <div>
                   <dt><InfoTerm description={HELP.coordinateSource}>Coordinate Source</InfoTerm></dt>
-                  <dd className="cyan">TESS Input Catalog</dd>
+                  <dd className="cyan">{selected.coordinate_source}</dd>
                 </div>
               </dl>
               <section className="mini-section">
                 <h2>
-                  <InfoTerm description={HELP.phaseFolded}>PHASE-FOLDED SIGNAL ⓘ</InfoTerm>
+                  <InfoTerm description={HELP.phaseFolded}>
+                    ILLUSTRATIVE SIGNAL SHAPE <small>(NOT OBSERVED DATA)</small>
+                  </InfoTerm>
                 </h2>
-                <PhaseCurve star={selected} />
+                <SignalSchematic star={selected} />
                 <div className="phase-labels">
                   <span>−0.10</span>
                   <InfoTerm description={HELP.phase}>Phase</InfoTerm>
@@ -1410,6 +1442,12 @@ export default function App() {
               color="#35d7e8"
             />
             <Metric
+              label="Retry needed"
+              description={HELP.searchErrors}
+              value={fmtInteger(survey?.status_counts.search_error)}
+              color="#ff7b54"
+            />
+            <Metric
               label="Mapped planet recoveries"
               description={HELP.planetRecoveries}
               value={fmtInteger(survey?.status_counts.rediscovery)}
@@ -1418,24 +1456,24 @@ export default function App() {
             <Metric
               label="TCE rediscoveries"
               description={HELP.tceRecoveries}
-              value={fmtInteger(stats.known_tce_rediscoveries as number)}
+              value={fmtInteger(survey?.status_counts.known_tce_rediscovery)}
               color="#bf7aff"
             />
             <Metric
               label="False positives"
               description={HELP.falsePositives}
-              value={fmtInteger(stats.false_positives_after_vetting as number)}
+              value={fmtInteger(survey?.status_counts.false_positive)}
               color="#ff563d"
             />
             <Metric
               label="New candidates"
               description={HELP.newCandidates}
-              value={fmtInteger(stats.vetted_new_candidates as number)}
+              value={fmtInteger(survey?.status_counts.vetted_candidate)}
               color="#77ff9f"
             />
           </div>
           <div className="metric-meta">
-            <InfoTerm description={HELP.coverage}>Coverage 0–150 pc</InfoTerm>
+            <InfoTerm description={HELP.coverage}>Display scale 0–150 pc</InfoTerm>
             {activeCampaign ? (
               <InfoTerm
                 className="active-campaign"

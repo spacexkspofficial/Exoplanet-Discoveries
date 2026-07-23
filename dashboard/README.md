@@ -20,4 +20,7 @@ Then open `http://127.0.0.1:8765`. The server binds to the loopback interface,
 so it is not reachable from other computers on the LAN or from the internet.
 
 `/data/survey.json` is generated from the local append-only search ledger and
-served with `Cache-Control: no-store`. The UI polls it every 20 seconds.
+active campaign checkpoints, then served with `Cache-Control: no-store`. The UI
+polls it every five seconds and ignores late responses from older polls.
+Search/download errors are shown as `Retry needed`, separately from completed
+searches with no vetted signal.

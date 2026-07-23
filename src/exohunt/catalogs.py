@@ -5,6 +5,8 @@ from __future__ import annotations
 import csv
 import io
 import re
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -12,12 +14,29 @@ import urllib.request
 TAP_URL = "https://exoplanetarchive.ipac.caltech.edu/TAP/sync"
 
 
-def _tap_csv(query: str, timeout: int = 30) -> list[dict[str, str]]:
+def _tap_csv(
+    query: str,
+    timeout: int = 30,
+    *,
+    attempts: int = 3,
+) -> list[dict[str, str]]:
+    if attempts < 1:
+        raise ValueError("attempts must be at least 1")
     url = TAP_URL + "?" + urllib.parse.urlencode({"query": query, "format": "csv"})
     request = urllib.request.Request(url, headers={"User-Agent": "exohunt-starter/0.1"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        text = response.read().decode("utf-8")
-    return list(csv.DictReader(io.StringIO(text)))
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                text = response.read().decode("utf-8")
+            return list(csv.DictReader(io.StringIO(text)))
+        except urllib.error.HTTPError as exc:
+            if attempt >= attempts or (exc.code != 429 and exc.code < 500):
+                raise
+        except (urllib.error.URLError, TimeoutError, ConnectionError):
+            if attempt >= attempts:
+                raise
+        time.sleep(min(2 ** (attempt - 1), 4))
+    raise RuntimeError("NASA Exoplanet Archive request failed without an exception")
 
 
 def check_tic(tic_id: int) -> dict[str, object]:

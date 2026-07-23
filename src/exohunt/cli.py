@@ -8,11 +8,13 @@ import json
 import os
 import re
 import sys
+import time
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+from filelock import FileLock, Timeout
 
 from .catalogs import check_tic, curated_cool_single_hosts, known_planet_host_tic_ids
 from .benchmarks import BENCHMARKS, compare_period
@@ -273,7 +275,60 @@ def _analyze(args: argparse.Namespace) -> int:
 
 def _read_target_rows(path: Path) -> list[dict[str, str]]:
     with path.open("r", newline="", encoding="utf-8-sig") as handle:
-        return list(csv.DictReader(handle))
+        reader = csv.DictReader(handle)
+        required = {"target", "tic_id", "sectors"}
+        missing = required - set(reader.fieldnames or [])
+        if missing:
+            raise ValueError(
+                "Target CSV is missing required columns: " + ", ".join(sorted(missing))
+            )
+        rows: list[dict[str, str]] = []
+        identities: set[tuple[int, tuple[int, ...]]] = set()
+        for row_number, row in enumerate(reader, start=2):
+            target = str(row.get("target") or "").strip()
+            try:
+                tic_id = int(str(row.get("tic_id") or "").strip())
+            except ValueError as exc:
+                raise ValueError(
+                    f"Target CSV row {row_number} has an invalid TIC ID."
+                ) from exc
+            try:
+                sectors = tuple(
+                    sorted(
+                        {
+                            int(value.strip())
+                            for value in str(row.get("sectors") or "").replace(
+                                ",", ";"
+                            ).split(";")
+                            if value.strip()
+                        }
+                    )
+                )
+            except ValueError as exc:
+                raise ValueError(
+                    f"Target CSV row {row_number} has an invalid sector list."
+                ) from exc
+            if not target or tic_id <= 0 or not sectors or any(value <= 0 for value in sectors):
+                raise ValueError(
+                    f"Target CSV row {row_number} requires a target name, a positive "
+                    "TIC ID, and at least one positive sector."
+                )
+            identity = (tic_id, sectors)
+            if identity in identities:
+                raise ValueError(
+                    f"Target CSV row {row_number} duplicates TIC {tic_id} in "
+                    f"sector(s) {';'.join(str(value) for value in sectors)}."
+                )
+            identities.add(identity)
+            rows.append(
+                {
+                    **{str(key): str(value or "") for key, value in row.items()},
+                    "target": target,
+                    "tic_id": str(tic_id),
+                    "sectors": ";".join(str(value) for value in sectors),
+                }
+            )
+        return rows
 
 
 def _read_commented_csv(path: Path) -> list[dict[str, str]]:
@@ -290,16 +345,40 @@ def _atomic_write_json(path: Path, payload: object) -> None:
 
     temporary = path.with_name(path.name + ".tmp")
     temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    temporary.replace(path)
+    _replace_with_retry(temporary, path)
 
 
-def _campaign_settings(args: argparse.Namespace) -> dict[str, object]:
+def _replace_with_retry(source: Path, destination: Path) -> None:
+    """Handle short Windows/OneDrive locks without exposing partial files."""
+
+    for attempt in range(8):
+        try:
+            source.replace(destination)
+            return
+        except PermissionError:
+            if attempt == 7:
+                raise
+            time.sleep(0.05 * (2**attempt))
+
+
+def _scientific_settings(args: argparse.Namespace) -> dict[str, object]:
     return {
         "author": args.author,
         "cadence_seconds": args.cadence_seconds,
         "period_range_days": [args.min_period, args.max_period],
         "mask_width": args.mask_width,
         "allow_no_known": args.allow_no_known,
+        "data_pipeline_version": (
+            "tesscut-bgsub-commonmode-quarantined-v4"
+            if args.author == "TESScut"
+            else "processed-lc-v2"
+        ),
+    }
+
+
+def _campaign_settings(args: argparse.Namespace) -> dict[str, object]:
+    return {
+        **_scientific_settings(args),
         "storage_retention": {
             "fits_cache_max_gb": float(getattr(args, "cache_max_gb", 2.0)),
             "retain_rejected_plots": bool(
@@ -312,11 +391,6 @@ def _campaign_settings(args: argparse.Namespace) -> dict[str, object]:
                 "survivor plots",
             ],
         },
-        "data_pipeline_version": (
-            "tesscut-bgsub-commonmode-v3"
-            if args.author == "TESScut"
-            else "processed-lc-v1"
-        ),
     }
 
 
@@ -327,7 +401,179 @@ def _campaign_counts(results: list[dict[str, object]]) -> dict[str, int]:
     }
 
 
+def _is_transient_search_error(exc: Exception) -> bool:
+    name = type(exc).__name__.lower()
+    module = type(exc).__module__.lower()
+    message = str(exc).lower()
+    return bool(
+        isinstance(exc, (TimeoutError, ConnectionError))
+        or "timeout" in name
+        or "connection" in name
+        or module.startswith(("requests", "urllib3"))
+        or any(
+            marker in message
+            for marker in (
+                "timed out",
+                "temporary failure",
+                "temporarily unavailable",
+                "connection reset",
+                "connection aborted",
+                "remote end closed",
+                "too many requests",
+                "http 429",
+                "http 502",
+                "http 503",
+                "http 504",
+            )
+        )
+    )
+
+
+LEGACY_COMMON_MODE_REASON = (
+    "transit midpoint is shared by at least five campaign targets within 0.75 day"
+)
+LEGACY_COMMON_MODE_REASONS = {
+    LEGACY_COMMON_MODE_REASON,
+    "transit midpoint is shared by at least three campaign targets",
+}
+
+
+def _quarantine_invalid_common_mode(
+    results: list[dict[str, object]],
+) -> dict[str, object]:
+    """Remove the invalid large-campaign midpoint-density veto.
+
+    A single fitted BLS reference epoch is not a measured common-mode event.
+    Cadence-level detector/background evidence is required before a campaign
+    screen may automatically reject a target.
+    """
+
+    repaired = 0
+    for row in results:
+        if row.get("status") == "error":
+            continue
+        original_reasons = [
+            value.strip()
+            for value in str(row.get("rejection_reasons", "")).split(";")
+            if value.strip()
+        ]
+        reasons = [
+            value
+            for value in original_reasons
+            if value not in LEGACY_COMMON_MODE_REASONS
+        ]
+        had_legacy_veto = len(reasons) != len(original_reasons)
+        if had_legacy_veto:
+            repaired += 1
+            row["rejection_reasons"] = "; ".join(reasons)
+            row["status"] = "rejected" if reasons else "survivor"
+        row.pop("common_mode_peer_count", None)
+        row["campaign_common_mode_screen"] = "not applied"
+    return {
+        "status": "quarantined",
+        "automatic_rejection_applied": False,
+        "legacy_rows_repaired": repaired,
+        "reason": (
+            "The former single-midpoint density rule is invalid at campaign scale. "
+            "Common-mode rejection now requires future cadence-level detector or "
+            "background evidence."
+        ),
+    }
+
+
+def _legacy_checkpoint_matches(
+    progress: dict[str, object],
+    *,
+    args: argparse.Namespace,
+    target_path: Path,
+    total_targets: int,
+) -> bool:
+    settings = progress.get("settings")
+    if not isinstance(settings, dict):
+        return False
+    expected = _scientific_settings(args)
+    return bool(
+        str(progress.get("target_list")) == str(target_path)
+        and int(progress.get("total_targets", -1)) == total_targets
+        and settings.get("author") == expected["author"]
+        and float(settings.get("cadence_seconds", -1))
+        == float(expected["cadence_seconds"])
+        and list(settings.get("period_range_days", []))
+        == list(expected["period_range_days"])
+        and float(settings.get("mask_width", -1)) == float(expected["mask_width"])
+        and bool(settings.get("allow_no_known")) == bool(expected["allow_no_known"])
+    )
+
+
+def _artifact_stem(target: str, tic_id: int, sectors: list[int]) -> str:
+    identity = target if str(tic_id) in target else f"TIC {tic_id} {target}"
+    return _safe_name(identity + _sector_suffix(sectors) + "_residual")
+
+
+def _load_reusable_report(
+    report_path: Path,
+    *,
+    target: str,
+    tic_id: int,
+    sectors: list[int],
+    args: argparse.Namespace,
+    allow_legacy: bool,
+) -> dict[str, object] | None:
+    plot_path = report_path.with_suffix(".png")
+    if not report_path.exists():
+        return None
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    data = report.get("data")
+    if not isinstance(data, dict):
+        return None
+    if (
+        str(data.get("target")) != target
+        or int(data.get("tic_id") or 0) != tic_id
+        or _sector_values(data.get("requested_sectors")) != _sector_values(sectors)
+        or str(data.get("author")) != str(args.author)
+        or float(data.get("requested_cadence_seconds") or -1)
+        != float(args.cadence_seconds)
+    ):
+        return None
+    configuration = report.get("search_configuration")
+    if configuration is None:
+        configuration_matches = allow_legacy
+    else:
+        configuration_matches = configuration == _scientific_settings(args)
+    if not configuration_matches:
+        return None
+    triage = report.get("automated_triage")
+    is_rejected = isinstance(triage, dict) and triage.get("passes") is False
+    # Rejected plots are intentionally pruned by the storage policy after a
+    # completed campaign. The JSON report is written only after the plot was
+    # successfully created, so it remains a valid completion marker. Survivor
+    # plots are durable and must still exist before a survivor is reused.
+    if not is_rejected and not plot_path.exists():
+        return None
+    return report
+
+
 def _batch_hunt(args: argparse.Namespace) -> int:
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    lock = FileLock(str(output_dir / ".batch-hunt.lock"))
+    try:
+        lock.acquire(timeout=0)
+    except Timeout as exc:
+        raise RuntimeError(
+            f"Another batch worker already owns {output_dir}. "
+            "Stop it before resuming this campaign."
+        ) from exc
+    try:
+        return _run_batch_hunt(args)
+    finally:
+        lock.release()
+
+
+def _run_batch_hunt(args: argparse.Namespace) -> int:
     target_path = Path(args.targets)
     rows = _read_target_rows(target_path)
     if args.max_targets is not None:
@@ -335,10 +581,23 @@ def _batch_hunt(args: argparse.Namespace) -> int:
     if not rows:
         raise RuntimeError("Target CSV contains no rows.")
     output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
     results: list[dict[str, object]] = []
     started_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     progress_path = output_dir / "batch_progress.json"
+    previous_progress: dict[str, object] = {}
+    if progress_path.exists():
+        try:
+            previous_progress = json.loads(progress_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            previous_progress = {}
+    allow_legacy_reports = _legacy_checkpoint_matches(
+        previous_progress,
+        args=args,
+        target_path=target_path,
+        total_targets=len(rows),
+    )
+    if allow_legacy_reports and previous_progress.get("started_at_utc"):
+        started_at = str(previous_progress["started_at_utc"])
     cache_max_bytes = int(float(getattr(args, "cache_max_gb", 2.0)) * 1_000_000_000)
     cache_dir = Path(os.environ.get("EXOHUNT_CACHE_DIR", "data/lightkurve"))
     cache_retention = {
@@ -391,11 +650,22 @@ def _batch_hunt(args: argparse.Namespace) -> int:
         target = row["target"]
         tic_id = int(row["tic_id"])
         sectors = [int(value) for value in row["sectors"].split(";") if value]
-        stem = _safe_name(target + _sector_suffix(sectors) + "_residual")
+        stem = _artifact_stem(target, tic_id, sectors)
         expected_report = output_dir / f"{stem}.json"
         try:
-            if expected_report.exists() and not args.force:
-                report = json.loads(expected_report.read_text(encoding="utf-8"))
+            report = (
+                None
+                if args.force
+                else _load_reusable_report(
+                    expected_report,
+                    target=target,
+                    tic_id=tic_id,
+                    sectors=sectors,
+                    args=args,
+                    allow_legacy=allow_legacy_reports,
+                )
+            )
+            if report is not None:
                 run_state = "resumed"
             else:
                 hunt_args = argparse.Namespace(
@@ -411,7 +681,20 @@ def _batch_hunt(args: argparse.Namespace) -> int:
                     output_dir=str(output_dir),
                     quiet=True,
                 )
-                _hunt(hunt_args)
+                for attempt in range(1, 4):
+                    try:
+                        _hunt(hunt_args)
+                        break
+                    except Exception as exc:
+                        if attempt >= 3 or not _is_transient_search_error(exc):
+                            raise
+                        delay = 2 ** (attempt - 1)
+                        print(
+                            f"{target}: transient retrieval/analysis failure "
+                            f"(attempt {attempt}/3: {exc}); retrying in {delay}s",
+                            file=sys.stderr,
+                        )
+                        time.sleep(delay)
                 report = json.loads(
                     Path(hunt_args.generated_report_path).read_text(encoding="utf-8")
                 )
@@ -456,40 +739,7 @@ def _batch_hunt(args: argparse.Namespace) -> int:
             )
         )
 
-    # A timestamp repeated across several unrelated stars observed in the same
-    # sector set is spacecraft/background behavior, not a shared planet.
-    for row in results:
-        if row.get("status") == "error" or row.get("transit_time") is None:
-            continue
-        peers = [
-            other
-            for other in results
-            if other.get("status") != "error"
-            and other.get("sectors") == row.get("sectors")
-            and other.get("transit_time") is not None
-            and abs(float(other["transit_time"]) - float(row["transit_time"])) <= 0.75
-        ]
-        row["common_mode_peer_count"] = len(peers)
-        if len(peers) >= 5:
-            reason = "transit midpoint is shared by at least five campaign targets within 0.75 day"
-            existing = [
-                value.strip()
-                for value in str(row.get("rejection_reasons", "")).split(";")
-                if value.strip()
-            ]
-            if reason not in existing:
-                existing.append(reason)
-            row["rejection_reasons"] = "; ".join(existing)
-            row["status"] = "rejected"
-            report_path = Path(str(row.get("report", "")))
-            if report_path.exists():
-                report_payload = json.loads(report_path.read_text(encoding="utf-8"))
-                report_reasons = report_payload["automated_triage"]["rejection_reasons"]
-                if reason not in report_reasons:
-                    report_reasons.append(reason)
-                report_payload["automated_triage"]["passes"] = False
-                report_payload["campaign_common_mode_peer_count"] = len(peers)
-                report_path.write_text(json.dumps(report_payload, indent=2), encoding="utf-8")
+    common_mode_screen = _quarantine_invalid_common_mode(results)
 
     rejected_plot_retention: dict[str, object] = {
         "files_deleted": 0,
@@ -526,6 +776,7 @@ def _batch_hunt(args: argparse.Namespace) -> int:
         "target_list": str(target_path),
         "settings": _campaign_settings(args),
         "counts": _campaign_counts(results),
+        "campaign_level_screening": {"common_mode": common_mode_screen},
         "storage_retention": {
             "fits_cache": cache_retention,
             "rejected_plots": rejected_plot_retention,
@@ -536,10 +787,12 @@ def _batch_hunt(args: argparse.Namespace) -> int:
     _atomic_write_json(summary_path, summary)
     csv_path = output_dir / "batch_summary.csv"
     fieldnames = sorted({key for row in results for key in row})
-    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+    temporary_csv = csv_path.with_name(csv_path.name + ".tmp")
+    with temporary_csv.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(results)
+    _replace_with_retry(temporary_csv, csv_path)
     _, stats = record_campaign(summary_path)
     publish_progress("completed")
     print(f"\nSaved {summary_path} and {csv_path}")
@@ -1601,7 +1854,7 @@ def _hunt(args: argparse.Namespace) -> int:
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    stem = _safe_name(args.target + _sector_suffix(args.sector) + "_residual")
+    stem = _artifact_stem(str(args.target), int(tic_id), _sector_values(args.sector))
     report_path = output_dir / f"{stem}.json"
     plot_path = output_dir / f"{stem}.png"
     report = {
@@ -1610,6 +1863,12 @@ def _hunt(args: argparse.Namespace) -> int:
             "establish a new planet candidate."
         ),
         "data": metadata,
+        "search_configuration": _scientific_settings(args),
+        "observation_window": {
+            "start_btjd": float(np.nanmin(time)),
+            "end_btjd": float(np.nanmax(time)),
+            "measurements": int(len(time)),
+        },
         "search_mode": "catalog-masked residual" if ephemerides else "zero-known-planet star",
         "catalog_checked": catalog,
         "known_signal_masks": mask_records,
@@ -1640,8 +1899,12 @@ def _hunt(args: argparse.Namespace) -> int:
             "warning": "Passing this gate would still not establish a planet candidate.",
         },
     }
-    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    _plot_result(result, arrays, plot_path)
+    temporary_plot = plot_path.with_name(plot_path.stem + ".tmp.png")
+    _plot_result(result, arrays, temporary_plot)
+    _replace_with_retry(temporary_plot, plot_path)
+    # The report is the completion marker and is published only after its plot
+    # is durable. Resume validation requires both artifacts.
+    _atomic_write_json(report_path, report)
     args.generated_report_path = str(report_path)
     args.generated_plot_path = str(plot_path)
     if not getattr(args, "quiet", False):

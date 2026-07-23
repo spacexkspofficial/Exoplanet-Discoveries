@@ -11,6 +11,7 @@ requires-python = ">=3.11"
 dependencies = [
   "astropy>=6.0,<8",
   "fastapi>=0.116,<1",
+  "filelock>=3.13,<4",
   "lightkurve>=2.5,<3",
   "matplotlib>=3.8,<4",
   "numpy>=1.26,<3",

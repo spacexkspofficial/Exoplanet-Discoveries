@@ -69,7 +69,9 @@ def create_app(workspace: str | Path = WORKSPACE) -> FastAPI:
 
     @app.get("/data/survey.json")
     def survey_data() -> FileResponse:
-        output = export_dashboard_data(root)
+        output = dashboard_dir / "public" / "data" / "survey.json"
+        if not output.exists():
+            output = export_dashboard_data(root)
         if output is None or not output.exists():
             raise HTTPException(status_code=404, detail="Survey data is unavailable.")
         return FileResponse(

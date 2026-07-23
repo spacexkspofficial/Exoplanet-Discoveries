@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import threading
+import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from filelock import FileLock
 
 
 DEFAULT_LEDGER = Path("metrics/events.jsonl")
@@ -21,6 +26,22 @@ def _utc_now() -> str:
 def _canonical_hash(value: object) -> str:
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()[:20]
+
+
+def _atomic_write_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(
+        f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+    )
+    temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    for attempt in range(8):
+        try:
+            temporary.replace(path)
+            return
+        except PermissionError:
+            if attempt == 7:
+                raise
+            time.sleep(0.05 * (2**attempt))
 
 
 def _refresh_dashboard(
@@ -124,16 +145,22 @@ def append_event(
     snapshot = Path(snapshot_path)
     ledger.parent.mkdir(parents=True, exist_ok=True)
     snapshot.parent.mkdir(parents=True, exist_ok=True)
-    events = read_events(ledger)
-    event = {"timestamp_utc": _utc_now(), **event}
-    event.setdefault("event_id", _canonical_hash(event))
-    added = not any(existing.get("event_id") == event["event_id"] for existing in events)
-    if added:
-        with ledger.open("a", encoding="utf-8", newline="\n") as handle:
-            handle.write(json.dumps(event, sort_keys=True) + "\n")
-        events.append(event)
-    stats = _snapshot(events)
-    snapshot.write_text(json.dumps(stats, indent=2), encoding="utf-8")
+    lock = FileLock(str(ledger.with_suffix(ledger.suffix + ".lock")))
+    with lock.acquire(timeout=30):
+        events = read_events(ledger)
+        event = {"timestamp_utc": _utc_now(), **event}
+        event.setdefault("event_id", _canonical_hash(event))
+        added = not any(
+            existing.get("event_id") == event["event_id"] for existing in events
+        )
+        if added:
+            with ledger.open("a", encoding="utf-8", newline="\n") as handle:
+                handle.write(json.dumps(event, sort_keys=True) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            events.append(event)
+        stats = _snapshot(events)
+        _atomic_write_json(snapshot, stats)
     _refresh_dashboard(ledger, events, stats)
     return added, stats
 
@@ -152,14 +179,30 @@ def record_campaign(
         for reason in str(row.get("rejection_reasons", "")).split(";"):
             if reason.strip():
                 reason_counts[reason.strip()] += 1
-    identity = {
+    settings = dict(summary.get("settings") or {})
+    settings.pop("storage_retention", None)
+    campaign_identity = {
         "target_list": summary.get("target_list"),
-        "settings": summary.get("settings"),
+        "settings": settings,
         "targets": [(row.get("tic_id"), row.get("sectors")) for row in results],
     }
+    campaign_id = _canonical_hash(campaign_identity)
+    outcome_identity = [
+        (
+            row.get("tic_id"),
+            row.get("status"),
+            row.get("rejection_reasons"),
+            row.get("error"),
+        )
+        for row in results
+    ]
+    outcome_id = _canonical_hash(outcome_identity)
+    base_event_id = "campaign-" + campaign_id + "-" + outcome_id
     counts = summary.get("counts", {})
     event = {
-        "event_id": "campaign-" + _canonical_hash(identity),
+        "event_id": base_event_id,
+        "campaign_id": campaign_id,
+        "outcome_id": outcome_id,
         "kind": "campaign_completed",
         "summary_path": str(path),
         "target_list": summary.get("target_list"),
@@ -175,6 +218,51 @@ def record_campaign(
         "errors": int(counts.get("error", 0)),
         "rejection_reasons": dict(reason_counts),
     }
+    existing_events = read_events(ledger_path)
+    invalidated_ids = {
+        str(existing.get("invalidates_event_id"))
+        for existing in existing_events
+        if existing.get("kind") == "event_invalidated"
+    }
+    for existing in existing_events:
+        existing_id = str(existing.get("event_id") or "")
+        if (
+            existing.get("kind") == "campaign_completed"
+            and existing.get("campaign_id") == campaign_id
+            and existing_id not in invalidated_ids
+            and (
+                existing.get("outcome_id") == outcome_id
+                or existing_id == base_event_id
+                or existing_id.startswith(base_event_id + "-rev-")
+            )
+        ):
+            event["event_id"] = existing_id
+            return append_event(
+                event, ledger_path=ledger_path, snapshot_path=snapshot_path
+            )
+    if base_event_id in invalidated_ids:
+        revision_ids = {
+            str(existing.get("event_id"))
+            for existing in existing_events
+            if str(existing.get("event_id") or "").startswith(
+                base_event_id + "-rev-"
+            )
+        }
+        event["event_id"] = f"{base_event_id}-rev-{len(revision_ids) + 1}"
+    for existing in existing_events:
+        if (
+            existing.get("kind") == "campaign_completed"
+            and existing.get("campaign_id") == campaign_id
+            and existing.get("event_id") not in invalidated_ids
+            and existing.get("event_id") != event["event_id"]
+        ):
+            invalidate_event(
+                str(existing["event_id"]),
+                reason="Superseded by a corrected or retried campaign summary.",
+                source="record_campaign",
+                ledger_path=ledger_path,
+                snapshot_path=snapshot_path,
+            )
     return append_event(event, ledger_path=ledger_path, snapshot_path=snapshot_path)
 
 
@@ -267,10 +355,12 @@ def current_stats(
     ledger_path: str | Path = DEFAULT_LEDGER,
     snapshot_path: str | Path = DEFAULT_SNAPSHOT,
 ) -> dict[str, Any]:
-    events = read_events(ledger_path)
-    stats = _snapshot(events)
+    ledger = Path(ledger_path)
     snapshot = Path(snapshot_path)
-    snapshot.parent.mkdir(parents=True, exist_ok=True)
-    snapshot.write_text(json.dumps(stats, indent=2), encoding="utf-8")
+    lock = FileLock(str(ledger.with_suffix(ledger.suffix + ".lock")))
+    with lock.acquire(timeout=30):
+        events = read_events(ledger)
+        stats = _snapshot(events)
+        _atomic_write_json(snapshot, stats)
     _refresh_dashboard(ledger_path, events, stats)
     return stats

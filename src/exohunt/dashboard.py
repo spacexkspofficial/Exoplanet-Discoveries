@@ -6,6 +6,9 @@ import csv
 import hashlib
 import json
 import math
+import os
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -137,14 +140,22 @@ def export_dashboard_data(
 
     ledger_path = root / "metrics" / "events.jsonl"
     if events is None:
-        events = [
-            json.loads(line)
-            for line in ledger_path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
+        events = (
+            [
+                json.loads(line)
+                for line in ledger_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            if ledger_path.exists()
+            else []
+        )
     if stats is None:
         stats_path = root / "metrics" / "current_stats.json"
-        stats = json.loads(stats_path.read_text(encoding="utf-8"))
+        stats = (
+            json.loads(stats_path.read_text(encoding="utf-8"))
+            if stats_path.exists()
+            else {"campaign_runs_logged": 0}
+        )
 
     invalidated = {
         str(event["invalidates_event_id"])
@@ -319,6 +330,7 @@ def export_dashboard_data(
 
     priorities = {
         "searched": 0,
+        "search_error": 0,
         "false_positive": 1,
         "rediscovery": 2,
         "known_tce_rediscovery": 3,
@@ -331,16 +343,27 @@ def export_dashboard_data(
         ra = _optional_float(row.get("ra_deg"))
         dec = _optional_float(row.get("dec_deg"))
         distance = _optional_float(row.get("distance_pc"))
-        coordinate_source = "TIC"
+        direction_is_estimated = ra is None or dec is None
+        distance_is_estimated = distance is None or distance <= 0
         if ra is None or dec is None:
             ra, dec = _deterministic_direction(tic_id)
-            coordinate_source = "display fallback"
         if distance is None or distance <= 0:
             distance = 35.0 + tic_id % 110
-            coordinate_source = "display fallback"
+        if direction_is_estimated:
+            coordinate_source = "Estimated display direction and distance"
+        elif distance_is_estimated:
+            coordinate_source = "TIC sky position; estimated display distance"
+        else:
+            coordinate_source = "TIC sky position and distance"
 
-        status = "searched"
-        label = "Searched — no vetted signal"
+        signal = signals.get(tic_id, {})
+        is_search_error = signal.get("screening_status") == "error"
+        status = "search_error" if is_search_error else "searched"
+        label = (
+            "Search error — retry needed"
+            if is_search_error
+            else "Searched — no vetted signal"
+        )
         notes = ""
         for outcome in outcomes.get(tic_id, []):
             kind = str(outcome.get("kind"))
@@ -348,7 +371,6 @@ def export_dashboard_data(
                 status = kind
                 label = str(outcome.get("label") or label)
                 notes = str(outcome.get("notes") or "")
-        signal = signals.get(tic_id, {})
         sectors = signal.get("sectors") or _sectors(row.get("sectors"))
         observed_sectors.update(int(value) for value in sectors)
         star = {
@@ -360,6 +382,8 @@ def export_dashboard_data(
             "ra_deg": round(ra, 7),
             "dec_deg": round(dec, 7),
             "distance_pc": round(distance, 4),
+            "distance_is_estimated": distance_is_estimated,
+            "direction_is_estimated": direction_is_estimated,
             "coordinate_source": coordinate_source,
             "tmag": _optional_float(row.get("tmag")),
             "teff_k": _optional_float(row.get("teff_k")),
@@ -393,5 +417,16 @@ def export_dashboard_data(
     }
     output = dashboard / "public" / "data" / "survey.json"
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    temporary = output.with_name(
+        f"{output.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+    )
+    temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    for attempt in range(8):
+        try:
+            temporary.replace(output)
+            break
+        except PermissionError:
+            if attempt == 7:
+                raise
+            time.sleep(0.05 * (2**attempt))
     return output

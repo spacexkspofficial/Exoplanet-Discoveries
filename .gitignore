@@ -9,6 +9,15 @@
 *.jks
 credentials*.json
 secrets*.json
+token*.json
+auth*.json
+service-account*.json
+cookies*.txt
+.npmrc
+.pypirc
+.netrc
+id_rsa
+id_ed25519
 
 # Python
 .venv/
@@ -45,6 +54,8 @@ output/
 tmp/
 metrics/events.jsonl
 metrics/current_stats.json
+metrics/*.lock
+metrics/*.tmp
 dashboard/public/data/survey.json
 *.log
 

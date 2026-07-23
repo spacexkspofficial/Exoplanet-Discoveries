@@ -86,3 +86,41 @@ def test_dashboard_includes_active_campaign_checkpoint(tmp_path: Path):
     assert payload["stars"][0]["tic_id"] == 42
     assert payload["stars"][0]["screening_status"] == "rejected"
     assert payload["stars"][0]["distance_pc"] == 12.5
+
+
+def test_dashboard_distinguishes_search_errors_and_handles_empty_metrics(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "dashboard").mkdir()
+    (tmp_path / "targets").mkdir()
+    progress_path = (
+        tmp_path / "results" / "campaign" / "overnight" / "batch_progress.json"
+    )
+    progress_path.parent.mkdir(parents=True)
+    progress_path.write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "target_list": "targets/overnight.csv",
+                "total_targets": 1,
+                "completed_targets": 1,
+                "results": [
+                    {
+                        "target": "TIC 99",
+                        "tic_id": 99,
+                        "sectors": "105",
+                        "status": "error",
+                        "error": "temporary download failure",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output = export_dashboard_data(tmp_path)
+    payload = json.loads(output.read_text(encoding="utf-8"))
+
+    assert payload["status_counts"] == {"search_error": 1}
+    assert payload["stars"][0]["status_label"] == "Search error — retry needed"
+    assert payload["stats"]["campaign_runs_logged"] == 0
