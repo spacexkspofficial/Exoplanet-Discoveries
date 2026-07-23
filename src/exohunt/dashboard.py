@@ -292,6 +292,9 @@ def export_dashboard_data(
                 "observed_transits": result.get("observed_transits"),
                 "screening_status": result.get("status"),
                 "sectors": row_sectors,
+                "phase_curve_available": bool(
+                    result.get("phase_curve_available", False)
+                ),
             }
 
     # Active checkpoints override an older completed result for the same TIC so
@@ -311,6 +314,9 @@ def export_dashboard_data(
             "observed_transits": result.get("observed_transits"),
             "screening_status": result.get("status"),
             "sectors": row_sectors,
+            "phase_curve_available": bool(
+                result.get("phase_curve_available", False)
+            ),
         }
 
     outcomes: dict[int, list[dict[str, object]]] = {}
@@ -389,6 +395,7 @@ def export_dashboard_data(
             "teff_k": _optional_float(row.get("teff_k")),
             "stellar_radius_solar": _optional_float(row.get("stellar_radius_solar")),
             "sectors": sectors,
+            "phase_curve_available": False,
             **signal,
             **_cartesian(ra, dec, distance),
         }

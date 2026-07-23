@@ -225,6 +225,73 @@ def phase_fold(
     return phase[order], flux[order]
 
 
+def binned_phase_curve(
+    time: np.ndarray,
+    flux: np.ndarray,
+    period: float,
+    transit_time: float,
+    *,
+    bin_count: int = 160,
+    phase_min: float = -0.12,
+    phase_max: float = 0.12,
+) -> dict[str, object]:
+    """Return a compact, display-ready phase curve from actual photometry.
+
+    Only robust per-bin summaries are retained. This keeps the durable report
+    small while preserving the detected event's shape and local scatter.
+    """
+
+    if bin_count < 1:
+        raise ValueError("bin_count must be positive")
+    if not phase_min < phase_max:
+        raise ValueError("phase_min must be smaller than phase_max")
+
+    phase, folded_flux = phase_fold(time, flux, period, transit_time)
+    finite = np.isfinite(phase) & np.isfinite(folded_flux)
+    phase = phase[finite]
+    folded_flux = folded_flux[finite]
+    if phase.size == 0:
+        raise ValueError("phase curve requires at least one finite measurement")
+
+    baseline = float(np.median(folded_flux))
+    in_window = (phase >= phase_min) & (phase < phase_max)
+    window_phase = phase[in_window]
+    window_flux = folded_flux[in_window]
+    if window_phase.size == 0:
+        raise ValueError("phase curve window contains no measurements")
+
+    edges = np.linspace(phase_min, phase_max, bin_count + 1)
+    bin_indices = np.searchsorted(edges, window_phase, side="right") - 1
+    output_phase: list[float] = []
+    output_flux: list[float] = []
+    output_scatter: list[float] = []
+    output_count: list[int] = []
+    for index in range(bin_count):
+        values = window_flux[bin_indices == index]
+        if values.size == 0:
+            continue
+        median = float(np.median(values))
+        robust_scatter = float(1.4826 * np.median(np.abs(values - median)))
+        output_phase.append(round(float((edges[index] + edges[index + 1]) / 2), 6))
+        output_flux.append(round((median - baseline) * 1_000_000, 2))
+        output_scatter.append(round(robust_scatter * 1_000_000, 2))
+        output_count.append(int(values.size))
+
+    return {
+        "schema_version": 1,
+        "source": "actual normalized residual TESS photometry",
+        "phase_min": float(phase_min),
+        "phase_max": float(phase_max),
+        "bin_count": int(bin_count),
+        "phase": output_phase,
+        "median_residual_flux_ppm": output_flux,
+        "scatter_ppm": output_scatter,
+        "count": output_count,
+        "measurements_total": int(phase.size),
+        "measurements_in_range": int(window_phase.size),
+    }
+
+
 def harmonic_diagnostics(
     period_grid: np.ndarray,
     power: np.ndarray,

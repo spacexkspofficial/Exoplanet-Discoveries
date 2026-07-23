@@ -70,6 +70,7 @@ def test_dashboard_includes_active_campaign_checkpoint(tmp_path: Path):
                         "depth_snr": 9.2,
                         "duration_hours": 2,
                         "observed_transits": 4,
+                        "phase_curve_available": True,
                     }
                 ],
             }
@@ -86,6 +87,7 @@ def test_dashboard_includes_active_campaign_checkpoint(tmp_path: Path):
     assert payload["stars"][0]["tic_id"] == 42
     assert payload["stars"][0]["screening_status"] == "rejected"
     assert payload["stars"][0]["distance_pc"] == 12.5
+    assert payload["stars"][0]["phase_curve_available"] is True
 
 
 def test_dashboard_distinguishes_search_errors_and_handles_empty_metrics(

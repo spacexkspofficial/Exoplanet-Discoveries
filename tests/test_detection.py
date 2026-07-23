@@ -1,11 +1,31 @@
 import numpy as np
 
 from exohunt.detection import (
+    binned_phase_curve,
     harmonic_diagnostics,
     inject_box_transit,
     mask_periodic_events,
     search_transits,
 )
+
+
+def test_binned_phase_curve_preserves_actual_transit_shape_compactly():
+    time = np.linspace(0.0, 20.0, 10_000, endpoint=False)
+    period = 2.0
+    transit_time = 0.5
+    phase = ((time - transit_time + period / 2) % period) / period - 0.5
+    flux = np.ones_like(time)
+    flux[np.abs(phase) < 0.015] -= 0.004
+
+    curve = binned_phase_curve(time, flux, period, transit_time, bin_count=80)
+
+    assert curve["source"] == "actual normalized residual TESS photometry"
+    assert len(curve["phase"]) <= 80
+    assert len(curve["phase"]) == len(curve["median_residual_flux_ppm"])
+    assert len(curve["phase"]) == len(curve["scatter_ppm"])
+    assert sum(curve["count"]) == curve["measurements_in_range"]
+    center_index = int(np.argmin(np.abs(curve["phase"])))
+    assert curve["median_residual_flux_ppm"][center_index] < -3_500
 
 
 def test_recovers_synthetic_transit():

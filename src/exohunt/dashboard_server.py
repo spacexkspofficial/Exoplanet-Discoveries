@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import uvicorn
@@ -17,6 +18,54 @@ from .dashboard import export_dashboard_data
 WORKSPACE = Path(__file__).resolve().parents[2]
 DASHBOARD_DIR = WORKSPACE / "dashboard"
 DIST_DIR = DASHBOARD_DIR / "dist"
+
+
+def _phase_curve_for_tic(root: Path, tic_id: int) -> dict[str, object] | None:
+    """Load one compact curve without exposing arbitrary report files."""
+
+    results_root = (root / "results").resolve()
+    if not results_root.exists():
+        return None
+
+    state_paths = list(results_root.rglob("batch_progress.json"))
+    state_paths.extend(results_root.rglob("batch_summary.json"))
+    state_paths.sort(
+        key=lambda path: path.stat().st_mtime if path.exists() else 0,
+        reverse=True,
+    )
+    for state_path in state_paths:
+        try:
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        for result in state.get("results", []):
+            try:
+                result_tic_id = int(result.get("tic_id"))
+            except (TypeError, ValueError):
+                continue
+            if result_tic_id != tic_id:
+                continue
+            report_text = result.get("report")
+            if not isinstance(report_text, str) or not report_text:
+                continue
+            report_path = Path(report_text)
+            if not report_path.is_absolute():
+                report_path = root / report_path
+            report_path = report_path.resolve()
+            try:
+                report_path.relative_to(results_root)
+            except ValueError:
+                continue
+            if report_path.suffix.lower() != ".json" or not report_path.is_file():
+                continue
+            try:
+                report = json.loads(report_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            curve = report.get("phase_curve")
+            if isinstance(curve, dict):
+                return curve
+    return None
 
 
 def create_app(workspace: str | Path = WORKSPACE) -> FastAPI:
@@ -79,6 +128,21 @@ def create_app(workspace: str | Path = WORKSPACE) -> FastAPI:
             media_type="application/json",
             headers={"Cache-Control": "no-store"},
         )
+
+    @app.get("/api/targets/{tic_id}/phase-curve")
+    def phase_curve(tic_id: int) -> JSONResponse:
+        if tic_id <= 0:
+            raise HTTPException(status_code=400, detail="Invalid TIC identifier.")
+        curve = _phase_curve_for_tic(root, tic_id)
+        if curve is None:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "No actual curve is available because this star was searched "
+                    "before the feature was added."
+                ),
+            )
+        return JSONResponse({"tic_id": tic_id, "phase_curve": curve})
 
     assets_dir = dist_dir / "assets"
     if assets_dir.exists():

@@ -786,12 +786,34 @@ button {
   height: 118px;
 }
 
+.phase-unavailable {
+  display: grid;
+  min-height: 118px;
+  place-items: center;
+  padding: 16px;
+  border: 1px solid rgba(88, 129, 151, 0.2);
+  background: rgba(3, 18, 27, 0.46);
+  color: #8399a3;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 9px;
+  line-height: 1.55;
+  text-align: center;
+}
+
 .phase-labels {
   display: flex;
   justify-content: space-between;
   color: #6f8792;
   font-family: var(--font-geist-mono), monospace;
   font-size: 8px;
+}
+
+.phase-meta {
+  margin: 5px 0 0;
+  color: #607985;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 8px;
+  text-align: center;
 }
 
 .orbit-wrap {

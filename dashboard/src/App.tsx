@@ -39,9 +39,24 @@ type Star = {
   duration_hours: number | null;
   observed_transits: number | null;
   screening_status: string | null;
+  phase_curve_available: boolean;
   x: number;
   y: number;
   z: number;
+};
+
+type PhaseCurve = {
+  schema_version: number;
+  source: string;
+  phase_min: number;
+  phase_max: number;
+  bin_count: number;
+  phase: number[];
+  median_residual_flux_ppm: number[];
+  scatter_ppm: number[];
+  count: number[];
+  measurements_total: number;
+  measurements_in_range: number;
 };
 
 type ActiveCampaign = {
@@ -188,7 +203,7 @@ const HELP = {
   catalogueStatus: "The best current classification recorded by this local survey and public checks.",
   coordinateSource: "Where the star's sky position and distance information came from.",
   phaseFolded:
-    "An illustrative shape generated from the reported depth and duration. It is not observed or phase-folded TESS photometry.",
+    "Actual normalized residual TESS measurements, folded at the detected period and summarized into 160 compact bins. The line shows median residual brightness and the bars show robust scatter. Older searches do not have this stored curve.",
   phase:
     "Position within one repeating cycle. Phase zero is centered on the detected event.",
   orbitalDiagram:
@@ -355,7 +370,7 @@ function Marker({ status, small = false }: { status: Status; small?: boolean }) 
   );
 }
 
-function SignalSchematic({ star }: { star: Star }) {
+function ActualPhaseCurve({ curve, color }: { curve: PhaseCurve; color: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -370,48 +385,99 @@ function SignalSchematic({ star }: { star: Star }) {
     const w = rect.width;
     const h = rect.height;
     ctx.clearRect(0, 0, w, h);
+    const points = curve.phase
+      .map((phase, index) => ({
+        phase,
+        flux: curve.median_residual_flux_ppm[index],
+        scatter: curve.scatter_ppm[index] || 0,
+      }))
+      .filter(
+        (point) =>
+          Number.isFinite(point.phase) &&
+          Number.isFinite(point.flux) &&
+          Number.isFinite(point.scatter),
+      );
+    if (!points.length) return;
+
+    const sortedFlux = points.map((point) => point.flux).sort((a, b) => a - b);
+    const quantile = (fraction: number) =>
+      sortedFlux[Math.min(sortedFlux.length - 1, Math.floor((sortedFlux.length - 1) * fraction))];
+    let yMin = Math.min(0, quantile(0.02));
+    let yMax = Math.max(0, quantile(0.98));
+    const initialSpan = Math.max(10, yMax - yMin);
+    yMin -= initialSpan * 0.14;
+    yMax += initialSpan * 0.14;
+    const plotLeft = 34;
+    const plotRight = Math.max(plotLeft + 1, w - 4);
+    const plotTop = 7;
+    const plotBottom = h - 7;
+    const toX = (phase: number) =>
+      plotLeft +
+      ((phase - curve.phase_min) / (curve.phase_max - curve.phase_min)) *
+        (plotRight - plotLeft);
+    const toY = (flux: number) =>
+      plotBottom - ((flux - yMin) / (yMax - yMin)) * (plotBottom - plotTop);
+
     ctx.strokeStyle = "rgba(88, 129, 151, .22)";
     ctx.lineWidth = 1;
     for (let i = 1; i < 4; i++) {
+      const y = plotTop + ((plotBottom - plotTop) * i) / 4;
       ctx.beginPath();
-      ctx.moveTo(0, (h * i) / 4);
-      ctx.lineTo(w, (h * i) / 4);
+      ctx.moveTo(plotLeft, y);
+      ctx.lineTo(plotRight, y);
       ctx.stroke();
     }
-    const depth = Math.min(0.03, Math.max(0.002, (star.depth_ppm || 1800) / 1_000_000));
-    const duration = Math.min(0.1, Math.max(0.018, (star.duration_hours || 2) / 48));
-    const color = STATUS_META[star.status].color;
+    ctx.strokeStyle = "rgba(173, 208, 220, .28)";
+    ctx.beginPath();
+    ctx.moveTo(toX(0), plotTop);
+    ctx.lineTo(toX(0), plotBottom);
+    ctx.stroke();
+
+    ctx.font = "8px monospace";
+    ctx.fillStyle = "#718a95";
+    ctx.textAlign = "right";
+    ctx.fillText(`${Math.round(yMax)}`, plotLeft - 4, plotTop + 5);
+    ctx.fillText("0", plotLeft - 4, toY(0) + 3);
+    ctx.fillText(`${Math.round(yMin)}`, plotLeft - 4, plotBottom);
+
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.25;
+    for (const point of points) {
+      const x = toX(point.phase);
+      ctx.beginPath();
+      ctx.moveTo(x, toY(Math.min(yMax, point.flux + point.scatter)));
+      ctx.lineTo(x, toY(Math.max(yMin, point.flux - point.scatter)));
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
     ctx.strokeStyle = color;
     ctx.fillStyle = color;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    for (let i = 0; i <= 140; i++) {
-      const phase = (i / 140 - 0.5) * 0.24;
-      const dip = depth * Math.exp(-Math.pow(phase / duration, 4));
-      const y = 16 + (dip / depth) * (h - 40);
-      const x = (i / 140) * w;
-      if (i === 0) ctx.moveTo(x, y);
+    points.forEach((point, index) => {
+      const x = toX(point.phase);
+      const y = toY(Math.max(yMin, Math.min(yMax, point.flux)));
+      if (index === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
-    }
+    });
     ctx.stroke();
-    for (let i = 0; i < 75; i++) {
-      const phase = (i / 74 - 0.5) * 0.24;
-      const dip = depth * Math.exp(-Math.pow(phase / duration, 4));
-      const jitter = Math.sin(i * 12.91 + star.tic_id) * 3.4;
-      const y = 16 + (dip / depth) * (h - 40) + jitter;
-      const x = (i / 74) * w;
-      ctx.globalAlpha = 0.72;
+    for (const point of points) {
       ctx.beginPath();
-      ctx.arc(x, y, 1.35, 0, Math.PI * 2);
+      ctx.arc(
+        toX(point.phase),
+        toY(Math.max(yMin, Math.min(yMax, point.flux))),
+        1.1,
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
     }
-    ctx.globalAlpha = 1;
-  }, [star]);
+  }, [color, curve]);
   return (
     <canvas
       ref={canvasRef}
       className="phase-canvas"
-      aria-label="Illustrative signal shape; not observed TESS photometry"
+      aria-label="Actual binned phase-folded residual TESS photometry in parts per million"
     />
   );
 }
@@ -965,7 +1031,12 @@ export default function App() {
   const [minSnr, setMinSnr] = useState(0);
   const [sector, setSector] = useState("all");
   const [now, setNow] = useState(Date.now());
+  const [phaseCurve, setPhaseCurve] = useState<PhaseCurve | null>(null);
+  const [phaseCurveState, setPhaseCurveState] = useState<
+    "legacy" | "loading" | "ready" | "error"
+  >("legacy");
   const loadSequence = useRef(0);
+  const phaseCurveCache = useRef(new Map<number, PhaseCurve>());
 
   const loadSurvey = useCallback(async () => {
     const sequence = ++loadSequence.current;
@@ -1034,6 +1105,59 @@ export default function App() {
     () => survey?.stars.find((star) => star.tic_id === selectedId) || filteredStars[0] || null,
     [filteredStars, selectedId, survey],
   );
+
+  useEffect(() => {
+    if (!selected || !selected.phase_curve_available) {
+      setPhaseCurve(null);
+      setPhaseCurveState("legacy");
+      return;
+    }
+    const cached = phaseCurveCache.current.get(selected.tic_id);
+    if (cached) {
+      setPhaseCurve(cached);
+      setPhaseCurveState("ready");
+      return;
+    }
+
+    const controller = new AbortController();
+    setPhaseCurve(null);
+    setPhaseCurveState("loading");
+    const loadPhaseCurve = async () => {
+      try {
+        const response = await fetch(`/api/targets/${selected.tic_id}/phase-curve`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        if (response.status === 404) {
+          setPhaseCurveState("legacy");
+          return;
+        }
+        if (!response.ok) throw new Error(`Curve data returned ${response.status}`);
+        const payload = (await response.json()) as { phase_curve: PhaseCurve };
+        const curve = payload.phase_curve;
+        if (
+          !curve ||
+          !Array.isArray(curve.phase) ||
+          !Array.isArray(curve.median_residual_flux_ppm) ||
+          !Array.isArray(curve.scatter_ppm) ||
+          curve.phase.length === 0 ||
+          curve.phase.length !== curve.median_residual_flux_ppm.length ||
+          curve.phase.length !== curve.scatter_ppm.length
+        ) {
+          throw new Error("Curve data is incomplete");
+        }
+        phaseCurveCache.current.set(selected.tic_id, curve);
+        setPhaseCurve(curve);
+        setPhaseCurveState("ready");
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setPhaseCurve(null);
+        setPhaseCurveState("error");
+      }
+    };
+    void loadPhaseCurve();
+    return () => controller.abort();
+  }, [selected?.phase_curve_available, selected?.tic_id]);
 
   const submitSearch = (event: React.FormEvent) => {
     event.preventDefault();
@@ -1361,15 +1485,34 @@ export default function App() {
               <section className="mini-section">
                 <h2>
                   <InfoTerm description={HELP.phaseFolded}>
-                    ILLUSTRATIVE SIGNAL SHAPE <small>(NOT OBSERVED DATA)</small>
+                    PHASE-FOLDED SIGNAL <small>(ACTUAL BINNED TESS DATA)</small>
                   </InfoTerm>
                 </h2>
-                <SignalSchematic star={selected} />
-                <div className="phase-labels">
-                  <span>−0.10</span>
-                  <InfoTerm description={HELP.phase}>Phase</InfoTerm>
-                  <span>+0.10</span>
-                </div>
+                {phaseCurveState === "ready" && phaseCurve ? (
+                  <>
+                    <ActualPhaseCurve
+                      curve={phaseCurve}
+                      color={STATUS_META[selected.status].color}
+                    />
+                    <div className="phase-labels">
+                      <span>{fmt(phaseCurve.phase_min, 2)}</span>
+                      <InfoTerm description={HELP.phase}>Phase</InfoTerm>
+                      <span>+{fmt(phaseCurve.phase_max, 2)}</span>
+                    </div>
+                    <p className="phase-meta">
+                      Residual flux (ppm) ·{" "}
+                      {phaseCurve.measurements_in_range.toLocaleString()} measurements
+                    </p>
+                  </>
+                ) : (
+                  <div className="phase-unavailable" role="status">
+                    {phaseCurveState === "loading"
+                      ? "Loading actual curve…"
+                      : phaseCurveState === "error"
+                        ? "The actual curve could not be loaded."
+                        : "No actual curve for this star — it was searched before the feature was added."}
+                  </div>
+                )}
               </section>
               <section className="mini-section orbit-section">
                 <h2>

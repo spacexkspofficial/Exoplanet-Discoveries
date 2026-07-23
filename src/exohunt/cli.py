@@ -19,6 +19,7 @@ from filelock import FileLock, Timeout
 from .catalogs import check_tic, curated_cool_single_hosts, known_planet_host_tic_ids
 from .benchmarks import BENCHMARKS, compare_period
 from .detection import (
+    binned_phase_curve,
     evaluate_ephemeris,
     harmonic_diagnostics,
     independent_period_peaks,
@@ -716,6 +717,7 @@ def _run_batch_hunt(args: argparse.Namespace) -> int:
                 "rejection_reasons": "; ".join(triage["rejection_reasons"]),
                 "report": str(expected_report),
                 "plot": str(expected_report.with_suffix(".png")),
+                "phase_curve_available": isinstance(report.get("phase_curve"), dict),
             }
         except Exception as exc:
             result_row = {
@@ -1878,6 +1880,12 @@ def _hunt(args: argparse.Namespace) -> int:
             "removed_fraction": 1.0 - len(cleaned_time) / len(time),
             "width_factor": args.mask_width,
         },
+        "phase_curve": binned_phase_curve(
+            cleaned_time,
+            cleaned_flux,
+            result.period_days,
+            result.transit_time,
+        ),
         "strongest_residual_signal": result.to_dict(),
         "search_grid": {
             "period_samples": int(len(arrays["period_grid"])),
