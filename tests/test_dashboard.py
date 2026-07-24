@@ -90,6 +90,51 @@ def test_dashboard_includes_active_campaign_checkpoint(tmp_path: Path):
     assert payload["stars"][0]["phase_curve_available"] is True
 
 
+def test_dashboard_orders_live_campaign_after_retry_pending(tmp_path: Path) -> None:
+    (tmp_path / "dashboard").mkdir()
+    results = tmp_path / "results" / "campaign"
+    retry_dir = results / "a_retry"
+    running_dir = results / "z_running"
+    retry_dir.mkdir(parents=True)
+    running_dir.mkdir(parents=True)
+
+    (retry_dir / "batch_progress.json").write_text(
+        json.dumps(
+            {
+                "state": "retry_pending",
+                "target_list": "targets/retry.csv",
+                "total_targets": 5000,
+                "completed_targets": 5000,
+                "updated_at_utc": "2026-07-24T16:58:24+00:00",
+                "results": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (running_dir / "batch_progress.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "target_list": "targets/running.csv",
+                "total_targets": 5000,
+                "completed_targets": 42,
+                "updated_at_utc": "2026-07-24T17:20:00+00:00",
+                "results": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output = export_dashboard_data(tmp_path)
+    payload = json.loads(output.read_text(encoding="utf-8"))
+
+    assert [campaign["name"] for campaign in payload["active_campaigns"]] == [
+        "a_retry",
+        "z_running",
+    ]
+    assert payload["active_campaigns"][-1]["state"] == "running"
+
+
 def test_dashboard_distinguishes_search_errors_and_handles_empty_metrics(
     tmp_path: Path,
 ) -> None:

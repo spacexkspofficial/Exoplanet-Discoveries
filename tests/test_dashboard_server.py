@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from exohunt.dashboard_server import _phase_curve_for_tic
+from exohunt.dashboard_server import _phase_curve_for_tic, _prefer_live_campaign_last
 
 
 def _workspace(tmp_path: Path) -> tuple[Path, Path]:
@@ -11,6 +11,30 @@ def _workspace(tmp_path: Path) -> tuple[Path, Path]:
     run_dir = tmp_path / "results" / "campaign" / "test"
     run_dir.mkdir(parents=True)
     return dashboard, run_dir
+
+
+def test_live_campaign_is_last_for_older_dashboard_bundles() -> None:
+    payload = {
+        "active_campaigns": [
+            {
+                "name": "running",
+                "state": "running",
+                "updated_at_utc": "2026-07-24T17:20:00+00:00",
+            },
+            {
+                "name": "retry",
+                "state": "retry_pending",
+                "updated_at_utc": "2026-07-24T16:58:24+00:00",
+            },
+        ]
+    }
+
+    _prefer_live_campaign_last(payload)
+
+    assert [campaign["name"] for campaign in payload["active_campaigns"]] == [
+        "retry",
+        "running",
+    ]
 
 
 def test_phase_curve_endpoint_returns_only_compact_curve(tmp_path: Path):

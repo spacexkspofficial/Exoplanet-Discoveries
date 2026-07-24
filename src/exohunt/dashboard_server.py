@@ -20,6 +20,23 @@ DASHBOARD_DIR = WORKSPACE / "dashboard"
 DIST_DIR = DASHBOARD_DIR / "dist"
 
 
+def _prefer_live_campaign_last(payload: dict[str, object]) -> None:
+    """Keep the live/fresh campaign compatible with older dashboard bundles."""
+
+    campaigns = payload.get("active_campaigns")
+    if not isinstance(campaigns, list):
+        return
+    campaigns.sort(
+        key=lambda campaign: (
+            isinstance(campaign, dict)
+            and campaign.get("state") in {"running", "finalizing"},
+            str(campaign.get("updated_at_utc") or "")
+            if isinstance(campaign, dict)
+            else "",
+        )
+    )
+
+
 def _phase_curve_for_tic(root: Path, tic_id: int) -> dict[str, object] | None:
     """Load one compact curve without exposing arbitrary report files."""
 
@@ -117,17 +134,20 @@ def create_app(workspace: str | Path = WORKSPACE) -> FastAPI:
         )
 
     @app.get("/data/survey.json")
-    def survey_data() -> FileResponse:
+    def survey_data() -> JSONResponse:
         output = dashboard_dir / "public" / "data" / "survey.json"
         if not output.exists():
             output = export_dashboard_data(root)
         if output is None or not output.exists():
             raise HTTPException(status_code=404, detail="Survey data is unavailable.")
-        return FileResponse(
-            output,
-            media_type="application/json",
-            headers={"Cache-Control": "no-store"},
-        )
+        try:
+            payload = json.loads(output.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise HTTPException(
+                status_code=503, detail="Survey data is temporarily unavailable."
+            ) from error
+        _prefer_live_campaign_last(payload)
+        return JSONResponse(payload, headers={"Cache-Control": "no-store"})
 
     @app.get("/api/targets/{tic_id}/phase-curve")
     def phase_curve(tic_id: int) -> JSONResponse:

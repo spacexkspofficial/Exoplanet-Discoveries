@@ -491,6 +491,21 @@ function relativeUpdate(iso: string) {
   return `${Math.floor(minutes / 60)}h ago`;
 }
 
+function selectActiveCampaign(campaigns: ActiveCampaign[]) {
+  return campaigns.reduce<ActiveCampaign | undefined>((selected, campaign) => {
+    if (!selected) return campaign;
+
+    const campaignIsLive = campaign.state === "running" || campaign.state === "finalizing";
+    const selectedIsLive = selected.state === "running" || selected.state === "finalizing";
+    if (campaignIsLive !== selectedIsLive) return campaignIsLive ? campaign : selected;
+
+    return new Date(campaign.updated_at_utc).getTime() >
+      new Date(selected.updated_at_utc).getTime()
+      ? campaign
+      : selected;
+  }, undefined);
+}
+
 function niceScale(value: number) {
   if (!Number.isFinite(value) || value <= 0) return 1;
   const exponent = Math.floor(Math.log10(value));
@@ -1499,7 +1514,7 @@ export default function App() {
 
   const stats = survey?.stats || {};
   const activeCampaigns = survey?.active_campaigns || [];
-  const activeCampaign = activeCampaigns[activeCampaigns.length - 1];
+  const activeCampaign = selectActiveCampaign(activeCampaigns);
   const highlightedSector =
     sector !== "all"
       ? Number(sector)

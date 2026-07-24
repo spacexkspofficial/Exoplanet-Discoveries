@@ -257,6 +257,16 @@ def export_dashboard_data(
                 }
             )
 
+    # Keep a live coordinator last for compatibility with already-loaded
+    # dashboards that historically selected the final checkpoint in this list.
+    # Within the same state class, the freshest checkpoint wins.
+    active_campaigns.sort(
+        key=lambda campaign: (
+            campaign.get("state") in {"running", "finalizing"},
+            str(campaign.get("updated_at_utc") or ""),
+        )
+    )
+
     searched_ids = sorted(
         {
             int(tic_id)
