@@ -11,6 +11,10 @@ Then move to a curated target list, run the same search reproducibly, and vet
 the survivors against public catalogs and pixel data. Do not bulk-download raw
 full-frame images for this first stage.
 
+For a plain-English explanation of the planets this workflow favors, the ones
+it routinely misses, and why a null result is not a planet-free star, see
+[`DETECTION_LIMITS.md`](DETECTION_LIMITS.md).
+
 ## Setup on Windows
 
 Install 64-bit Python 3.11 or 3.12, open PowerShell in this directory, then run:
@@ -213,6 +217,11 @@ Each result is also assigned a scoped follow-up class:
 - `automated_survivor`: the signal enters `deep_followup_queue.json/.csv` for
   pixel localization, catalog/TCE checks, and independent-sector analysis.
 
+The queue is the handoff to a separate, storage-bounded workflow rather than a
+claim of discovery. See [`SURVIVOR_VETTING.md`](SURVIVOR_VETTING.md) for the
+catalog, pixel-localization, alternate-reduction, cross-survey, and promotion
+gates.
+
 Newly processed reports include a compact fixed-ephemeris injection sensitivity
 probe at representative periods. It is deliberately labeled as a local
 sensitivity diagnostic—not a blind completeness measurement.
@@ -239,8 +248,14 @@ the subsequent search:
 .\.venv\Scripts\exohunt.exe make-sector-targets `
   --target-list targets\sector105_2min_targets.csv --sector 105 `
   --limit 1000 --min-tmag 7 --max-tmag 12 `
+  --prefer-small-stars --max-stellar-radius 2 --max-teff 7000 `
   --output targets\sector105_overnight_1000.csv
 ```
+
+`--prefer-small-stars` preserves camera/CCD balance but queries compact TIC
+metadata and ranks dwarfs and smaller hosts ahead of giants. Its recorded
+radius/brightness merit is a deterministic target-selection heuristic, not a
+completeness calculation or a claim that a star is likely to host a planet.
 
 For the next non-overlapping batch, repeat the command with
 `--exclude-list targets\sector105_blank_small_batch.csv`. The adjacent JSON
@@ -276,6 +291,21 @@ of the lost light:
 
 The difference-image centroid is a screening measurement, not confirmation;
 one TESS pixel spans roughly 21 arcseconds.
+
+Before downloading more science data, collect compact cross-mission and nearby-
+source context for a survivor:
+
+```powershell
+.\.venv\Scripts\exohunt.exe context-vet `
+  --report path\to\sector105_signal.json
+```
+
+This metadata-only command refreshes NASA catalog rows, resolves TIC stellar
+properties and its Gaia cross-match, inventories MAST holdings from TESS,
+Kepler/K2, Hubble, Webb, and other collections, and screens TIC/Gaia-crossmatched
+neighbors. It downloads no light curves, images, or spectra. The report orders
+the evidence that is actually available so expensive follow-up can be limited
+to the strongest targets.
 
 Test the same ephemeris independently in each sector, then compare it with the
 official public MAST threshold-crossing-event tables:

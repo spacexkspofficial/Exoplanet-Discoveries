@@ -356,6 +356,8 @@ const HELP = {
     "Targets processed after the deeper-vetting feature was added, compared with eligible completed targets. Legacy-unmeasured targets are retained without pretending those newer checks ran retroactively.",
   parallelWorkers:
     "The live coordinator runs several analysis workers while a bounded download queue stages upcoming stars. One coordinator remains responsible for the checkpoint and dashboard.",
+  activeWorkers:
+    "Live tasks currently occupying worker slots. Analysis and download pools are shown separately because a star can be waiting on the archive while CPU analysis slots are idle, or vice versa. Configured capacity is not the same thing as active work.",
   searchErrors:
     "Targets whose data retrieval or analysis did not finish. They need a retry and are kept separate from completed no-signal searches.",
   planetRecoveries:
@@ -1509,6 +1511,13 @@ export default function App() {
       ? null
       : TESS_SECTOR_GEOMETRY.sectors[String(highlightedSector)] || null;
   const campaignPerformance = activeCampaign?.runtime?.performance;
+  const analysisWorkerCapacity = activeCampaign?.runtime?.analysis_workers || 1;
+  const downloadWorkerCapacity = activeCampaign?.runtime?.download_workers || 0;
+  const activeAnalysisWorkers = activeCampaign?.runtime?.analyses_in_flight || 0;
+  const activeDownloadWorkers = activeCampaign?.runtime?.downloads_in_flight || 0;
+  const activeWorkerCount = activeAnalysisWorkers + activeDownloadWorkers;
+  const workerSlotCount = analysisWorkerCapacity + downloadWorkerCapacity;
+  const idleWorkerCount = Math.max(0, workerSlotCount - activeWorkerCount);
   const activeProgress = activeCampaign?.total_targets
     ? Math.min(100, (activeCampaign.completed_targets / activeCampaign.total_targets) * 100)
     : 0;
@@ -1570,7 +1579,7 @@ export default function App() {
           <i />
           {survey
             ? activeCampaign
-              ? `${activeCampaign.name}: ${activeCampaign.completed_targets}/${activeCampaign.total_targets} · ${activeCampaign.runtime?.analysis_workers || 1} workers · updated ${relativeUpdate(activeCampaign.updated_at_utc)}`
+              ? `${activeCampaign.name}: ${activeCampaign.completed_targets}/${activeCampaign.total_targets} · ${activeWorkerCount}/${workerSlotCount} active · updated ${relativeUpdate(activeCampaign.updated_at_utc)}`
               : `Data updated ${relativeUpdate(survey.generated_at_utc)}`
             : "Connecting…"}
         </div>
@@ -1964,6 +1973,9 @@ export default function App() {
                 <InfoTerm description={HELP.estimatedTime}>
                   ETA {fmtDuration(campaignPerformance?.eta_hours)}
                 </InfoTerm>
+                <InfoTerm description={HELP.activeWorkers}>
+                  WORK {activeWorkerCount}/{workerSlotCount}
+                </InfoTerm>
               </div>
             ) : (
               <b>LIVE</b>
@@ -2030,9 +2042,11 @@ export default function App() {
               {Number(stats.campaign_runs_logged || 0)} campaign runs
             </InfoTerm>
             {activeCampaign ? (
-              <InfoTerm description={HELP.parallelWorkers}>
-                {activeCampaign.runtime?.analysis_workers || 1} analysis workers ·{" "}
-                {activeCampaign.runtime?.downloads_in_flight || 0} downloading ·{" "}
+              <InfoTerm description={HELP.activeWorkers}>
+                {activeWorkerCount}/{workerSlotCount} active ·{" "}
+                {activeAnalysisWorkers}/{analysisWorkerCapacity} analyzing ·{" "}
+                {activeDownloadWorkers}/{downloadWorkerCapacity} downloading ·{" "}
+                {idleWorkerCount} idle ·{" "}
                 {activeCampaign.runtime?.downloaded_waiting || 0} staged
               </InfoTerm>
             ) : null}

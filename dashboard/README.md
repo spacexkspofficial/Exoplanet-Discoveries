@@ -28,7 +28,9 @@ window`, `Strongest signal screened out`, `Single-event lead`, and `Automated
 survivor` classes. None of those labels means a star is planet-free, and an
 automated survivor is a follow-up lead rather than a vetted candidate. During a
 parallel campaign the live snapshot also reports analysis workers, downloads
-in flight, and staged targets.
+in flight, staged targets, and active versus configured worker slots. Analysis
+and download pools are reported separately so idle capacity is not shown as
+active work.
 
 The selected-sector overlay is mission geometry, not a box fitted to the local
 stars. It renders four TESS cameras and their sixteen CCD science-pixel

@@ -1,9 +1,14 @@
 import argparse
 import csv
+import hashlib
 import json
 from pathlib import Path
 
-from exohunt.cli import _make_sector_targets
+from exohunt.cli import (
+    _make_sector_targets,
+    _small_planet_merit,
+    _small_planet_selection_tier,
+)
 
 
 def test_make_sector_targets_balances_detectors_and_excludes_searched(tmp_path: Path):
@@ -48,4 +53,37 @@ def test_make_sector_targets_balances_detectors_and_excludes_searched(tmp_path: 
     manifest = json.loads(output.with_suffix(".json").read_text(encoding="utf-8"))
     assert manifest["selected_count"] == 4
     assert manifest["criteria"]["excluded_completed_campaign_tic_ids"] == 1
+    assert manifest["source_target_list_sha256"] == hashlib.sha256(
+        source.read_bytes()
+    ).hexdigest()
+    assert manifest["output_csv_sha256"] == hashlib.sha256(
+        output.read_bytes()
+    ).hexdigest()
+    assert manifest["criteria"]["exclude_ledger"] == str(ledger)
+    assert manifest["criteria"]["exclude_lists"] == []
 
+
+def test_small_planet_target_ranking_prefers_supported_dwarfs_over_giants():
+    assert (
+        _small_planet_selection_tier(
+            luminosity_class="DWARF",
+            stellar_radius_solar=0.7,
+            teff_k=4200.0,
+            max_stellar_radius_solar=2.0,
+            max_teff_k=7000.0,
+        )
+        == 0
+    )
+    assert (
+        _small_planet_selection_tier(
+            luminosity_class="GIANT",
+            stellar_radius_solar=6.0,
+            teff_k=4900.0,
+            max_stellar_radius_solar=2.0,
+            max_teff_k=7000.0,
+        )
+        == 6
+    )
+    assert _small_planet_merit(stellar_radius_solar=0.8, tmag=10.0) < (
+        _small_planet_merit(stellar_radius_solar=2.0, tmag=10.0)
+    )

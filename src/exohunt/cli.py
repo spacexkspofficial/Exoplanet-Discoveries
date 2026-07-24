@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import os
 import re
@@ -21,6 +22,7 @@ from filelock import FileLock, Timeout
 
 from .catalogs import check_tic, curated_cool_single_hosts, known_planet_host_tic_ids
 from .benchmarks import BENCHMARKS, compare_period
+from .context import query_cross_mission_context
 from .detection import (
     binned_phase_curve,
     evaluate_ephemeris,
@@ -1785,6 +1787,41 @@ def _tce_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def _context_vet(args: argparse.Namespace) -> int:
+    """Collect compact cross-mission metadata without downloading science data."""
+
+    source_report_path = Path(args.report)
+    source_report = json.loads(source_report_path.read_text(encoding="utf-8"))
+    data = source_report.get("data")
+    data = data if isinstance(data, dict) else {}
+    tic_id = args.tic or data.get("tic_id")
+    if not tic_id:
+        target = str(data.get("target") or source_report.get("target") or "")
+        match = re.search(r"\b(\d+)\b", target)
+        tic_id = int(match.group(1)) if match else None
+    if not tic_id:
+        raise RuntimeError("Could not infer a TIC ID; provide one with --tic.")
+
+    context = query_cross_mission_context(
+        int(tic_id),
+        mast_radius_arcsec=args.mast_radius_arcsec,
+        neighbor_radius_arcsec=args.neighbor_radius_arcsec,
+    )
+    signal = source_report.get("strongest_residual_signal")
+    if not isinstance(signal, dict):
+        signal = source_report.get("candidate_signal")
+    context["source_report"] = str(source_report_path)
+    context["signal_under_review"] = signal if isinstance(signal, dict) else None
+
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    report_path = output_dir / f"TIC_{int(tic_id)}_cross_mission_context.json"
+    _atomic_write_json(report_path, context)
+    print(json.dumps(context, indent=2))
+    print(f"\nSaved {report_path}")
+    return 0
+
+
 def _pixel_vet(args: argparse.Namespace) -> int:
     source_report_path = Path(args.report)
     source = json.loads(source_report_path.read_text(encoding="utf-8"))
@@ -2217,6 +2254,56 @@ def _optional_float(value: object) -> float | None:
     return result if np.isfinite(result) else None
 
 
+def _small_planet_selection_tier(
+    *,
+    luminosity_class: str,
+    stellar_radius_solar: float | None,
+    teff_k: float | None,
+    max_stellar_radius_solar: float,
+    max_teff_k: float,
+) -> int:
+    """Rank target suitability without pretending this is survey completeness."""
+
+    lumclass = luminosity_class.strip().upper()
+    radius_is_small = (
+        stellar_radius_solar is not None
+        and 0.1 <= stellar_radius_solar <= max_stellar_radius_solar
+    )
+    temperature_is_supported = (
+        teff_k is not None and 2500.0 <= teff_k <= max_teff_k
+    )
+    if lumclass == "DWARF":
+        if (
+            stellar_radius_solar is not None
+            and 0.1 <= stellar_radius_solar <= 1.5
+            and teff_k is not None
+            and 2500.0 <= teff_k <= min(max_teff_k, 6500.0)
+        ):
+            return 0
+        if radius_is_small and temperature_is_supported:
+            return 1
+        return 2
+    if lumclass not in {"GIANT", "SUBGIANT"} and radius_is_small:
+        return 3
+    if lumclass == "SUBGIANT":
+        return 4
+    if lumclass == "GIANT":
+        return 6
+    return 5
+
+
+def _small_planet_merit(
+    *,
+    stellar_radius_solar: float | None,
+    tmag: float,
+) -> float:
+    """Deterministic depth/brightness heuristic; lower is more favorable."""
+
+    if stellar_radius_solar is None or stellar_radius_solar <= 0:
+        return 999.0
+    return 2.0 * float(np.log10(stellar_radius_solar)) + 0.2 * tmag
+
+
 def _make_sector_targets(args: argparse.Namespace) -> int:
     """Build a large, local-only campaign from an official TESS target list."""
 
@@ -2265,22 +2352,113 @@ def _make_sector_targets(args: argparse.Namespace) -> int:
                 "ccd": ccd,
             }
         )
+    prefer_small_stars = bool(getattr(args, "prefer_small_stars", False))
+    if prefer_small_stars:
+        from astroquery.mast import Catalogs
+
+        candidates = [row for values in groups.values() for row in values]
+        tic_ids = [int(row["tic_id"]) for row in candidates]
+        metadata_by_tic: dict[int, object] = {}
+        batch_size = max(1, int(getattr(args, "tic_query_batch_size", 500)))
+        for start in range(0, len(tic_ids), batch_size):
+            table = Catalogs.query_criteria(
+                catalog="TIC", ID=tic_ids[start : start + batch_size]
+            )
+            for metadata in table:
+                metadata_by_tic[int(str(metadata["ID"]))] = metadata
+        max_radius = float(getattr(args, "max_stellar_radius", 2.0))
+        max_teff = float(getattr(args, "max_teff", 7000.0))
+        for row in candidates:
+            metadata = metadata_by_tic.get(int(row["tic_id"]))
+            if metadata is None:
+                luminosity_class = "UNKNOWN"
+                radius = None
+                teff = None
+                distance = None
+            else:
+                raw_lumclass = str(metadata["lumclass"]).strip().upper()
+                luminosity_class = (
+                    raw_lumclass
+                    if raw_lumclass not in {"", "--", "NAN", "NONE"}
+                    else "UNKNOWN"
+                )
+                radius = _optional_float(metadata["rad"])
+                teff = _optional_float(metadata["Teff"])
+                distance = _optional_float(metadata["d"])
+            row.update(
+                {
+                    "teff_k": teff,
+                    "stellar_radius_solar": radius,
+                    "distance_pc": distance,
+                    "luminosity_class": luminosity_class,
+                    "stellar_selection_tier": _small_planet_selection_tier(
+                        luminosity_class=luminosity_class,
+                        stellar_radius_solar=radius,
+                        teff_k=teff,
+                        max_stellar_radius_solar=max_radius,
+                        max_teff_k=max_teff,
+                    ),
+                    "small_planet_merit": round(
+                        _small_planet_merit(
+                            stellar_radius_solar=radius,
+                            tmag=float(row["tmag"]),
+                        ),
+                        6,
+                    ),
+                }
+            )
     for values in groups.values():
-        values.sort(key=lambda row: (float(row["tmag"]), int(row["tic_id"])))
+        values.sort(
+            key=lambda row: (
+                int(row.get("stellar_selection_tier", 0)),
+                float(row.get("small_planet_merit", 0.0)),
+                float(row["tmag"]),
+                int(row["tic_id"]),
+            )
+        )
 
     selected: list[dict[str, object]] = []
-    rank = 0
-    while len(selected) < args.limit:
-        added = False
-        for key in sorted(groups):
-            if rank < len(groups[key]):
-                selected.append(groups[key][rank])
-                added = True
-                if len(selected) == args.limit:
-                    break
-        if not added:
-            break
-        rank += 1
+    if prefer_small_stars:
+        # Reserve one quarter of an equal-share allocation for every detector, then
+        # spend the remaining sample on the strongest host-star merit globally.
+        # This preserves broad detector coverage without forcing weak giant-star
+        # targets into the list merely because one CCD has fewer suitable dwarfs.
+        per_group_quota = max(1, args.limit // (max(1, len(groups)) * 4))
+        selected_ids: set[int] = set()
+        for rank in range(per_group_quota):
+            for key in sorted(groups):
+                if rank < len(groups[key]) and len(selected) < args.limit:
+                    row = groups[key][rank]
+                    selected.append(row)
+                    selected_ids.add(int(row["tic_id"]))
+        remaining = sorted(
+            (
+                row
+                for values in groups.values()
+                for row in values
+                if int(row["tic_id"]) not in selected_ids
+            ),
+            key=lambda row: (
+                int(row.get("stellar_selection_tier", 0)),
+                float(row.get("small_planet_merit", 0.0)),
+                float(row["tmag"]),
+                int(row["tic_id"]),
+            ),
+        )
+        selected.extend(remaining[: max(0, args.limit - len(selected))])
+    else:
+        rank = 0
+        while len(selected) < args.limit:
+            added = False
+            for key in sorted(groups):
+                if rank < len(groups[key]):
+                    selected.append(groups[key][rank])
+                    added = True
+                    if len(selected) == args.limit:
+                        break
+            if not added:
+                break
+            rank += 1
     if len(selected) < args.limit:
         raise RuntimeError(
             f"Only {len(selected)} unsearched targets met the magnitude criteria; "
@@ -2298,13 +2476,40 @@ def _make_sector_targets(args: argparse.Namespace) -> int:
     manifest = {
         "created_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "source_target_list": str(source_path),
+        "source_target_list_sha256": hashlib.sha256(
+            source_path.read_bytes()
+        ).hexdigest(),
+        "output_csv_sha256": hashlib.sha256(output_path.read_bytes()).hexdigest(),
         "sector": args.sector,
         "criteria": {
             "tmag_range": [args.min_tmag, args.max_tmag],
+            "prefer_small_stars": prefer_small_stars,
+            "max_stellar_radius_solar": (
+                float(args.max_stellar_radius) if prefer_small_stars else None
+            ),
+            "max_teff_k": float(args.max_teff) if prefer_small_stars else None,
             "excluded_completed_campaign_tic_ids": len(excluded_tic_ids),
+            "exclude_ledger": str(args.exclude_ledger),
+            "exclude_lists": [
+                str(Path(value)) for value in args.exclude_list
+            ],
             "ordering": (
-                "round-robin across camera/CCD groups; within each group, "
-                "TESS magnitude ascending then TIC ID"
+                (
+                    "quarter-share camera/CCD quota followed by a global fill; "
+                    "small-planet stellar tier then approximate radius/brightness "
+                    "merit then TESS magnitude and TIC ID"
+                )
+                if prefer_small_stars
+                else (
+                    "round-robin across camera/CCD groups; within each group, "
+                    "TESS magnitude ascending then TIC ID"
+                )
+            ),
+            "small_planet_merit_warning": (
+                "The deterministic radius/brightness ranking improves target "
+                "triage but is not an occurrence-rate model or completeness result."
+                if prefer_small_stars
+                else None
             ),
             "catalog_handling": (
                 "NASA TOI and confirmed-planet rows are checked per target during "
@@ -2968,6 +3173,32 @@ def build_parser() -> argparse.ArgumentParser:
     sector_targets.add_argument("--min-tmag", type=float, default=7.0)
     sector_targets.add_argument("--max-tmag", type=float, default=12.0)
     sector_targets.add_argument(
+        "--prefer-small-stars",
+        action="store_true",
+        help=(
+            "Query compact TIC stellar metadata and rank dwarfs/smaller hosts "
+            "ahead of giants within each camera/CCD group."
+        ),
+    )
+    sector_targets.add_argument(
+        "--max-stellar-radius",
+        type=float,
+        default=2.0,
+        help="Preferred-host radius ceiling in solar radii (default: 2.0).",
+    )
+    sector_targets.add_argument(
+        "--max-teff",
+        type=float,
+        default=7000.0,
+        help="Preferred-host effective-temperature ceiling in kelvin (default: 7000).",
+    )
+    sector_targets.add_argument(
+        "--tic-query-batch-size",
+        type=int,
+        default=500,
+        help="TIC metadata IDs per catalog request (default: 500).",
+    )
+    sector_targets.add_argument(
         "--exclude-list",
         action="append",
         default=[],
@@ -3144,6 +3375,34 @@ def build_parser() -> argparse.ArgumentParser:
     tce_check.add_argument("--sector", type=int, nargs="+")
     tce_check.add_argument("--output-dir", default="results/tce_checks")
     tce_check.set_defaults(func=_tce_check)
+
+    context_vet = subparsers.add_parser(
+        "context-vet",
+        help=(
+            "Collect metadata-only TIC, NASA catalog, MAST mission-coverage, "
+            "and nearby-source context for a signal report."
+        ),
+    )
+    context_vet.add_argument("--report", required=True)
+    context_vet.add_argument(
+        "--tic",
+        type=int,
+        help="TIC ID if it cannot be inferred from the report.",
+    )
+    context_vet.add_argument(
+        "--mast-radius-arcsec",
+        type=float,
+        default=3.0,
+        help="MAST observation-match radius (default: 3 arcsec).",
+    )
+    context_vet.add_argument(
+        "--neighbor-radius-arcsec",
+        type=float,
+        default=42.0,
+        help="TIC/Gaia-crossmatch crowding radius (default: 42 arcsec).",
+    )
+    context_vet.add_argument("--output-dir", default="results/context_vet")
+    context_vet.set_defaults(func=_context_vet)
 
     inject = subparsers.add_parser(
         "inject-recover",
