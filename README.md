@@ -44,6 +44,20 @@ The 3D view converts ICRS positions into Sun-centered Galactic XYZ coordinates;
 its Milky Way mid-plane disk, distance rings, and vertical scale curves remain
 rigidly aligned with the stars while the camera orbits.
 
+Selecting a sector overlays its modeled TESS focal plane rather than a bounding
+box around locally searched stars. A sector is an angular observing footprint:
+four cameras, each split across four CCDs. The 3D map therefore draws sight
+lines from the observer and uses its outer distance only as a display cutoff,
+not as a physical sector boundary. The bundled Sector 1–107 geometry is
+generated from [`tess-point`](https://pypi.org/project/tess-point/); calibrated
+TESS image WCS remains the final authority for pixel-level measurements.
+Regenerate the compact dashboard geometry with:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[geometry]"
+.\.venv\Scripts\python.exe tools\generate_tess_sector_footprints.py
+```
+
 ## First successful experiment
 
 WASP-18 b is a deliberately easy, already-known signal. The point is to prove

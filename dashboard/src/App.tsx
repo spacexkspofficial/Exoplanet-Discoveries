@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import tessSectorGeometry from "./tess-sector-footprints.json";
 
 type Status =
   | "searched"
@@ -123,6 +124,40 @@ type SurveyData = {
 };
 
 type ViewMode = "3d" | "sky" | "earth";
+
+type FootprintPoint = {
+  ra_deg: number;
+  dec_deg: number;
+  x: number;
+  y: number;
+  z: number;
+};
+
+type TessSectorFootprint = {
+  sector: number;
+  frame: "ICRS/J2000";
+  spacecraft_boresight: {
+    ra_deg: number;
+    dec_deg: number;
+    roll_deg: number;
+  };
+  cameras: Array<{
+    camera: number;
+    boresight_ra_deg: number;
+    boresight_dec_deg: number;
+    outline: FootprintPoint[];
+    ccds: Array<{
+      ccd: number;
+      corners: FootprintPoint[];
+    }>;
+  }>;
+};
+
+const TESS_SECTOR_GEOMETRY = tessSectorGeometry as unknown as {
+  model: string;
+  precision_note: string;
+  sectors: Record<string, TessSectorFootprint>;
+};
 
 const STATUS_META: Record<
   Status,
@@ -341,7 +376,7 @@ const HELP = {
     "This sector is being processed now. Its orange fill grows as more targets finish.",
   noLocalTarget: "No searched target in the local ledger currently uses this sector.",
   sectorFootprint:
-    "A rigid outline around the full local star envelope for the highlighted TESS sector. In 3D it is a Galactic XYZ bounding volume; in projected views it encloses the mapped local targets. It is spatial context, not the exact four-camera detector footprint.",
+    "The modeled TESS observing footprint for the highlighted sector: four cameras with four CCDs each. In 3D the lines are angular sight lines extending from the observer, not a finite box in space. Boundaries come from the TESS focal-plane pointing model; calibrated-image WCS is the final pixel-level authority.",
 };
 
 function InfoTerm({
@@ -608,14 +643,14 @@ function ActualPhaseCurve({ curve, color }: { curve: PhaseCurve; color: string }
 
 function StarMap({
   stars,
-  sectorStars,
+  sectorFootprint,
   highlightedSector,
   selected,
   onSelect,
   mode,
 }: {
   stars: Star[];
-  sectorStars: Star[];
+  sectorFootprint: TessSectorFootprint | null;
   highlightedSector: number | null;
   selected: Star | null;
   onSelect: (star: Star) => void;
@@ -901,103 +936,118 @@ function StarMap({
       return projectGalacticPoint(star.x, star.y, star.z);
     };
 
-    if (highlightedSector !== null && sectorStars.length) {
+    if (highlightedSector !== null && sectorFootprint) {
       ctx.save();
-      ctx.strokeStyle = "rgba(255, 173, 32, .92)";
-      ctx.fillStyle = "rgba(255, 173, 32, .08)";
-      ctx.lineWidth = 1.35;
-      ctx.setLineDash([7, 4]);
-      let labelX = 18;
-      let labelY = 24;
+      const cameraColors = [
+        [255, 173, 32],
+        [255, 204, 92],
+        [255, 137, 72],
+        [255, 224, 138],
+      ] as const;
+      const sightLineDistance = maxDistance * 0.96;
+      const viewportCenterRa = 180 - pan.x / skyPixelsPerRaDegree;
 
-      if (mode === "3d") {
-        const paddedBounds = (coordinate: (star: Star) => number) => {
-          let low = Number.POSITIVE_INFINITY;
-          let high = Number.NEGATIVE_INFINITY;
-          for (const star of sectorStars) {
-            const value = coordinate(star);
-            if (!Number.isFinite(value)) continue;
-            low = Math.min(low, value);
-            high = Math.max(high, value);
-          }
-          if (!Number.isFinite(low) || !Number.isFinite(high)) return null;
-            const padding = Math.max(2, (high - low) * 0.06);
-            return [low - padding, high + padding] as const;
-        };
-        const xBounds = paddedBounds((star) => star.x);
-        const yBounds = paddedBounds((star) => star.y);
-        const zBounds = paddedBounds((star) => star.z);
-        if (xBounds && yBounds && zBounds) {
-          const [minX, maxX] = xBounds;
-          const [minY, maxY] = yBounds;
-          const [minZ, maxZ] = zBounds;
-          const corners: Array<[number, number, number]> = [
-            [minX, minY, minZ],
-            [maxX, minY, minZ],
-            [maxX, maxY, minZ],
-            [minX, maxY, minZ],
-            [minX, minY, maxZ],
-            [maxX, minY, maxZ],
-            [maxX, maxY, maxZ],
-            [minX, maxY, maxZ],
-          ];
-          const projectedCorners = corners.map(([pointX, pointY, pointZ]) =>
-            projectGalacticPoint(pointX, pointY, pointZ),
-          );
-          const edges = [
-            [0, 1],
-            [1, 2],
-            [2, 3],
-            [3, 0],
-            [4, 5],
-            [5, 6],
-            [6, 7],
-            [7, 4],
-            [0, 4],
-            [1, 5],
-            [2, 6],
-            [3, 7],
-          ];
-          for (const [start, end] of edges) {
+      const projectAngularPoint = (point: FootprintPoint) => {
+        if (mode === "earth") {
+          const angle = (point.ra_deg / 180) * Math.PI;
+          return {
+            x: cx + Math.cos(angle) * sightLineDistance * pixelsPerParsec,
+            y: cy + Math.sin(angle) * sightLineDistance * pixelsPerParsec * 0.74,
+          };
+        }
+        return projectGalacticPoint(
+          point.x * sightLineDistance,
+          point.y * sightLineDistance,
+          point.z * sightLineDistance,
+        );
+      };
+
+      const unwrapSkyPolygon = (points: FootprintPoint[]) => {
+        const unwrapped: Array<{ x: number; y: number }> = [];
+        let previousRa = points[0]?.ra_deg ?? viewportCenterRa;
+        while (previousRa - viewportCenterRa > 180) previousRa -= 360;
+        while (previousRa - viewportCenterRa < -180) previousRa += 360;
+        for (const point of points) {
+          let ra = point.ra_deg;
+          while (ra - previousRa > 180) ra -= 360;
+          while (ra - previousRa < -180) ra += 360;
+          unwrapped.push({
+            x: cx + (ra - 180) * skyPixelsPerRaDegree,
+            y: cy - point.dec_deg * skyPixelsPerDecDegree,
+          });
+          previousRa = ra;
+        }
+        return unwrapped;
+      };
+
+      const traceScreenPolygon = (
+        points: Array<{ x: number; y: number }>,
+      ) => {
+        ctx.beginPath();
+        points.forEach((point, index) => {
+          if (index === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        });
+        ctx.closePath();
+      };
+
+      sectorFootprint.cameras.forEach((camera, cameraIndex) => {
+        const [red, green, blue] = cameraColors[cameraIndex];
+        ctx.strokeStyle = `rgba(${red}, ${green}, ${blue}, .86)`;
+        ctx.fillStyle = `rgba(${red}, ${green}, ${blue}, .055)`;
+        ctx.lineWidth = 1.15;
+        ctx.setLineDash([]);
+
+        if (mode === "sky") {
+          camera.ccds.forEach((ccd) => {
+            const basePolygon = unwrapSkyPolygon(ccd.corners);
+            for (const wrapOffset of [-360, 0, 360]) {
+              const shifted = basePolygon.map((point) => ({
+                x: point.x + wrapOffset * skyPixelsPerRaDegree,
+                y: point.y,
+              }));
+              const minX = Math.min(...shifted.map((point) => point.x));
+              const maxX = Math.max(...shifted.map((point) => point.x));
+              if (maxX < -24 || minX > w + 24) continue;
+              traceScreenPolygon(shifted);
+              ctx.fill();
+              ctx.stroke();
+            }
+          });
+        } else {
+          const outline = camera.outline.map(projectAngularPoint);
+          outline.forEach((point, index) => {
+            const next = outline[(index + 1) % outline.length];
+            traceScreenPolygon([
+              { x: cx, y: cy },
+              point,
+              next,
+            ]);
+            ctx.fill();
+          });
+          ctx.setLineDash([6, 5]);
+          outline.forEach((point) => {
             ctx.beginPath();
-            ctx.moveTo(projectedCorners[start].x, projectedCorners[start].y);
-            ctx.lineTo(projectedCorners[end].x, projectedCorners[end].y);
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(point.x, point.y);
             ctx.stroke();
-          }
-          labelX = Math.max(
-            12,
-            Math.min(w - 190, Math.min(...projectedCorners.map((point) => point.x))),
-          );
-          labelY = Math.max(
-            18,
-            Math.min(h - 12, Math.min(...projectedCorners.map((point) => point.y)) - 7),
-          );
+          });
+          ctx.setLineDash([]);
+          camera.ccds.forEach((ccd) => {
+            traceScreenPolygon(ccd.corners.map(projectAngularPoint));
+            ctx.stroke();
+          });
         }
-      } else {
-        let minX = Number.POSITIVE_INFINITY;
-        let maxX = Number.NEGATIVE_INFINITY;
-        let minY = Number.POSITIVE_INFINITY;
-        let maxY = Number.NEGATIVE_INFINITY;
-        for (const star of sectorStars) {
-          const point = project(star);
-          minX = Math.min(minX, point.x);
-          maxX = Math.max(maxX, point.x);
-          minY = Math.min(minY, point.y);
-          maxY = Math.max(maxY, point.y);
-        }
-        minX -= 8;
-        maxX += 8;
-        minY -= 8;
-        maxY += 8;
-        ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
-        ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
-        labelX = Math.max(12, Math.min(w - 190, minX));
-        labelY = Math.max(18, Math.min(h - 12, minY - 7));
-      }
+      });
+
       ctx.setLineDash([]);
       ctx.fillStyle = "rgba(255, 202, 92, .96)";
       ctx.font = "700 10px var(--font-geist-mono)";
-      ctx.fillText(`SECTOR ${highlightedSector} · LOCAL ENVELOPE`, labelX, labelY);
+      ctx.fillText(
+        `SECTOR ${highlightedSector} · TESS CAMERA / CCD FOOTPRINT`,
+        18,
+        24,
+      );
       ctx.restore();
     }
 
@@ -1097,7 +1147,7 @@ function StarMap({
     mode,
     pan,
     rotation,
-    sectorStars,
+    sectorFootprint,
     selected,
     stars,
     zoom,
@@ -1237,7 +1287,7 @@ function StarMap({
         {highlightedSector !== null ? (
           <em>
             <InfoTerm description={HELP.sectorFootprint}>
-              OUTLINE: SECTOR {highlightedSector} LOCAL ENVELOPE
+              FOOTPRINT: SECTOR {highlightedSector} · {TESS_SECTOR_GEOMETRY.model}
             </InfoTerm>
           </em>
         ) : null}
@@ -1264,7 +1314,7 @@ function StarMap({
         <span>⊕ Scroll to zoom at cursor</span>
         <span>
           {highlightedSector !== null
-            ? `□ Sector ${highlightedSector} spatial envelope`
+            ? `□ Sector ${highlightedSector} camera sight lines`
             : mode === "3d"
               ? "◎ Rigid Galactic-plane grid"
               : "◎ Hover for info"}
@@ -1454,13 +1504,10 @@ export default function App() {
       : activeCampaign?.sectors?.length === 1
         ? activeCampaign.sectors[0]
         : null;
-  const highlightedSectorStars = useMemo(
-    () =>
-      highlightedSector === null || !survey
-        ? []
-        : survey.stars.filter((star) => star.sectors.includes(highlightedSector)),
-    [highlightedSector, survey],
-  );
+  const highlightedSectorFootprint =
+    highlightedSector === null
+      ? null
+      : TESS_SECTOR_GEOMETRY.sectors[String(highlightedSector)] || null;
   const campaignPerformance = activeCampaign?.runtime?.performance;
   const activeProgress = activeCampaign?.total_targets
     ? Math.min(100, (activeCampaign.completed_targets / activeCampaign.total_targets) * 100)
@@ -1662,7 +1709,7 @@ export default function App() {
           ) : (
             <StarMap
               stars={filteredStars}
-              sectorStars={highlightedSectorStars}
+              sectorFootprint={highlightedSectorFootprint}
               highlightedSector={highlightedSector}
               selected={selected}
               onSelect={(star) => setSelectedId(star.tic_id)}

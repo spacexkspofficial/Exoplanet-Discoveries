@@ -29,3 +29,10 @@ survivor` classes. None of those labels means a star is planet-free, and an
 automated survivor is a follow-up lead rather than a vetted candidate. During a
 parallel campaign the live snapshot also reports analysis workers, downloads
 in flight, and staged targets.
+
+The selected-sector overlay is mission geometry, not a box fitted to the local
+stars. It renders four TESS cameras and their sixteen CCD science-pixel
+boundaries in RA/Dec; the 3D and Earth views extend the same angular boundaries
+as sight lines from the observer. Their far end is only a visualization cutoff.
+The small bundled Sector 1–107 file is generated from the `tess-point` focal-
+plane model, while calibrated image WCS remains the final pixel-level authority.
