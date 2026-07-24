@@ -124,5 +124,86 @@ def test_dashboard_distinguishes_search_errors_and_handles_empty_metrics(
     payload = json.loads(output.read_text(encoding="utf-8"))
 
     assert payload["status_counts"] == {"search_error": 1}
-    assert payload["stars"][0]["status_label"] == "Search error — retry needed"
+    assert payload["stars"][0]["status_label"] == "Search error - retry needed"
     assert payload["stats"]["campaign_runs_logged"] == 0
+
+
+def test_dashboard_exports_scoped_screening_classes_and_runtime(tmp_path: Path) -> None:
+    (tmp_path / "dashboard").mkdir()
+    (tmp_path / "targets").mkdir()
+    progress_path = (
+        tmp_path / "results" / "campaign" / "triage" / "batch_progress.json"
+    )
+    progress_path.parent.mkdir(parents=True)
+    progress_path.write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "target_list": "targets/triage.csv",
+                "total_targets": 4,
+                "completed_targets": 4,
+                "runtime": {
+                    "analysis_workers": 3,
+                    "download_workers": 2,
+                    "prefetch_targets": 6,
+                },
+                "results": [
+                    {
+                        "target": "TIC 1",
+                        "tic_id": 1,
+                        "sectors": "105",
+                        "status": "rejected",
+                        "depth_snr": 4.0,
+                        "rejection_reasons": (
+                            "white-noise BLS depth S/N is below 7.1"
+                        ),
+                    },
+                    {
+                        "target": "TIC 2",
+                        "tic_id": 2,
+                        "sectors": "105",
+                        "status": "rejected",
+                        "depth_snr": 10.0,
+                        "rejection_reasons": (
+                            "fewer than two transit events are represented"
+                        ),
+                    },
+                    {
+                        "target": "TIC 3",
+                        "tic_id": 3,
+                        "sectors": "105",
+                        "status": "rejected",
+                        "depth_snr": 20.0,
+                        "rejection_reasons": (
+                            "a secondary eclipse is detected above 3 sigma"
+                        ),
+                    },
+                    {
+                        "target": "TIC 4",
+                        "tic_id": 4,
+                        "sectors": "105",
+                        "status": "survivor",
+                        "depth_snr": 12.0,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output = export_dashboard_data(tmp_path)
+    payload = json.loads(output.read_text(encoding="utf-8"))
+
+    assert payload["active_campaigns"][0]["runtime"]["analysis_workers"] == 3
+    assert payload["status_counts"] == {
+        "no_transit_detected": 1,
+        "single_event_lead": 1,
+        "screened_rejected": 1,
+        "automated_survivor": 1,
+    }
+    stars = {star["tic_id"]: star for star in payload["stars"]}
+    assert stars[1]["status"] == "no_transit_detected"
+    assert stars[2]["status"] == "single_event_lead"
+    assert stars[3]["status"] == "screened_rejected"
+    assert stars[4]["status"] == "automated_survivor"
+    assert all(star.get("planet_free") is not True for star in stars.values())

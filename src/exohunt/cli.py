@@ -8,9 +8,12 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import warnings
-from datetime import datetime, timezone
+from collections import deque
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -21,12 +24,14 @@ from .benchmarks import BENCHMARKS, compare_period
 from .detection import (
     binned_phase_curve,
     evaluate_ephemeris,
+    fixed_ephemeris_injection_sensitivity,
     harmonic_diagnostics,
     independent_period_peaks,
     inject_box_transit,
     mask_periodic_events,
     phase_fold,
     search_transits,
+    signal_vetting_diagnostics,
 )
 from .pixel import difference_image, target_pixel_from_sky_grid
 from .reporting import create_campaign_report, create_candidate_packet
@@ -38,6 +43,7 @@ from .metrics import (
     record_validation,
 )
 from .retention import (
+    directory_size_bytes,
     prune_fits_cache,
     prune_historical_rejected_plots,
     prune_rejected_plots,
@@ -47,6 +53,8 @@ from .tce import check_tces
 # This command writes PNG files and must also work on headless/portable Python
 # runtimes where Tk is not installed.
 os.environ.setdefault("MPLBACKEND", "Agg")
+
+_PLOT_LOCK = threading.Lock()
 
 
 def _safe_name(value: str) -> str:
@@ -66,6 +74,30 @@ def _sector_suffix(sector: int | list[int] | None) -> str:
     return "" if not values else "_s" + "-".join(str(value) for value in values)
 
 
+def _workspace_cache_dir(
+    cache_dir: str | Path,
+    *,
+    workspace_root: str | Path = ".",
+) -> Path:
+    """Resolve a cache only when it is a child of this project's data directory."""
+
+    workspace = Path(workspace_root).resolve()
+    data_root = (workspace / "data").resolve()
+    raw = Path(cache_dir)
+    resolved = (raw if raw.is_absolute() else workspace / raw).resolve()
+    try:
+        relative = resolved.relative_to(data_root)
+    except ValueError as exc:
+        raise ValueError(
+            f"Cache directory must be inside the project data directory: {data_root}"
+        ) from exc
+    if not relative.parts:
+        raise ValueError(
+            "Cache directory must be a dedicated child of the project data directory."
+        )
+    return resolved
+
+
 def _configured_lightkurve():
     cache_dir = Path(os.environ.get("EXOHUNT_CACHE_DIR", "data/lightkurve")).resolve()
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -76,6 +108,23 @@ def _configured_lightkurve():
 
     lk.conf.cache_dir = str(cache_dir)
     return lk, cache_dir
+
+
+def _thread_safe_lightkurve_download(method, **kwargs):
+    """Call a Lightkurve download without its process-global stdout redirect.
+
+    Lightkurve decorates SearchResult downloads by replacing ``sys.stdout`` for
+    the entire network request. Two concurrent calls can restore and close each
+    other's stream, terminating a parallel batch with "I/O operation on closed
+    file." ``functools.wraps`` exposes the original method, which is safe to
+    call concurrently (its progress text may interleave, but no stream closes).
+    """
+
+    original = getattr(method, "__wrapped__", None)
+    owner = getattr(method, "__self__", None)
+    if original is not None and owner is not None:
+        return original(owner, **kwargs)
+    return method(**kwargs)
 
 
 def _download_light_curve(
@@ -92,7 +141,8 @@ def _download_light_curve(
         search = lk.search_tesscut(target, sector=sectors[0])
         if len(search) == 0:
             raise RuntimeError(f"No public TESScut data found for {target!r} in Sector {sectors[0]}.")
-        tpf = search.download(
+        tpf = _thread_safe_lightkurve_download(
+            search.download,
             cutout_size=11,
             quality_bitmask="default",
             download_dir=str(cache_dir),
@@ -167,7 +217,8 @@ def _download_light_curve(
             + (f" in sectors {sectors}." if sectors else ".")
             + " Try --author TESS-SPOC or --author QLP."
         )
-    collection = search.download_all(
+    collection = _thread_safe_lightkurve_download(
+        search.download_all,
         quality_bitmask="default", download_dir=str(cache_dir)
     )
     if collection is None or len(collection) == 0:
@@ -210,26 +261,33 @@ def _plot_result(result, arrays: dict[str, np.ndarray], destination: Path) -> No
     matplotlib_cache.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("MPLCONFIGDIR", str(matplotlib_cache))
     os.environ.setdefault("MPLBACKEND", "Agg")
-    import matplotlib.pyplot as plt
+    # pyplot owns process-global state. Analysis may run concurrently, but
+    # rendering remains serialized so one target cannot corrupt another plot.
+    with _PLOT_LOCK:
+        import matplotlib.pyplot as plt
 
-    phase, folded_flux = phase_fold(
-        arrays["time"], arrays["flux"], result.period_days, result.transit_time
-    )
-    fig, axes = plt.subplots(3, 1, figsize=(10, 9), constrained_layout=True)
-    axes[0].scatter(arrays["time"], arrays["flux"], s=2, alpha=0.55)
-    axes[0].set(xlabel="Time (BTJD)", ylabel="Normalized flux", title="Detrended light curve")
-    axes[1].plot(arrays["period_grid"], arrays["power"], lw=0.8)
-    axes[1].axvline(result.period_days, color="tab:red", ls="--", lw=1)
-    axes[1].set(xlabel="Period (days)", ylabel="BLS power", title="Period search")
-    axes[2].scatter(phase, folded_flux, s=3, alpha=0.4)
-    axes[2].set(
-        xlabel="Orbital phase",
-        ylabel="Normalized flux",
-        title=f"Strongest signal folded at {result.period_days:.6f} days",
-        xlim=(-0.2, 0.2),
-    )
-    fig.savefig(destination, dpi=160)
-    plt.close(fig)
+        phase, folded_flux = phase_fold(
+            arrays["time"], arrays["flux"], result.period_days, result.transit_time
+        )
+        fig, axes = plt.subplots(3, 1, figsize=(10, 9), constrained_layout=True)
+        axes[0].scatter(arrays["time"], arrays["flux"], s=2, alpha=0.55)
+        axes[0].set(
+            xlabel="Time (BTJD)",
+            ylabel="Normalized flux",
+            title="Detrended light curve",
+        )
+        axes[1].plot(arrays["period_grid"], arrays["power"], lw=0.8)
+        axes[1].axvline(result.period_days, color="tab:red", ls="--", lw=1)
+        axes[1].set(xlabel="Period (days)", ylabel="BLS power", title="Period search")
+        axes[2].scatter(phase, folded_flux, s=3, alpha=0.4)
+        axes[2].set(
+            xlabel="Orbital phase",
+            ylabel="Normalized flux",
+            title=f"Strongest signal folded at {result.period_days:.6f} days",
+            xlim=(-0.2, 0.2),
+        )
+        fig.savefig(destination, dpi=160)
+        plt.close(fig)
 
 
 def _analyze(args: argparse.Namespace) -> int:
@@ -378,10 +436,24 @@ def _scientific_settings(args: argparse.Namespace) -> dict[str, object]:
 
 
 def _campaign_settings(args: argparse.Namespace) -> dict[str, object]:
+    workers = max(1, int(getattr(args, "workers", 1)))
+    prefetch = getattr(args, "prefetch", None)
+    prefetch = max(workers, int(prefetch) if prefetch is not None else workers * 2)
     return {
         **_scientific_settings(args),
+        "execution": {
+            "analysis_workers": workers,
+            "download_workers": min(2, workers),
+            "prefetch_targets": prefetch,
+            "checkpoint_writer": "single coordinator",
+        },
         "storage_retention": {
             "fits_cache_max_gb": float(getattr(args, "cache_max_gb", 2.0)),
+            "workspace_max_gb": (
+                float(args.workspace_max_gb)
+                if getattr(args, "workspace_max_gb", None) is not None
+                else None
+            ),
             "retain_rejected_plots": bool(
                 getattr(args, "retain_rejected_plots", False)
             ),
@@ -399,6 +471,114 @@ def _campaign_counts(results: list[dict[str, object]]) -> dict[str, int]:
     return {
         status: sum(row.get("status") == status for row in results)
         for status in ("survivor", "rejected", "error")
+    }
+
+
+def _vetting_coverage(results: list[dict[str, object]]) -> dict[str, object]:
+    """Report mixed legacy/new vetting cohorts without implying retroactive checks."""
+
+    tier_counts: dict[str, int] = {}
+    pipeline_version_counts: dict[str, int] = {}
+    for row in results:
+        tier = str(row.get("vetting_tier") or "legacy_unmeasured")
+        tier_counts[tier] = tier_counts.get(tier, 0) + 1
+        pipeline_version = str(
+            row.get("data_pipeline_version") or "legacy_unversioned"
+        )
+        pipeline_version_counts[pipeline_version] = (
+            pipeline_version_counts.get(pipeline_version, 0) + 1
+        )
+    legacy = tier_counts.get("legacy_unmeasured", 0)
+    retry_required = tier_counts.get("retry_required", 0)
+    eligible = max(0, len(results) - retry_required)
+    measured = max(0, eligible - legacy)
+    return {
+        "eligible_targets": eligible,
+        "measured_targets": measured,
+        "legacy_unmeasured_targets": legacy,
+        "coverage_fraction": round(measured / eligible, 4) if eligible else None,
+        "tier_counts": dict(sorted(tier_counts.items())),
+        "pipeline_version_counts": dict(sorted(pipeline_version_counts.items())),
+        "warning": (
+            "Legacy-unmeasured rows were completed before deeper vetting existed "
+            "and have not been retroactively reprocessed."
+            if legacy
+            else None
+        ),
+    }
+
+
+def _performance_snapshot(
+    results: list[dict[str, object]],
+    *,
+    started_at_utc: str,
+    total_targets: int,
+    now: datetime | None = None,
+    rolling_minutes: float = 15.0,
+) -> dict[str, object]:
+    """Summarize campaign throughput without treating reused rows as new work."""
+
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    try:
+        started = datetime.fromisoformat(started_at_utc.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        started = current
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    elapsed_hours = max((current - started).total_seconds() / 3600.0, 1 / 3600)
+    completed = len(results)
+    average_rate = completed / elapsed_hours
+
+    completion_times: list[datetime] = []
+    cutoff = current - timedelta(minutes=rolling_minutes)
+    for row in results:
+        value = row.get("completed_at_utc")
+        if not value:
+            continue
+        try:
+            completed_at = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if completed_at.tzinfo is None:
+            completed_at = completed_at.replace(tzinfo=timezone.utc)
+        if cutoff <= completed_at <= current + timedelta(minutes=1):
+            completion_times.append(completed_at)
+    completion_times.sort()
+    if len(completion_times) >= 2:
+        rolling_span_hours = max(
+            (completion_times[-1] - completion_times[0]).total_seconds() / 3600.0,
+            1 / 3600,
+        )
+        rolling_rate: float | None = (
+            (len(completion_times) - 1) / rolling_span_hours
+        )
+    else:
+        rolling_rate = None
+
+    effective_rate = rolling_rate if rolling_rate and rolling_rate > 0 else average_rate
+    remaining = max(0, total_targets - completed)
+    eta_hours = remaining / effective_rate if effective_rate > 0 else None
+    estimated_completion = (
+        current + timedelta(hours=eta_hours)
+        if eta_hours is not None
+        else None
+    )
+    return {
+        "average_stars_per_hour": round(average_rate, 1),
+        "rolling_stars_per_hour": (
+            round(rolling_rate, 1) if rolling_rate is not None else None
+        ),
+        "rolling_window_minutes": float(rolling_minutes),
+        "rolling_samples": len(completion_times),
+        "elapsed_hours": round(elapsed_hours, 2),
+        "eta_hours": round(eta_hours, 2) if eta_hours is not None else None,
+        "estimated_completion_utc": (
+            estimated_completion.replace(microsecond=0).isoformat()
+            if estimated_completion is not None
+            else None
+        ),
     }
 
 
@@ -557,6 +737,182 @@ def _load_reusable_report(
     return report
 
 
+def _result_row_from_report(
+    report: dict[str, object],
+    *,
+    target: str,
+    tic_id: int,
+    sectors: list[int],
+    expected_report: Path,
+    run_state: str,
+) -> dict[str, object]:
+    signal = dict(report["strongest_residual_signal"])
+    triage = dict(report["automated_triage"])
+    rejection_reasons = [
+        str(value).strip()
+        for value in triage.get("rejection_reasons", [])
+        if str(value).strip()
+    ]
+    classification = report.get("followup_classification")
+    if not isinstance(classification, dict):
+        classification = _classify_screening_result(
+            argparse.Namespace(**signal),
+            rejection_reasons,
+        )
+    sensitivity = report.get("sensitivity_probe")
+    sensitivity = sensitivity if isinstance(sensitivity, dict) else None
+    deeper_vetting = report.get("deeper_vetting")
+    deeper_vetting = (
+        deeper_vetting if isinstance(deeper_vetting, dict) else None
+    )
+    report_configuration = report.get("search_configuration")
+    report_configuration = (
+        report_configuration if isinstance(report_configuration, dict) else None
+    )
+    try:
+        completed_at_utc = (
+            datetime.fromtimestamp(expected_report.stat().st_mtime, timezone.utc)
+            .replace(microsecond=0)
+            .isoformat()
+        )
+    except OSError:
+        completed_at_utc = (
+            datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        )
+    return {
+        "target": target,
+        "tic_id": tic_id,
+        "sectors": ";".join(str(value) for value in sectors),
+        "run_state": run_state,
+        "completed_at_utc": completed_at_utc,
+        "status": "survivor" if triage["passes"] else "rejected",
+        "screening_class": classification["screening_class"],
+        "followup_priority": int(classification["followup_priority"]),
+        "followup_reasons": "; ".join(classification["followup_reasons"]),
+        "vetting_tier": classification.get("vetting_tier", "legacy_unmeasured"),
+        "data_pipeline_version": (
+            report_configuration.get("data_pipeline_version", "unversioned")
+            if report_configuration is not None
+            else "legacy_unversioned"
+        ),
+        "scientific_configuration_verified": report_configuration is not None,
+        "deeper_vetting_flags": "; ".join(
+            str(value)
+            for value in classification.get("deeper_vetting_flags", [])
+        ),
+        "recommended_data_sources": "; ".join(
+            str(value)
+            for value in classification.get("recommended_data_sources", [])
+        ),
+        "planet_free": False,
+        "period_days": signal["period_days"],
+        "depth_ppm": signal["depth_ppm"],
+        "depth_snr": signal["depth_snr"],
+        "observed_transits": signal["observed_transits"],
+        "transit_time": signal["transit_time"],
+        "duration_hours": signal["duration_hours"],
+        "rejection_reasons": "; ".join(rejection_reasons),
+        "report": str(expected_report),
+        "plot": str(expected_report.with_suffix(".png")),
+        "phase_curve_available": isinstance(report.get("phase_curve"), dict),
+        "sensitivity_3d_ppm": _sensitivity_depth_at_period(sensitivity, 3.0),
+        "sensitivity_12d_ppm": _sensitivity_depth_at_period(sensitivity, 12.0),
+        "red_noise_adjusted_snr": (
+            deeper_vetting.get("red_noise_adjusted_snr")
+            if deeper_vetting is not None
+            else None
+        ),
+        "event_coverage_fraction": (
+            deeper_vetting.get("event_coverage_fraction")
+            if deeper_vetting is not None
+            else None
+        ),
+        "positive_depth_event_fraction": (
+            deeper_vetting.get("positive_depth_event_fraction")
+            if deeper_vetting is not None
+            else None
+        ),
+    }
+
+
+def _publish_followup_queue(
+    output_dir: Path,
+    results: list[dict[str, object]],
+) -> None:
+    queued = sorted(
+        (
+            {
+                "tic_id": row.get("tic_id"),
+                "target": row.get("target"),
+                "sectors": row.get("sectors"),
+                "screening_class": row.get("screening_class"),
+                "followup_priority": int(row.get("followup_priority", 0)),
+                "followup_reasons": row.get("followup_reasons", ""),
+                "vetting_tier": row.get("vetting_tier", "legacy_unmeasured"),
+                "deeper_vetting_flags": row.get("deeper_vetting_flags", ""),
+                "recommended_data_sources": row.get(
+                    "recommended_data_sources", ""
+                ),
+                "period_days": row.get("period_days"),
+                "depth_ppm": row.get("depth_ppm"),
+                "depth_snr": row.get("depth_snr"),
+                "observed_transits": row.get("observed_transits"),
+                "sensitivity_3d_ppm": row.get("sensitivity_3d_ppm"),
+                "sensitivity_12d_ppm": row.get("sensitivity_12d_ppm"),
+                "red_noise_adjusted_snr": row.get("red_noise_adjusted_snr"),
+                "event_coverage_fraction": row.get("event_coverage_fraction"),
+                "positive_depth_event_fraction": row.get(
+                    "positive_depth_event_fraction"
+                ),
+                "report": row.get("report"),
+            }
+            for row in results
+            if row.get("status") != "error"
+            and int(row.get("followup_priority", 0)) >= 50
+        ),
+        key=lambda row: (-int(row["followup_priority"]), int(row["tic_id"])),
+    )
+    payload = {
+        "schema_version": 1,
+        "generated_at_utc": datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat(),
+        "warning": (
+            "Queue entries are automated leads, not planet candidates. A missing "
+            "entry does not establish that a star has no planet."
+        ),
+        "targets": queued,
+    }
+    _atomic_write_json(output_dir / "deep_followup_queue.json", payload)
+    fieldnames = [
+        "tic_id",
+        "target",
+        "sectors",
+        "screening_class",
+        "followup_priority",
+        "followup_reasons",
+        "vetting_tier",
+        "deeper_vetting_flags",
+        "recommended_data_sources",
+        "period_days",
+        "depth_ppm",
+        "depth_snr",
+        "observed_transits",
+        "sensitivity_3d_ppm",
+        "sensitivity_12d_ppm",
+        "red_noise_adjusted_snr",
+        "event_coverage_fraction",
+        "positive_depth_event_fraction",
+        "report",
+    ]
+    temporary = output_dir / "deep_followup_queue.csv.tmp"
+    with temporary.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(queued)
+    _replace_with_retry(temporary, output_dir / "deep_followup_queue.csv")
+
+
 def _batch_hunt(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -574,15 +930,148 @@ def _batch_hunt(args: argparse.Namespace) -> int:
         lock.release()
 
 
+def _batch_target_spec(
+    index: int,
+    row: dict[str, str],
+    output_dir: Path,
+) -> dict[str, object]:
+    target = row["target"]
+    tic_id = int(row["tic_id"])
+    sectors = [int(value) for value in row["sectors"].split(";") if value]
+    stem = _artifact_stem(target, tic_id, sectors)
+    return {
+        "index": index,
+        "target": target,
+        "tic_id": tic_id,
+        "sectors": sectors,
+        "expected_report": output_dir / f"{stem}.json",
+    }
+
+
+def _download_batch_target(
+    spec: dict[str, object],
+    args: argparse.Namespace,
+) -> tuple[np.ndarray, np.ndarray, dict[str, object]]:
+    for attempt in range(1, 4):
+        try:
+            return _download_light_curve(
+                str(spec["target"]),
+                list(spec["sectors"]),
+                args.author,
+                args.cadence_seconds,
+            )
+        except Exception as exc:
+            if attempt >= 3 or not _is_transient_search_error(exc):
+                raise
+            delay = 2 ** (attempt - 1)
+            print(
+                f"{spec['target']}: transient download failure "
+                f"(attempt {attempt}/3: {exc}); retrying in {delay}s",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+    raise RuntimeError("Download retry loop exited unexpectedly.")
+
+
+def _analyze_downloaded_batch_target(
+    spec: dict[str, object],
+    args: argparse.Namespace,
+    downloaded: tuple[np.ndarray, np.ndarray, dict[str, object]],
+    output_dir: Path,
+) -> dict[str, object]:
+    hunt_args = argparse.Namespace(
+        target=str(spec["target"]),
+        tic=int(spec["tic_id"]),
+        sector=list(spec["sectors"]),
+        author=args.author,
+        cadence_seconds=args.cadence_seconds,
+        min_period=args.min_period,
+        max_period=args.max_period,
+        mask_width=args.mask_width,
+        allow_no_known=args.allow_no_known,
+        output_dir=str(output_dir),
+        quiet=True,
+    )
+    time_values, flux_values, metadata = downloaded
+    for attempt in range(1, 4):
+        try:
+            _hunt_from_light_curve(hunt_args, time_values, flux_values, metadata)
+            break
+        except Exception as exc:
+            if attempt >= 3 or not _is_transient_search_error(exc):
+                raise
+            delay = 2 ** (attempt - 1)
+            print(
+                f"{spec['target']}: transient catalog/analysis failure "
+                f"(attempt {attempt}/3: {exc}); retrying in {delay}s",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+    report_path = Path(hunt_args.generated_report_path)
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    return _result_row_from_report(
+        report,
+        target=str(spec["target"]),
+        tic_id=int(spec["tic_id"]),
+        sectors=list(spec["sectors"]),
+        expected_report=Path(spec["expected_report"]),
+        run_state="completed",
+    )
+
+
+def _batch_error_row(
+    spec: dict[str, object],
+    exc: Exception,
+) -> dict[str, object]:
+    return {
+        "target": spec["target"],
+        "tic_id": spec["tic_id"],
+        "sectors": ";".join(str(value) for value in spec["sectors"]),
+        "run_state": "error",
+        "completed_at_utc": (
+            datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        ),
+        "status": "error",
+        "screening_class": "search_error",
+        "followup_priority": 100,
+        "followup_reasons": "retry data retrieval or analysis",
+        "vetting_tier": "retry_required",
+        "data_pipeline_version": "not_completed",
+        "scientific_configuration_verified": False,
+        "deeper_vetting_flags": "",
+        "recommended_data_sources": "",
+        "planet_free": False,
+        "error": str(exc),
+    }
+
+
 def _run_batch_hunt(args: argparse.Namespace) -> int:
     target_path = Path(args.targets)
     rows = _read_target_rows(target_path)
     if args.max_targets is not None:
+        if int(args.max_targets) <= 0:
+            raise ValueError("--max-targets must be greater than zero.")
         rows = rows[: args.max_targets]
     if not rows:
         raise RuntimeError("Target CSV contains no rows.")
     output_dir = Path(args.output_dir)
-    results: list[dict[str, object]] = []
+    output_dir.mkdir(parents=True, exist_ok=True)
+    workers = max(1, int(getattr(args, "workers", 1)))
+    if workers > 8:
+        raise ValueError("At most 8 analysis workers are supported.")
+    prefetch_arg = getattr(args, "prefetch", None)
+    prefetch = max(
+        workers,
+        int(prefetch_arg) if prefetch_arg is not None else workers * 2,
+    )
+    if prefetch > 64:
+        raise ValueError("At most 64 targets may be staged for download-ahead.")
+    download_workers = min(2, workers)
+    specs = [
+        _batch_target_spec(index, row, output_dir)
+        for index, row in enumerate(rows, start=1)
+    ]
+    results_by_index: dict[int, dict[str, object]] = {}
     started_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     progress_path = output_dir / "batch_progress.json"
     previous_progress: dict[str, object] = {}
@@ -597,31 +1086,210 @@ def _run_batch_hunt(args: argparse.Namespace) -> int:
         target_path=target_path,
         total_targets=len(rows),
     )
-    if allow_legacy_reports and previous_progress.get("started_at_utc"):
+    same_campaign_checkpoint = (
+        str(previous_progress.get("target_list") or "") == str(target_path)
+        and int(previous_progress.get("total_targets") or 0) == len(rows)
+    )
+    if same_campaign_checkpoint and previous_progress.get("started_at_utc"):
         started_at = str(previous_progress["started_at_utc"])
-    cache_max_bytes = int(float(getattr(args, "cache_max_gb", 2.0)) * 1_000_000_000)
-    cache_dir = Path(os.environ.get("EXOHUNT_CACHE_DIR", "data/lightkurve"))
+    cache_max_gb = float(getattr(args, "cache_max_gb", 2.0))
+    if not np.isfinite(cache_max_gb) or cache_max_gb <= 0:
+        raise ValueError("--cache-max-gb must be a finite number greater than zero.")
+    cache_max_bytes = int(cache_max_gb * 1_000_000_000)
+    workspace_max_gb = getattr(args, "workspace_max_gb", None)
+    if workspace_max_gb is not None and (
+        not np.isfinite(float(workspace_max_gb)) or float(workspace_max_gb) <= 0
+    ):
+        raise ValueError(
+            "--workspace-max-gb must be a finite number greater than zero."
+        )
+    workspace_max_bytes = (
+        int(float(workspace_max_gb) * 1_000_000_000)
+        if workspace_max_gb is not None
+        else None
+    )
+    workspace_root = Path.cwd().resolve()
+    workspace_headroom_bytes = (
+        min(
+            1_000_000_000,
+            max(100_000_000, workspace_max_bytes // 20),
+        )
+        if workspace_max_bytes is not None
+        else 0
+    )
+    cache_dir = _workspace_cache_dir(
+        os.environ.get("EXOHUNT_CACHE_DIR", "data/lightkurve"),
+        workspace_root=workspace_root,
+    )
     cache_retention = {
         "files_deleted": 0,
         "bytes_deleted": 0,
         "last_bytes_after": 0,
+        "configured_max_bytes": cache_max_bytes,
+        "effective_max_bytes": cache_max_bytes,
+        "workspace_max_bytes": workspace_max_bytes,
+        "workspace_headroom_bytes": workspace_headroom_bytes,
+        "workspace_bytes_before": None,
+        "workspace_bytes_after": None,
         "errors": [],
     }
+    rolling_plot_retention = {
+        "files_deleted": 0,
+        "bytes_deleted": 0,
+        "errors": [],
+    }
+    runtime_state: dict[str, object] = {
+        "analysis_workers": workers,
+        "download_workers": download_workers,
+        "prefetch_targets": prefetch,
+        "downloads_in_flight": 0,
+        "analyses_in_flight": 0,
+        "downloaded_waiting": 0,
+        "targets_remaining": 0,
+    }
+    last_progress_publish = 0.0
 
     def roll_cache() -> None:
+        if not getattr(args, "retain_rejected_plots", False):
+            try:
+                plot_report = prune_rejected_plots(
+                    results_by_index.values(),
+                    results_root=output_dir,
+                    workspace_root=workspace_root,
+                )
+                rolling_plot_retention["files_deleted"] += int(
+                    plot_report["files_deleted"]
+                )
+                rolling_plot_retention["bytes_deleted"] += int(
+                    plot_report["bytes_deleted"]
+                )
+            except Exception as exc:
+                message = str(exc)
+                if message not in rolling_plot_retention["errors"]:
+                    rolling_plot_retention["errors"].append(message)
+                    print(
+                        f"rejected-plot retention warning: {message}",
+                        file=sys.stderr,
+                    )
+
         try:
+            workspace_before = (
+                directory_size_bytes(workspace_root)
+                if workspace_max_bytes is not None
+                else None
+            )
             report = prune_fits_cache(cache_dir, max_bytes=cache_max_bytes)
+            effective_cache_max = cache_max_bytes
+            if workspace_max_bytes is not None:
+                workspace_after_initial = max(
+                    0,
+                    int(workspace_before or 0)
+                    - int(report["bytes_deleted"]),
+                )
+                non_cache_bytes = max(
+                    0, workspace_after_initial - int(report["bytes_after"])
+                )
+                effective_cache_max = min(
+                    cache_max_bytes,
+                    max(
+                        0,
+                        workspace_max_bytes
+                        - workspace_headroom_bytes
+                        - non_cache_bytes,
+                    ),
+                )
+                if int(report["bytes_after"]) > effective_cache_max:
+                    second_report = prune_fits_cache(
+                        cache_dir,
+                        max_bytes=effective_cache_max,
+                    )
+                    report["files_deleted"] = int(report["files_deleted"]) + int(
+                        second_report["files_deleted"]
+                    )
+                    report["bytes_deleted"] = int(report["bytes_deleted"]) + int(
+                        second_report["bytes_deleted"]
+                    )
+                    report["bytes_after"] = int(second_report["bytes_after"])
+
+            workspace_after = (
+                directory_size_bytes(workspace_root)
+                if workspace_max_bytes is not None
+                else None
+            )
+            if (
+                workspace_max_bytes is not None
+                and workspace_after is not None
+                and workspace_after > workspace_max_bytes
+            ):
+                emergency_report = prune_fits_cache(cache_dir, max_bytes=0)
+                report["files_deleted"] = int(report["files_deleted"]) + int(
+                    emergency_report["files_deleted"]
+                )
+                report["bytes_deleted"] = int(report["bytes_deleted"]) + int(
+                    emergency_report["bytes_deleted"]
+                )
+                report["bytes_after"] = int(emergency_report["bytes_after"])
+                workspace_after = directory_size_bytes(workspace_root)
+            if (
+                workspace_max_bytes is not None
+                and workspace_after is not None
+                and workspace_after > workspace_max_bytes
+            ):
+                raise RuntimeError(
+                    "The project workspace remains above "
+                    f"{workspace_max_bytes / 1_000_000_000:.2f} GB after "
+                    "removing all re-downloadable cache data. Increase the "
+                    "workspace limit or remove durable artifacts before resuming."
+                )
         except Exception as exc:
             message = str(exc)
             if message not in cache_retention["errors"]:
                 cache_retention["errors"].append(message)
                 print(f"storage retention warning: {message}", file=sys.stderr)
+            if workspace_max_bytes is not None:
+                raise
             return
         cache_retention["files_deleted"] += int(report["files_deleted"])
         cache_retention["bytes_deleted"] += int(report["bytes_deleted"])
         cache_retention["last_bytes_after"] = int(report["bytes_after"])
+        cache_retention["effective_max_bytes"] = effective_cache_max
+        cache_retention["workspace_bytes_before"] = workspace_before
+        cache_retention["workspace_bytes_after"] = workspace_after
+        runtime_state["storage"] = {
+            "workspace_bytes": workspace_after,
+            "workspace_max_bytes": workspace_max_bytes,
+            "workspace_headroom_bytes": (
+                workspace_max_bytes - int(workspace_after)
+                if workspace_max_bytes is not None and workspace_after is not None
+                else None
+            ),
+            "download_cache_bytes": int(report["bytes_after"]),
+            "download_cache_effective_max_bytes": effective_cache_max,
+        }
+
+    def ordered_results() -> list[dict[str, object]]:
+        return [results_by_index[index] for index in sorted(results_by_index)]
 
     def publish_progress(state: str = "running") -> None:
+        nonlocal last_progress_publish
+        now_monotonic = time.monotonic()
+        # Reports are durable per target and are rediscovered on resume, so
+        # limiting large checkpoint/dashboard rewrites to the browser's polling
+        # cadence loses no completed work and avoids quadratic write pressure.
+        if (
+            state == "running"
+            and last_progress_publish
+            and now_monotonic - last_progress_publish < 5.0
+        ):
+            return
+        last_progress_publish = now_monotonic
+        results = ordered_results()
+        runtime_state["performance"] = _performance_snapshot(
+            results,
+            started_at_utc=started_at,
+            total_targets=len(rows),
+        )
+        runtime_state["vetting_coverage"] = _vetting_coverage(results)
         progress = {
             "schema_version": 1,
             "state": state,
@@ -634,10 +1302,12 @@ def _run_batch_hunt(args: argparse.Namespace) -> int:
             "total_targets": len(rows),
             "completed_targets": len(results),
             "settings": _campaign_settings(args),
+            "runtime": runtime_state,
             "counts": _campaign_counts(results),
             "results": results,
         }
         _atomic_write_json(progress_path, progress)
+        _publish_followup_queue(output_dir, results)
         try:
             from .dashboard import export_dashboard_data
 
@@ -646,102 +1316,171 @@ def _run_batch_hunt(args: argparse.Namespace) -> int:
             # Search checkpoints remain authoritative if the optional UI refresh fails.
             pass
 
-    publish_progress()
-    for index, row in enumerate(rows, start=1):
-        target = row["target"]
-        tic_id = int(row["tic_id"])
-        sectors = [int(value) for value in row["sectors"].split(";") if value]
-        stem = _artifact_stem(target, tic_id, sectors)
-        expected_report = output_dir / f"{stem}.json"
+    pending_specs: deque[dict[str, object]] = deque()
+    for spec in specs:
         try:
             report = (
                 None
                 if args.force
                 else _load_reusable_report(
-                    expected_report,
-                    target=target,
-                    tic_id=tic_id,
-                    sectors=sectors,
+                    Path(spec["expected_report"]),
+                    target=str(spec["target"]),
+                    tic_id=int(spec["tic_id"]),
+                    sectors=list(spec["sectors"]),
                     args=args,
                     allow_legacy=allow_legacy_reports,
                 )
             )
             if report is not None:
-                run_state = "resumed"
+                results_by_index[int(spec["index"])] = _result_row_from_report(
+                    report,
+                    target=str(spec["target"]),
+                    tic_id=int(spec["tic_id"]),
+                    sectors=list(spec["sectors"]),
+                    expected_report=Path(spec["expected_report"]),
+                    run_state="resumed",
+                )
             else:
-                hunt_args = argparse.Namespace(
-                    target=target,
-                    tic=tic_id,
-                    sector=sectors,
-                    author=args.author,
-                    cadence_seconds=args.cadence_seconds,
-                    min_period=args.min_period,
-                    max_period=args.max_period,
-                    mask_width=args.mask_width,
-                    allow_no_known=args.allow_no_known,
-                    output_dir=str(output_dir),
-                    quiet=True,
-                )
-                for attempt in range(1, 4):
-                    try:
-                        _hunt(hunt_args)
-                        break
-                    except Exception as exc:
-                        if attempt >= 3 or not _is_transient_search_error(exc):
-                            raise
-                        delay = 2 ** (attempt - 1)
-                        print(
-                            f"{target}: transient retrieval/analysis failure "
-                            f"(attempt {attempt}/3: {exc}); retrying in {delay}s",
-                            file=sys.stderr,
-                        )
-                        time.sleep(delay)
-                report = json.loads(
-                    Path(hunt_args.generated_report_path).read_text(encoding="utf-8")
-                )
-                run_state = "completed"
-            signal = report["strongest_residual_signal"]
-            triage = report["automated_triage"]
-            result_row = {
-                "target": target,
-                "tic_id": tic_id,
-                "sectors": ";".join(str(value) for value in sectors),
-                "run_state": run_state,
-                "status": "survivor" if triage["passes"] else "rejected",
-                "period_days": signal["period_days"],
-                "depth_ppm": signal["depth_ppm"],
-                "depth_snr": signal["depth_snr"],
-                "observed_transits": signal["observed_transits"],
-                "transit_time": signal["transit_time"],
-                "duration_hours": signal["duration_hours"],
-                "rejection_reasons": "; ".join(triage["rejection_reasons"]),
-                "report": str(expected_report),
-                "plot": str(expected_report.with_suffix(".png")),
-                "phase_curve_available": isinstance(report.get("phase_curve"), dict),
-            }
+                pending_specs.append(spec)
         except Exception as exc:
-            result_row = {
-                "target": target,
-                "tic_id": tic_id,
-                "sectors": ";".join(str(value) for value in sectors),
-                "run_state": "error",
-                "status": "error",
-                "error": str(exc),
+            pending_specs.append(spec)
+
+    runtime_state["targets_remaining"] = len(pending_specs)
+    # Enforce storage before any new download is submitted. Subsequent rolling
+    # passes preserve headroom for the bounded prefetch queue.
+    roll_cache()
+    publish_progress()
+
+    download_futures: dict[Future, dict[str, object]] = {}
+    analysis_futures: dict[Future, dict[str, object]] = {}
+    downloaded_waiting: deque[
+        tuple[dict[str, object], tuple[np.ndarray, np.ndarray, dict[str, object]]]
+    ] = deque()
+    completed_since_prune = 0
+    cache_prune_due = False
+
+    def refresh_runtime() -> None:
+        runtime_state.update(
+            {
+                "downloads_in_flight": len(download_futures),
+                "analyses_in_flight": len(analysis_futures),
+                "downloaded_waiting": len(downloaded_waiting),
+                "targets_remaining": (
+                    len(pending_specs)
+                    + len(download_futures)
+                    + len(downloaded_waiting)
+                    + len(analysis_futures)
+                ),
             }
-        results.append(result_row)
+        )
+
+    def submit_downloads(executor: ThreadPoolExecutor) -> None:
+        if cache_prune_due:
+            return
+        staged = (
+            len(download_futures)
+            + len(downloaded_waiting)
+            + len(analysis_futures)
+        )
+        while (
+            pending_specs
+            and len(download_futures) < download_workers
+            and staged < prefetch
+        ):
+            spec = pending_specs.popleft()
+            future = executor.submit(_download_batch_target, spec, args)
+            download_futures[future] = spec
+            staged += 1
+
+    def submit_analyses(executor: ThreadPoolExecutor) -> None:
+        while downloaded_waiting and len(analysis_futures) < workers:
+            spec, downloaded = downloaded_waiting.popleft()
+            future = executor.submit(
+                _analyze_downloaded_batch_target,
+                spec,
+                args,
+                downloaded,
+                output_dir,
+            )
+            analysis_futures[future] = spec
+
+    def record_result(spec: dict[str, object], result_row: dict[str, object]) -> None:
+        nonlocal completed_since_prune, cache_prune_due
+        result_row.setdefault(
+            "completed_at_utc",
+            datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        )
+        results_by_index[int(spec["index"])] = result_row
+        completed_since_prune += 1
+        if completed_since_prune >= 10:
+            cache_prune_due = True
+        refresh_runtime()
         publish_progress()
-        roll_cache()
+        completed = len(results_by_index)
         print(
-            f"[{index}/{len(rows)}] {target}: {result_row['status']}"
+            f"[{completed}/{len(rows)}] {spec['target']}: {result_row['status']}"
             + (
-                f" at {float(result_row['period_days']):.5f} d, "
+                f" / {result_row.get('screening_class', 'unclassified')} "
+                f"at {float(result_row['period_days']):.5f} d, "
                 f"S/N {float(result_row['depth_snr']):.2f}"
                 if "period_days" in result_row
                 else f" ({result_row.get('error', 'unknown error')})"
             )
         )
 
+    with (
+        ThreadPoolExecutor(
+            max_workers=download_workers,
+            thread_name_prefix="exohunt-download",
+        ) as download_executor,
+        ThreadPoolExecutor(
+            max_workers=workers,
+            thread_name_prefix="exohunt-analysis",
+        ) as analysis_executor,
+    ):
+        submit_downloads(download_executor)
+        while (
+            pending_specs
+            or download_futures
+            or downloaded_waiting
+            or analysis_futures
+        ):
+            submit_analyses(analysis_executor)
+            submit_downloads(download_executor)
+            refresh_runtime()
+            active_futures = set(download_futures) | set(analysis_futures)
+            if not active_futures:
+                if cache_prune_due:
+                    roll_cache()
+                    completed_since_prune = 0
+                    cache_prune_due = False
+                    submit_downloads(download_executor)
+                    continue
+                raise RuntimeError("Parallel batch scheduler stalled without active work.")
+            done, _ = wait(active_futures, return_when=FIRST_COMPLETED)
+            for future in done:
+                if future in download_futures:
+                    spec = download_futures.pop(future)
+                    try:
+                        downloaded_waiting.append((spec, future.result()))
+                    except Exception as exc:
+                        record_result(spec, _batch_error_row(spec, exc))
+                else:
+                    spec = analysis_futures.pop(future)
+                    try:
+                        result_row = future.result()
+                    except Exception as exc:
+                        result_row = _batch_error_row(spec, exc)
+                    record_result(spec, result_row)
+            if cache_prune_due and not download_futures:
+                roll_cache()
+                completed_since_prune = 0
+                cache_prune_due = False
+
+    roll_cache()
+    results = ordered_results()
     common_mode_screen = _quarantine_invalid_common_mode(results)
+    _publish_followup_queue(output_dir, results)
 
     rejected_plot_retention: dict[str, object] = {
         "files_deleted": 0,
@@ -778,10 +1517,16 @@ def _run_batch_hunt(args: argparse.Namespace) -> int:
         "target_list": str(target_path),
         "settings": _campaign_settings(args),
         "counts": _campaign_counts(results),
+        "vetting_coverage": _vetting_coverage(results),
         "campaign_level_screening": {"common_mode": common_mode_screen},
         "storage_retention": {
             "fits_cache": cache_retention,
-            "rejected_plots": rejected_plot_retention,
+            "rejected_plots": {
+                **rejected_plot_retention,
+                "rolling_files_deleted": rolling_plot_retention["files_deleted"],
+                "rolling_bytes_deleted": rolling_plot_retention["bytes_deleted"],
+                "rolling_errors": rolling_plot_retention["errors"],
+            },
         },
         "results": results,
     }
@@ -796,7 +1541,9 @@ def _run_batch_hunt(args: argparse.Namespace) -> int:
         writer.writerows(results)
     _replace_with_retry(temporary_csv, csv_path)
     _, stats = record_campaign(summary_path)
-    publish_progress("completed")
+    publish_progress(
+        "completed" if int(summary["counts"]["error"]) == 0 else "retry_pending"
+    )
     print(f"\nSaved {summary_path} and {csv_path}")
     print(f"Metrics snapshot: {json.dumps(stats, sort_keys=True)}")
     return 1 if summary["counts"]["error"] else 0
@@ -805,8 +1552,11 @@ def _run_batch_hunt(args: argparse.Namespace) -> int:
 def _storage_prune(args: argparse.Namespace) -> int:
     """Apply the same bounded retention policy outside a running campaign."""
 
+    if not np.isfinite(float(args.cache_max_gb)) or float(args.cache_max_gb) <= 0:
+        raise ValueError("--cache-max-gb must be a finite number greater than zero.")
+    cache_dir = _workspace_cache_dir(args.cache_dir, workspace_root=Path.cwd())
     cache_report = prune_fits_cache(
-        args.cache_dir,
+        cache_dir,
         max_bytes=int(float(args.cache_max_gb) * 1_000_000_000),
         dry_run=args.dry_run,
     )
@@ -1779,10 +2529,141 @@ def _screening_flags(result) -> dict[str, bool]:
     }
 
 
+def _classify_screening_result(
+    result,
+    rejection_reasons: list[str],
+    deeper_vetting: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Assign a follow-up class without claiming that any star is planet-free."""
+
+    reasons = set(rejection_reasons)
+    deeper_flags = [
+        str(value)
+        for value in (
+            deeper_vetting.get("flags", [])
+            if isinstance(deeper_vetting, dict)
+            else []
+        )
+    ]
+    recommended_sources = [
+        "alternate TESS reduction (SPOC, QLP, or TGLC)",
+        "additional TESS sectors",
+        "Gaia DR3 neighbor and astrometry context",
+        "Kepler or K2 light curves when sky coverage overlaps",
+        "ZTF or ASAS-SN variability context when available",
+    ]
+    if not rejection_reasons:
+        screening_class = "automated_survivor"
+        if deeper_flags:
+            vetting_tier = "needs_manual_review"
+            priority = min(79, 55 + int(max(0.0, result.depth_snr - 7.1) / 4.0))
+        else:
+            vetting_tier = (
+                "legacy_unmeasured"
+                if deeper_vetting is None
+                else "high_priority_followup"
+            )
+            priority = min(99, 75 + int(max(0.0, result.depth_snr - 7.1) / 2.0))
+        followup = [
+            "localize the signal in target pixels",
+            "check nearby stars and official TCE records",
+            "test independent TESS sectors when available",
+            "compare an independently reduced TESS light curve",
+        ]
+    elif (
+        "fewer than two transit events are represented" in reasons
+        and result.depth_snr >= 7.1
+        and not reasons.intersection(
+            {
+                "odd and even transit depths differ by more than 3 sigma",
+                "a secondary eclipse is detected above 3 sigma",
+                "the fitted transit duty cycle exceeds 15 percent",
+                "the fitted transit depth exceeds 5 percent",
+            }
+        )
+    ):
+        screening_class = "single_event_lead"
+        if deeper_flags:
+            vetting_tier = "fragile_single_event"
+            priority = min(69, 50 + int(max(0.0, result.depth_snr - 7.1) / 5.0))
+        else:
+            vetting_tier = (
+                "legacy_unmeasured"
+                if deeper_vetting is None
+                else "supported_single_event"
+            )
+            priority = min(94, 65 + int(max(0.0, result.depth_snr - 7.1) / 3.0))
+        followup = [
+            "search earlier or later TESS sectors for another event",
+            "inspect target-pixel localization and nearby sources",
+            "fit a single-transit model before assigning an orbital period",
+            "check cross-mission coverage for a longer time baseline",
+        ]
+    elif reasons == {"white-noise BLS depth S/N is below 7.1"}:
+        screening_class = "no_transit_detected"
+        vetting_tier = "deprioritized_for_this_window"
+        priority = 5
+        followup = [
+            "deprioritize for this exact TESS window",
+            "retain for longer-baseline or non-transit surveys",
+        ]
+    else:
+        screening_class = "screened_rejected"
+        vetting_tier = "strongest_signal_rejected"
+        priority = 15
+        followup = [
+            "do not promote the strongest signal",
+            "retain the star for possible weaker-signal or other-method searches",
+        ]
+    return {
+        "screening_class": screening_class,
+        "followup_priority": priority,
+        "followup_reasons": followup,
+        "vetting_tier": vetting_tier,
+        "deeper_vetting_flags": deeper_flags,
+        "recommended_data_sources": recommended_sources,
+        "planet_free": False,
+        "scope_warning": (
+            "Classification applies only to detectable transits in the searched "
+            "TESS sectors and period range."
+        ),
+    }
+
+
+def _sensitivity_depth_at_period(
+    sensitivity: dict[str, object] | None,
+    period_days: float,
+) -> float | None:
+    if not isinstance(sensitivity, dict):
+        return None
+    rows = sensitivity.get("periods")
+    if not isinstance(rows, list):
+        return None
+    matches = [
+        row
+        for row in rows
+        if isinstance(row, dict)
+        and abs(float(row.get("period_days", -1)) - period_days) < 1e-6
+    ]
+    if not matches:
+        return None
+    value = matches[0].get("minimum_recovered_depth_ppm")
+    return None if value is None else float(value)
+
+
 def _hunt(args: argparse.Namespace) -> int:
     time, flux, metadata = _download_light_curve(
         args.target, args.sector, args.author, args.cadence_seconds
     )
+    return _hunt_from_light_curve(args, time, flux, metadata)
+
+
+def _hunt_from_light_curve(
+    args: argparse.Namespace,
+    time: np.ndarray,
+    flux: np.ndarray,
+    metadata: dict[str, object],
+) -> int:
     tic_id = args.tic or metadata.get("tic_id")
     if not tic_id:
         raise RuntimeError("Could not infer a TIC ID; provide one with --tic.")
@@ -1853,6 +2734,17 @@ def _hunt(args: argparse.Namespace) -> int:
         rejection_reasons.append(
             "the residual period is within 5% of a masked period or simple harmonic"
         )
+    deeper_vetting = signal_vetting_diagnostics(
+        cleaned_time,
+        cleaned_flux,
+        result,
+    )
+    classification = _classify_screening_result(
+        result,
+        rejection_reasons,
+        deeper_vetting,
+    )
+    sensitivity = fixed_ephemeris_injection_sensitivity(cleaned_time, cleaned_flux)
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1901,11 +2793,14 @@ def _hunt(args: argparse.Namespace) -> int:
             **screening_flags,
             "harmonic_ambiguity_over_0_8": strong_harmonic_ambiguity,
         },
+        "sensitivity_probe": sensitivity,
+        "deeper_vetting": deeper_vetting,
         "automated_triage": {
             "passes": not rejection_reasons,
             "rejection_reasons": rejection_reasons,
             "warning": "Passing this gate would still not establish a planet candidate.",
         },
+        "followup_classification": classification,
     }
     temporary_plot = plot_path.with_name(plot_path.stem + ".tmp.png")
     _plot_result(result, arrays, temporary_plot)
@@ -2156,10 +3051,38 @@ def build_parser() -> argparse.ArgumentParser:
     batch.add_argument("--mask-width", type=float, default=1.5)
     batch.add_argument("--allow-no-known", action="store_true")
     batch.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help=(
+            "Analyze this many targets concurrently while retaining one checkpoint "
+            "writer (default: 1; recommended maximum for TESScut: 3-4)."
+        ),
+    )
+    batch.add_argument(
+        "--prefetch",
+        type=int,
+        help=(
+            "Bound the number of downloaded, downloading, or analyzing targets. "
+            "Defaults to twice --workers."
+        ),
+    )
+    batch.add_argument(
         "--cache-max-gb",
         type=float,
         default=2.0,
-        help="Keep at most this many decimal GB of re-downloadable FITS cache (default: 2).",
+        help=(
+            "Keep at most this many decimal GB of re-downloadable FITS/FIT/ZIP "
+            "cache (default: 2)."
+        ),
+    )
+    batch.add_argument(
+        "--workspace-max-gb",
+        type=float,
+        help=(
+            "Hard ceiling for the entire project workspace. The rolling download "
+            "cache is reduced as needed to preserve 0.5 GB of headroom."
+        ),
     )
     batch.add_argument(
         "--retain-rejected-plots",

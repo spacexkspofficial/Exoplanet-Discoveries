@@ -365,6 +365,42 @@ button {
   box-shadow: 0 0 8px color-mix(in srgb, var(--marker-color) 70%, transparent);
 }
 
+.marker-no_transit_detected {
+  width: 8px;
+  height: 8px;
+  margin: 4px;
+  border: 1.5px solid var(--marker-color);
+  background: transparent;
+}
+
+.marker-screened_rejected {
+  width: 10px;
+  height: 10px;
+  margin: 3px;
+  border: 1.5px dashed var(--marker-color);
+  background: rgba(128, 152, 165, 0.12);
+}
+
+.marker-single_event_lead {
+  width: 15px;
+  height: 15px;
+  margin: 1px;
+  border: 1px solid var(--marker-color);
+  border-radius: 3px;
+  font-size: 9px;
+  box-shadow: 0 0 9px rgba(255, 209, 102, 0.38);
+}
+
+.marker-automated_survivor {
+  width: 11px;
+  height: 11px;
+  margin: 3px;
+  background: var(--marker-color);
+  box-shadow:
+    0 0 0 3px rgba(98, 230, 167, 0.18),
+    0 0 12px var(--marker-color);
+}
+
 .marker-false_positive {
   width: 11px;
   height: 11px;
@@ -741,6 +777,10 @@ button {
   color: var(--green) !important;
 }
 
+.muted {
+  color: #8098a5 !important;
+}
+
 .target-data {
   margin: 0;
 }
@@ -762,6 +802,18 @@ button {
   text-align: right;
   color: #d1dfe4;
   font-family: var(--font-geist-mono), monospace;
+}
+
+.followup-section p {
+  margin: 6px 0;
+  color: #8da1aa;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.followup-section strong {
+  color: #c7d9df;
+  font-weight: 600;
 }
 
 .mini-section {
@@ -934,6 +986,20 @@ button {
 .metrics-panel .panel-title b {
   color: var(--green);
   font-size: 9px;
+}
+
+.performance-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--green);
+  font-size: 9px;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.performance-head .info-term {
+  text-decoration-color: rgba(98, 230, 167, 0.55);
 }
 
 .metric-row {
@@ -1123,6 +1189,13 @@ button {
   background: linear-gradient(0deg, #ffad20, #ffd36e);
   box-shadow: 0 0 6px rgba(255, 173, 32, 0.5);
   transition: height 420ms ease-out;
+}
+
+.sector-strip button.selected-sector {
+  outline: 2px solid rgba(255, 231, 166, 0.96);
+  outline-offset: 1px;
+  z-index: 2;
+  filter: brightness(1.18);
 }
 
 .sector-strip button span {

@@ -126,6 +126,162 @@ def _secondary_screen(
     return float(depth * 1e6), float(snr)
 
 
+def signal_vetting_diagnostics(
+    time: np.ndarray,
+    flux: np.ndarray,
+    result: DetectionResult,
+) -> dict[str, object]:
+    """Run inexpensive second-stage checks on the already-loaded light curve.
+
+    These diagnostics rank follow-up work; they do not confirm or exclude a
+    planet. In particular, a single event cannot establish an orbital period.
+    """
+
+    t, y = _clean_arrays(time, flux)
+    period = float(result.period_days)
+    transit_time = float(result.transit_time)
+    duration = float(result.duration_hours) / 24.0
+    phase_time = ((t - transit_time + period / 2) % period) - period / 2
+    in_transit = np.abs(phase_time) <= duration / 2
+    baseline_mask = np.abs(phase_time) >= duration
+    numbers, depths = _event_depths(t, y, period, transit_time, duration)
+    depths_ppm = depths * 1_000_000
+    positive_fraction = (
+        float(np.count_nonzero(depths > 0) / depths.size)
+        if depths.size
+        else 0.0
+    )
+    median_depth_ppm = (
+        float(np.nanmedian(depths_ppm)) if depths_ppm.size else None
+    )
+    depth_scatter_ppm = (
+        _robust_scatter(depths_ppm) if depths_ppm.size >= 2 else None
+    )
+
+    first_event = int(np.ceil((t[0] - transit_time) / period))
+    last_event = int(np.floor((t[-1] - transit_time) / period))
+    predicted_centers = (
+        transit_time + np.arange(first_event, last_event + 1) * period
+        if last_event >= first_event
+        else np.asarray([], dtype=float)
+    )
+    sampled_predicted = sum(
+        np.count_nonzero(np.abs(t - center) <= duration / 2) >= 2
+        for center in predicted_centers
+    )
+    event_coverage = (
+        float(sampled_predicted / predicted_centers.size)
+        if predicted_centers.size
+        else 0.0
+    )
+
+    cadence = float(np.nanmedian(np.diff(t)))
+    points_per_duration = max(2, int(round(duration / cadence)))
+    baseline_values = y[baseline_mask]
+    complete_bins = baseline_values.size // points_per_duration
+    red_noise_factor = 1.0
+    if complete_bins >= 4:
+        binned = baseline_values[: complete_bins * points_per_duration].reshape(
+            complete_bins, points_per_duration
+        )
+        binned_means = np.nanmean(binned, axis=1)
+        measured_binned_noise = _robust_scatter(binned_means)
+        try:
+            expected_binned_noise = _point_noise(baseline_values) / np.sqrt(
+                points_per_duration
+            )
+        except ValueError:
+            expected_binned_noise = float("nan")
+        if (
+            np.isfinite(measured_binned_noise)
+            and np.isfinite(expected_binned_noise)
+            and expected_binned_noise > 0
+        ):
+            red_noise_factor = max(
+                1.0, min(25.0, measured_binned_noise / expected_binned_noise)
+            )
+    red_noise_adjusted_snr = float(result.depth_snr / red_noise_factor)
+
+    single_event_edge_margin_durations: float | None = None
+    single_event_two_sided_baseline: bool | None = None
+    single_event_adjacent_gap: bool | None = None
+    if numbers.size == 1:
+        center = transit_time + int(numbers[0]) * period
+        single_event_edge_margin_durations = float(
+            min(center - t[0], t[-1] - center) / duration
+        )
+        before = (t >= center - 3 * duration) & (t <= center - duration)
+        after = (t >= center + duration) & (t <= center + 3 * duration)
+        single_event_two_sided_baseline = bool(
+            np.count_nonzero(before) >= 3 and np.count_nonzero(after) >= 3
+        )
+        local_times = t[np.abs(t - center) <= 3 * duration]
+        single_event_adjacent_gap = bool(
+            local_times.size < 6
+            or np.nanmax(np.diff(local_times)) > max(5 * cadence, duration)
+        )
+
+    flags: list[str] = []
+    if red_noise_adjusted_snr < 7.1:
+        flags.append("red-noise-adjusted depth S/N is below 7.1")
+    if depths.size >= 3 and positive_fraction < 0.75:
+        flags.append("fewer than 75% of sampled events have positive depth")
+    if (
+        depths.size >= 3
+        and median_depth_ppm is not None
+        and depth_scatter_ppm is not None
+        and depth_scatter_ppm > abs(median_depth_ppm)
+    ):
+        flags.append("event-to-event depth scatter exceeds the median depth")
+    if predicted_centers.size >= 2 and event_coverage < 0.6:
+        flags.append("fewer than 60% of predicted events are sampled")
+    if numbers.size == 1:
+        if (
+            single_event_edge_margin_durations is not None
+            and single_event_edge_margin_durations < 3
+        ):
+            flags.append("single event is close to the light-curve boundary")
+        if single_event_two_sided_baseline is False:
+            flags.append("single event lacks a two-sided local baseline")
+        if single_event_adjacent_gap:
+            flags.append("single event is adjacent to a data gap")
+
+    if numbers.size == 1:
+        outcome = "supported_single_event" if not flags else "fragile_single_event"
+    else:
+        outcome = "passes_additional_checks" if not flags else "needs_manual_review"
+    return {
+        "schema_version": 1,
+        "outcome": outcome,
+        "warning": (
+            "Additional automated vetting ranks follow-up only; it does not "
+            "confirm a planet or establish that another planet is absent."
+        ),
+        "red_noise_factor": round(float(red_noise_factor), 3),
+        "red_noise_adjusted_snr": round(red_noise_adjusted_snr, 3),
+        "sampled_event_count": int(numbers.size),
+        "predicted_event_count": int(predicted_centers.size),
+        "event_coverage_fraction": round(event_coverage, 3),
+        "positive_depth_event_fraction": round(positive_fraction, 3),
+        "median_event_depth_ppm": (
+            round(median_depth_ppm, 2) if median_depth_ppm is not None else None
+        ),
+        "event_depth_scatter_ppm": (
+            round(float(depth_scatter_ppm), 2)
+            if depth_scatter_ppm is not None and np.isfinite(depth_scatter_ppm)
+            else None
+        ),
+        "single_event_edge_margin_durations": (
+            round(single_event_edge_margin_durations, 2)
+            if single_event_edge_margin_durations is not None
+            else None
+        ),
+        "single_event_two_sided_baseline": single_event_two_sided_baseline,
+        "single_event_adjacent_to_gap": single_event_adjacent_gap,
+        "flags": flags,
+    }
+
+
 def search_transits(
     time: np.ndarray,
     flux: np.ndarray,
@@ -445,6 +601,87 @@ def inject_box_transit(
     y[in_transit] -= depth
     event_numbers = np.rint((t[in_transit] - transit_time) / period_days).astype(int)
     return y, in_transit, int(np.unique(event_numbers).size)
+
+
+def fixed_ephemeris_injection_sensitivity(
+    time: np.ndarray,
+    flux: np.ndarray,
+    *,
+    periods_days: tuple[float, ...] = (1.0, 3.0, 7.0, 12.0),
+    depths_ppm: tuple[float, ...] = (250.0, 500.0, 1_000.0, 2_500.0, 5_000.0),
+    duration_hours: float = 2.0,
+    minimum_snr: float = 7.1,
+) -> dict[str, object]:
+    """Estimate local transit sensitivity using compact fixed-ephemeris probes.
+
+    This is deliberately cheaper than a full blind injection/recovery campaign.
+    It measures whether known synthetic events would be detectable in the actual
+    light curve and must not be interpreted as proof that a star has no planet.
+    """
+
+    t, y = _clean_arrays(time, flux)
+    if not periods_days or not depths_ppm:
+        raise ValueError("Sensitivity probes require periods and depths.")
+    if duration_hours <= 0 or minimum_snr <= 0:
+        raise ValueError("Sensitivity duration and S/N threshold must be positive.")
+    if any(period <= 0 for period in periods_days):
+        raise ValueError("Sensitivity periods must be positive.")
+    if any(depth <= 0 for depth in depths_ppm):
+        raise ValueError("Sensitivity depths must be positive.")
+
+    rows: list[dict[str, object]] = []
+    start = float(np.nanmin(t))
+    for period in periods_days:
+        transit_time = start + min(period * 0.23, 0.7)
+        threshold: float | None = None
+        sampled_events = 0
+        measured_snr = 0.0
+        for depth in sorted(set(float(value) for value in depths_ppm)):
+            injected, _, _ = inject_box_transit(
+                t,
+                y,
+                period_days=float(period),
+                transit_time=transit_time,
+                duration_hours=duration_hours,
+                depth_ppm=depth,
+            )
+            measured = evaluate_ephemeris(
+                t,
+                injected,
+                period_days=float(period),
+                transit_time=transit_time,
+                duration_hours=duration_hours,
+            )
+            sampled_events = int(measured["sampled_transit_events"])
+            measured_snr = float(measured["depth_snr"])
+            if (
+                measured["sampled"]
+                and sampled_events >= 2
+                and measured_snr >= minimum_snr
+            ):
+                threshold = depth
+                break
+        rows.append(
+            {
+                "period_days": float(period),
+                "minimum_recovered_depth_ppm": threshold,
+                "sampled_transit_events": sampled_events,
+                "snr_at_threshold_or_max_depth": measured_snr,
+            }
+        )
+
+    return {
+        "schema_version": 1,
+        "method": "fixed-ephemeris box injection sensitivity probe",
+        "warning": (
+            "This is not a blind completeness measurement and cannot establish "
+            "that a star is planet-free."
+        ),
+        "duration_hours": float(duration_hours),
+        "minimum_snr": float(minimum_snr),
+        "depth_grid_ppm": sorted(set(float(value) for value in depths_ppm)),
+        "periods": rows,
+    }
 
 
 def evaluate_ephemeris(

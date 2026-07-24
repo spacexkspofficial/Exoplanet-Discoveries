@@ -137,6 +137,40 @@ def test_corrected_campaign_summary_supersedes_prior_outcomes(tmp_path: Path):
     assert stats["invalidated_events"] == 1
 
 
+def test_execution_settings_do_not_change_scientific_campaign_identity(
+    tmp_path: Path,
+) -> None:
+    summary_path = tmp_path / "summary.json"
+    summary = {
+        "target_list": "targets.csv",
+        "settings": {
+            "period_range_days": [0.5, 13],
+            "execution": {"analysis_workers": 1, "prefetch_targets": 2},
+        },
+        "counts": {"survivor": 1, "rejected": 0, "error": 0},
+        "results": [{"tic_id": 9, "sectors": "105", "status": "survivor"}],
+    }
+    summary_path.write_text(json.dumps(summary), encoding="utf-8")
+    ledger = tmp_path / "events.jsonl"
+    snapshot = tmp_path / "stats.json"
+    first, _ = record_campaign(
+        summary_path, ledger_path=ledger, snapshot_path=snapshot
+    )
+
+    summary["settings"]["execution"] = {
+        "analysis_workers": 3,
+        "prefetch_targets": 6,
+    }
+    summary_path.write_text(json.dumps(summary), encoding="utf-8")
+    second, stats = record_campaign(
+        summary_path, ledger_path=ledger, snapshot_path=snapshot
+    )
+
+    assert first is True
+    assert second is False
+    assert stats["campaign_runs_logged"] == 1
+
+
 def test_campaign_can_be_relogged_after_its_exact_revision_was_invalidated(
     tmp_path: Path,
 ) -> None:

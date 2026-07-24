@@ -140,18 +140,39 @@ re-downloadable input forever. By default it:
 
 - retains the metrics ledger, campaign JSON/CSV summaries, per-target JSON
   diagnostics, and every survivor plot;
-- deletes PNG diagnostics for automatically rejected targets after the
-  campaign summary is finalized; and
-- removes the oldest downloaded FITS products whenever `data/lightkurve`
-  exceeds 2 decimal GB.
+- deletes PNG diagnostics for automatically rejected targets during rolling
+  retention passes and after finalization; and
+- removes the oldest downloaded FITS, FIT, and TESScut ZIP products whenever
+  `data/lightkurve` exceeds 2 decimal GB.
 
-Targets are downloaded and analyzed one at a time; the campaign is not
-pre-downloaded. Cache pruning runs after every target, so a 5,000-star list
-still uses the same bounded FITS allowance instead of staging hundreds of
-gigabytes. The CLI process is fully automated and does not require an AI agent
-to remain attached.
+The default remains one worker. Larger campaigns can use a bounded two-stage
+pipeline: download a few upcoming stars while several analysis workers process
+already-downloaded light curves. For example:
 
-Change the rolling FITS allowance with `--cache-max-gb`. Use
+```powershell
+.\.venv\Scripts\exohunt.exe batch-hunt `
+  --targets targets\sector105_overnight_5000.csv `
+  --output-dir results\campaign\sector105_overnight_5000 `
+  --author TESScut --cadence-seconds 158 --allow-no-known `
+  --min-period 0.5 --max-period 13 `
+  --workers 3 --prefetch 6 --cache-max-gb 10 --workspace-max-gb 20
+```
+
+One coordinator remains the only checkpoint/dashboard writer. Here, three
+analysis threads and two download threads keep at most six targets downloading,
+staged, or analyzing; the whole list is never pre-downloaded. Retention is
+checked every ten completed targets and at finalization. With
+`--workspace-max-gb 20`, the entire project directory has a 20-decimal-GB hard
+ceiling and the download cache is automatically reduced below its configured
+allowance to preserve up to 1 GB of headroom. Cache deletion is confined to a
+dedicated child of this project's `data` directory. If durable artifacts alone cannot fit,
+the campaign stops instead of deleting them or silently exceeding the limit.
+Matching reports are rediscovered on restart even if the last throttled
+checkpoint had not yet listed them. The process is fully automated and does not
+require an AI agent to remain attached.
+
+Change the rolling download allowance with `--cache-max-gb`; set the whole
+project ceiling with `--workspace-max-gb`. Use
 `--retain-rejected-plots` only when every rejected diagnostic image is needed.
 Preview or apply the same policy to existing campaigns with:
 
@@ -160,12 +181,27 @@ Preview or apply the same policy to existing campaigns with:
 .\.venv\Scripts\exohunt.exe storage-prune --cache-max-gb 2
 ```
 
-The prune command is limited to FITS files under the selected cache and PNGs
-explicitly referenced by rejected rows in batch summaries. Survivor and
-validation plots are not selected. Removed FITS inputs remain recoverable by
-downloading them again from MAST; removed rejected-target plots can be
+The prune command is limited to FITS/FIT/ZIP astronomy inputs under the selected
+cache and PNGs explicitly referenced by rejected rows in batch summaries.
+Survivor and validation plots are not selected. Removed inputs remain
+recoverable by downloading them again from MAST; removed rejected-target plots can be
 regenerated deliberately with a forced, targeted rerun from their retained
 JSON settings.
+
+Each result is also assigned a scoped follow-up class:
+
+- `no_transit_detected`: no repeating transit crossed the threshold in this
+  TESS window; this is not evidence that the star is planet-free;
+- `screened_rejected`: the strongest signal failed an automated plausibility
+  check, without ruling out weaker or non-transiting planets;
+- `single_event_lead`: one promising event needs a longer observing baseline;
+  and
+- `automated_survivor`: the signal enters `deep_followup_queue.json/.csv` for
+  pixel localization, catalog/TCE checks, and independent-sector analysis.
+
+Newly processed reports include a compact fixed-ephemeris injection sensitivity
+probe at representative periods. It is deliberately labeled as a local
+sensitivity diagnostic—not a blind completeness measurement.
 
 ### New-sector, zero-catalogued-planet lane
 

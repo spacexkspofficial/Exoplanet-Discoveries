@@ -8,6 +8,7 @@ for automatically rejected targets can be regenerated from the source data.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Iterable
 
@@ -35,7 +36,11 @@ def prune_fits_cache(
     max_bytes: int,
     dry_run: bool = False,
 ) -> dict[str, object]:
-    """Delete the oldest FITS cache files until the cache fits under max_bytes."""
+    """Delete the oldest re-downloadable astronomy files under ``max_bytes``.
+
+    TESScut retains the downloaded ZIP as well as the extracted FITS product,
+    so both formats must count toward the same rolling cache ceiling.
+    """
 
     if max_bytes < 0:
         raise ValueError("max_bytes must be non-negative")
@@ -54,7 +59,11 @@ def prune_fits_cache(
 
     files: list[tuple[float, str, Path, int]] = []
     for candidate in root.rglob("*"):
-        if not candidate.is_file() or candidate.suffix.casefold() not in {".fits", ".fit"}:
+        if not candidate.is_file() or candidate.suffix.casefold() not in {
+            ".fits",
+            ".fit",
+            ".zip",
+        }:
             continue
         resolved = candidate.resolve()
         if not _within(resolved, root):
@@ -107,7 +116,33 @@ def prune_fits_cache(
         "files_considered": len(files),
         "files_deleted": deleted_files,
         "bytes_deleted": deleted_bytes,
+        "extensions": [".fit", ".fits", ".zip"],
     }
+
+
+def directory_size_bytes(root: str | Path) -> int:
+    """Return the size of regular files below a project directory.
+
+    This helper is read-only, so measuring the current working directory is
+    both expected and safe.  Destructive retention functions still use
+    ``_validated_root`` and refuse broad workspace roots.
+    """
+
+    resolved = Path(root).resolve()
+    if not resolved.exists():
+        return 0
+    total = 0
+    for directory, _, filenames in os.walk(resolved):
+        base = Path(directory)
+        for name in filenames:
+            candidate = base / name
+            try:
+                if candidate.is_symlink():
+                    continue
+                total += candidate.stat().st_size
+            except OSError:
+                continue
+    return total
 
 
 def prune_rejected_plots(

@@ -1,11 +1,14 @@
 import numpy as np
 
 from exohunt.detection import (
+    DetectionResult,
     binned_phase_curve,
+    fixed_ephemeris_injection_sensitivity,
     harmonic_diagnostics,
     inject_box_transit,
     mask_periodic_events,
     search_transits,
+    signal_vetting_diagnostics,
 )
 
 
@@ -120,3 +123,76 @@ def test_injected_transit_is_recovered():
     assert np.count_nonzero(mask) > 20
     assert event_count >= 7
     assert abs(result.period_days - 4.2) < 0.04
+
+
+def test_fixed_ephemeris_sensitivity_probe_is_scoped_and_compact():
+    rng = np.random.default_rng(77)
+    time = np.arange(0.0, 27.0, 20.0 / (24 * 60))
+    flux = 1.0 + rng.normal(0.0, 2e-4, time.size)
+
+    probe = fixed_ephemeris_injection_sensitivity(
+        time,
+        flux,
+        periods_days=(3.0, 12.0),
+        depths_ppm=(500.0, 1_000.0, 2_500.0),
+    )
+
+    assert probe["schema_version"] == 1
+    assert "not a blind completeness" in probe["warning"]
+    assert "planet-free" in probe["warning"]
+    assert [row["period_days"] for row in probe["periods"]] == [3.0, 12.0]
+    assert all(
+        row["minimum_recovered_depth_ppm"] in {500.0, 1_000.0, 2_500.0, None}
+        for row in probe["periods"]
+    )
+
+
+def test_deeper_vetting_measures_event_consistency_and_coverage():
+    rng = np.random.default_rng(91)
+    time = np.arange(0.0, 27.0, 20.0 / (24 * 60))
+    flux = 1.0 + rng.normal(0.0, 2e-4, time.size)
+    injected, _, _ = inject_box_transit(
+        time,
+        flux,
+        period_days=3.0,
+        transit_time=0.8,
+        duration_hours=2.0,
+        depth_ppm=3_000,
+    )
+    result, _ = search_transits(
+        time,
+        injected,
+        min_period_days=2.5,
+        max_period_days=3.5,
+    )
+
+    diagnostics = signal_vetting_diagnostics(time, injected, result)
+
+    assert diagnostics["sampled_event_count"] >= 8
+    assert diagnostics["event_coverage_fraction"] > 0.9
+    assert diagnostics["positive_depth_event_fraction"] > 0.9
+    assert diagnostics["red_noise_factor"] >= 1
+    assert "does not confirm a planet" in diagnostics["warning"]
+
+
+def test_single_event_near_boundary_is_kept_as_a_fragile_lead():
+    time = np.arange(0.0, 27.0, 20.0 / (24 * 60))
+    flux = np.ones_like(time)
+    flux[np.abs(time - 0.1) <= (2.0 / 24.0) / 2] -= 0.004
+    result = DetectionResult(
+        period_days=27.0,
+        transit_time=0.1,
+        duration_hours=2.0,
+        depth_ppm=4_000,
+        depth_snr=12.0,
+        radius_ratio=np.sqrt(0.004),
+        observed_transits=1,
+        odd_even_depth_difference_sigma=None,
+        secondary_depth_ppm=None,
+        secondary_snr=None,
+    )
+
+    diagnostics = signal_vetting_diagnostics(time, flux, result)
+
+    assert diagnostics["outcome"] == "fragile_single_event"
+    assert "single event is close to the light-curve boundary" in diagnostics["flags"]

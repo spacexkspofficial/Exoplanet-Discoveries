@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from exohunt.retention import (
+    directory_size_bytes,
     prune_fits_cache,
     prune_historical_rejected_plots,
     prune_rejected_plots,
@@ -12,7 +13,11 @@ from exohunt.retention import (
 def test_prune_fits_cache_deletes_oldest_and_preserves_other_files(tmp_path: Path) -> None:
     cache = tmp_path / "data" / "lightkurve"
     cache.mkdir(parents=True)
-    files = [cache / f"cutout-{index}.fits" for index in range(3)]
+    files = [
+        cache / "cutout-0.fits",
+        cache / "cutout-1.zip",
+        cache / "cutout-2.fit",
+    ]
     for index, path in enumerate(files):
         path.write_bytes(bytes([index]) * 10)
         os.utime(path, (100 + index, 100 + index))
@@ -31,6 +36,16 @@ def test_prune_fits_cache_deletes_oldest_and_preserves_other_files(tmp_path: Pat
     assert not files[1].exists()
     assert files[2].exists()
     assert note.exists()
+
+
+def test_directory_size_bytes_can_measure_workspace_root(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    nested = workspace / "nested"
+    nested.mkdir(parents=True)
+    (workspace / "one.bin").write_bytes(b"123")
+    (nested / "two.bin").write_bytes(b"4567")
+
+    assert directory_size_bytes(workspace) == 7
 
 
 def test_prune_rejected_plots_keeps_survivors_and_outside_paths(tmp_path: Path) -> None:

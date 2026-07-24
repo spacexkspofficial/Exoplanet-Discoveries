@@ -10,6 +10,10 @@ import { createPortal } from "react-dom";
 
 type Status =
   | "searched"
+  | "no_transit_detected"
+  | "screened_rejected"
+  | "single_event_lead"
+  | "automated_survivor"
   | "search_error"
   | "rediscovery"
   | "known_tce_rediscovery"
@@ -39,6 +43,19 @@ type Star = {
   duration_hours: number | null;
   observed_transits: number | null;
   screening_status: string | null;
+  screening_class: string | null;
+  rejection_reasons: string;
+  followup_priority: number;
+  followup_reasons: string;
+  vetting_tier: string;
+  deeper_vetting_flags: string;
+  recommended_data_sources: string;
+  planet_free: false;
+  sensitivity_3d_ppm: number | null;
+  sensitivity_12d_ppm: number | null;
+  red_noise_adjusted_snr: number | null;
+  event_coverage_fraction: number | null;
+  positive_depth_event_fraction: number | null;
   phase_curve_available: boolean;
   x: number;
   y: number;
@@ -61,12 +78,37 @@ type PhaseCurve = {
 
 type ActiveCampaign = {
   name: string;
-  state: "running" | "finalizing";
+  state: "running" | "finalizing" | "retry_pending";
   target_list: string;
   sectors: number[];
   total_targets: number;
   completed_targets: number;
   counts: Record<string, number>;
+  runtime: {
+    analysis_workers?: number;
+    download_workers?: number;
+    prefetch_targets?: number;
+    downloads_in_flight?: number;
+    analyses_in_flight?: number;
+    downloaded_waiting?: number;
+    targets_remaining?: number;
+    performance?: {
+      average_stars_per_hour?: number | null;
+      rolling_stars_per_hour?: number | null;
+      rolling_window_minutes?: number;
+      rolling_samples?: number;
+      elapsed_hours?: number;
+      eta_hours?: number | null;
+      estimated_completion_utc?: string | null;
+    };
+    vetting_coverage?: {
+      eligible_targets?: number;
+      measured_targets?: number;
+      legacy_unmeasured_targets?: number;
+      coverage_fraction?: number | null;
+      warning?: string | null;
+    };
+  };
   started_at_utc: string;
   updated_at_utc: string;
 };
@@ -87,10 +129,34 @@ const STATUS_META: Record<
   { label: string; short: string; color: string; className: string }
 > = {
   searched: {
-    label: "Searched — No Vetted Signal",
-    short: "No signal",
+    label: "Searched — Awaiting Classification",
+    short: "Awaiting class",
     color: "#35d7e8",
     className: "cyan",
+  },
+  no_transit_detected: {
+    label: "No Transit Detected in Search Window",
+    short: "No transit found",
+    color: "#55c6d8",
+    className: "cyan",
+  },
+  screened_rejected: {
+    label: "Strongest Signal Screened Out",
+    short: "Signal screened",
+    color: "#8098a5",
+    className: "muted",
+  },
+  single_event_lead: {
+    label: "Single-Event Lead — Longer Baseline Needed",
+    short: "Single event",
+    color: "#ffd166",
+    className: "amber",
+  },
+  automated_survivor: {
+    label: "Automated Survivor — Deeper Vetting Needed",
+    short: "Needs vetting",
+    color: "#62e6a7",
+    className: "green",
   },
   search_error: {
     label: "Search Error — Retry Needed",
@@ -134,7 +200,15 @@ const ALL_STATUSES = Object.keys(STATUS_META) as Status[];
 
 const STATUS_HELP: Record<Status, string> = {
   searched:
-    "The automated search finished, but no signal has passed the full human-vetting process.",
+    "The search finished under an older result format that cannot be assigned one of the newer screening classes.",
+  no_transit_detected:
+    "No repeating transit-like signal reached the automated threshold in the searched TESS window. This does not prove the star has no planet.",
+  screened_rejected:
+    "The strongest repeating signal failed one or more automated plausibility checks. The rejection applies to that signal, not to every possible planet around the star.",
+  single_event_lead:
+    "One promising dimming event was present, but the observed time span was not long enough to establish a repeating orbit. Longer-baseline data should be checked.",
+  automated_survivor:
+    "A signal survived the automated gates and has been placed in the deeper follow-up queue. It is not yet a vetted candidate or discovery.",
   search_error:
     "This target did not finish successfully because data retrieval or analysis failed. It needs a retry and is not counted as a no-signal result.",
   rediscovery:
@@ -214,7 +288,39 @@ const HELP = {
   duration: "How long one detected dimming event lasts.",
   targetsMapped: "Unique stars currently represented in the dashboard, including live campaign results.",
   noVettedSignal:
-    "The search ran, but no signal passed the current automated and human-vetting gates. This does not mean the star has no planet: a planet can be non-transiting, too weak, outside the searched period range, hidden in a data gap, or missed by this pipeline.",
+    "A broad legacy bucket for stars searched before the newer triage labels were recorded. It does not mean planet-free.",
+  noTransitDetected:
+    "No repeating transit crossed the detection threshold in the searched TESS window. A planet can still be non-transiting, too small, outside the searched period range, hidden in a data gap, or missed by the pipeline.",
+  screenedRejected:
+    "The strongest repeating feature failed an automated plausibility check. This screens one signal; it does not rule out every planet around the star.",
+  singleEventLeads:
+    "Promising one-off dips that need a longer observing baseline before an orbital period can be established.",
+  automatedSurvivors:
+    "Signals that passed the automated gates and were placed in the deeper follow-up queue. These are leads, not vetted candidates or discoveries.",
+  followupPriority:
+    "A local triage score used to order deeper checks. Higher values mean more urgent review; it is not a probability that the signal is a planet.",
+  sensitivityProbe:
+    "The shallowest synthetic transit recovered at a fixed known period in this star's cleaned light curve. This compact probe describes local signal sensitivity, not blind-search completeness and not proof that the star is planet-free.",
+  deeperVetting:
+    "A second automated pass using the already-downloaded light curve. It checks red-noise-adjusted significance, event-to-event depths, event coverage, and whether a single event sits near a gap or boundary. It ranks follow-up; it does not confirm a planet.",
+  redNoiseSnr:
+    "Signal-to-noise after inflating the noise estimate for variability correlated across roughly one transit duration. This is more conservative than the original white-noise score.",
+  eventCoverage:
+    "The fraction of predicted transit windows that contain enough measurements to test the event. Low coverage means gaps may dominate the fitted period.",
+  positiveEventFraction:
+    "The fraction of individually sampled events that dim rather than brighten. Inconsistent event depths make a repeating signal less convincing.",
+  followupSources:
+    "Independent data suggested for deeper review. Alternate TESS reductions are broadly useful; Kepler/K2 and ground surveys are used only when their sky coverage and cadence fit the target.",
+  averageThroughput:
+    "Completed targets divided by total elapsed campaign time, including slow periods and retries.",
+  rollingThroughput:
+    "The recent completion rate measured from targets finished during the latest 15-minute window.",
+  estimatedTime:
+    "Remaining targets divided by the recent completion rate. It will move as archive speed, retries, and target complexity change.",
+  vettingCoverage:
+    "Targets processed after the deeper-vetting feature was added, compared with eligible completed targets. Legacy-unmeasured targets are retained without pretending those newer checks ran retroactively.",
+  parallelWorkers:
+    "The live coordinator runs several analysis workers while a bounded download queue stages upcoming stars. One coordinator remains responsible for the checkpoint and dashboard.",
   searchErrors:
     "Targets whose data retrieval or analysis did not finish. They need a retry and are kept separate from completed no-signal searches.",
   planetRecoveries:
@@ -234,6 +340,8 @@ const HELP = {
   activeSector:
     "This sector is being processed now. Its orange fill grows as more targets finish.",
   noLocalTarget: "No searched target in the local ledger currently uses this sector.",
+  sectorFootprint:
+    "A rigid outline around the full local star envelope for the highlighted TESS sector. In 3D it is a Galactic XYZ bounding volume; in projected views it encloses the mapped local targets. It is spatial context, not the exact four-camera detector footprint.",
 };
 
 function InfoTerm({
@@ -327,6 +435,16 @@ function fmtInteger(value: number | string | undefined) {
   return number.toLocaleString();
 }
 
+function fmtDuration(hours: number | null | undefined) {
+  if (hours === null || hours === undefined || !Number.isFinite(hours)) return "—";
+  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))}m`;
+  const wholeHours = Math.floor(hours);
+  const minutes = Math.round((hours - wholeHours) * 60);
+  if (wholeHours < 24) return `${wholeHours}h ${minutes}m`;
+  const days = Math.floor(wholeHours / 24);
+  return `${days}d ${wholeHours % 24}h`;
+}
+
 function relativeUpdate(iso: string) {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
   if (seconds < 15) return "just now";
@@ -365,7 +483,13 @@ function Marker({ status, small = false }: { status: Status; small?: boolean }) 
       style={{ "--marker-color": STATUS_META[status].color } as React.CSSProperties}
       aria-hidden="true"
     >
-      {status === "known_tce_rediscovery" ? "✦" : status === "rediscovery" ? "✶" : ""}
+      {status === "known_tce_rediscovery"
+        ? "✦"
+        : status === "rediscovery"
+          ? "✶"
+          : status === "single_event_lead"
+            ? "1"
+            : ""}
     </span>
   );
 }
@@ -484,11 +608,15 @@ function ActualPhaseCurve({ curve, color }: { curve: PhaseCurve; color: string }
 
 function StarMap({
   stars,
+  sectorStars,
+  highlightedSector,
   selected,
   onSelect,
   mode,
 }: {
   stars: Star[];
+  sectorStars: Star[];
+  highlightedSector: number | null;
   selected: Star | null;
   onSelect: (star: Star) => void;
   mode: ViewMode;
@@ -773,6 +901,106 @@ function StarMap({
       return projectGalacticPoint(star.x, star.y, star.z);
     };
 
+    if (highlightedSector !== null && sectorStars.length) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(255, 173, 32, .92)";
+      ctx.fillStyle = "rgba(255, 173, 32, .08)";
+      ctx.lineWidth = 1.35;
+      ctx.setLineDash([7, 4]);
+      let labelX = 18;
+      let labelY = 24;
+
+      if (mode === "3d") {
+        const paddedBounds = (coordinate: (star: Star) => number) => {
+          let low = Number.POSITIVE_INFINITY;
+          let high = Number.NEGATIVE_INFINITY;
+          for (const star of sectorStars) {
+            const value = coordinate(star);
+            if (!Number.isFinite(value)) continue;
+            low = Math.min(low, value);
+            high = Math.max(high, value);
+          }
+          if (!Number.isFinite(low) || !Number.isFinite(high)) return null;
+            const padding = Math.max(2, (high - low) * 0.06);
+            return [low - padding, high + padding] as const;
+        };
+        const xBounds = paddedBounds((star) => star.x);
+        const yBounds = paddedBounds((star) => star.y);
+        const zBounds = paddedBounds((star) => star.z);
+        if (xBounds && yBounds && zBounds) {
+          const [minX, maxX] = xBounds;
+          const [minY, maxY] = yBounds;
+          const [minZ, maxZ] = zBounds;
+          const corners: Array<[number, number, number]> = [
+            [minX, minY, minZ],
+            [maxX, minY, minZ],
+            [maxX, maxY, minZ],
+            [minX, maxY, minZ],
+            [minX, minY, maxZ],
+            [maxX, minY, maxZ],
+            [maxX, maxY, maxZ],
+            [minX, maxY, maxZ],
+          ];
+          const projectedCorners = corners.map(([pointX, pointY, pointZ]) =>
+            projectGalacticPoint(pointX, pointY, pointZ),
+          );
+          const edges = [
+            [0, 1],
+            [1, 2],
+            [2, 3],
+            [3, 0],
+            [4, 5],
+            [5, 6],
+            [6, 7],
+            [7, 4],
+            [0, 4],
+            [1, 5],
+            [2, 6],
+            [3, 7],
+          ];
+          for (const [start, end] of edges) {
+            ctx.beginPath();
+            ctx.moveTo(projectedCorners[start].x, projectedCorners[start].y);
+            ctx.lineTo(projectedCorners[end].x, projectedCorners[end].y);
+            ctx.stroke();
+          }
+          labelX = Math.max(
+            12,
+            Math.min(w - 190, Math.min(...projectedCorners.map((point) => point.x))),
+          );
+          labelY = Math.max(
+            18,
+            Math.min(h - 12, Math.min(...projectedCorners.map((point) => point.y)) - 7),
+          );
+        }
+      } else {
+        let minX = Number.POSITIVE_INFINITY;
+        let maxX = Number.NEGATIVE_INFINITY;
+        let minY = Number.POSITIVE_INFINITY;
+        let maxY = Number.NEGATIVE_INFINITY;
+        for (const star of sectorStars) {
+          const point = project(star);
+          minX = Math.min(minX, point.x);
+          maxX = Math.max(maxX, point.x);
+          minY = Math.min(minY, point.y);
+          maxY = Math.max(maxY, point.y);
+        }
+        minX -= 8;
+        maxX += 8;
+        minY -= 8;
+        maxY += 8;
+        ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
+        ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+        labelX = Math.max(12, Math.min(w - 190, minX));
+        labelY = Math.max(18, Math.min(h - 12, minY - 7));
+      }
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(255, 202, 92, .96)";
+      ctx.font = "700 10px var(--font-geist-mono)";
+      ctx.fillText(`SECTOR ${highlightedSector} · LOCAL ENVELOPE`, labelX, labelY);
+      ctx.restore();
+    }
+
     const projected = stars
       .map((star) => ({ star, ...project(star) }))
       .sort((a, b) => a.depth - b.depth);
@@ -863,7 +1091,17 @@ function StarMap({
         ctx.fillText(STATUS_META[hovered.status].short, bx + 10, by + 52);
       }
     }
-  }, [hovered, mode, pan, rotation, selected, stars, zoom]);
+  }, [
+    highlightedSector,
+    hovered,
+    mode,
+    pan,
+    rotation,
+    sectorStars,
+    selected,
+    stars,
+    zoom,
+  ]);
 
   useEffect(() => {
     draw();
@@ -996,6 +1234,13 @@ function StarMap({
             <InfoTerm description={HELP.galacticPlane}>DISK: GALACTIC PLANE · b=0°</InfoTerm>
           </em>
         ) : null}
+        {highlightedSector !== null ? (
+          <em>
+            <InfoTerm description={HELP.sectorFootprint}>
+              OUTLINE: SECTOR {highlightedSector} LOCAL ENVELOPE
+            </InfoTerm>
+          </em>
+        ) : null}
         <em>{scaleInfo.location}</em>
         <em>
           <InfoTerm description={HELP.zoom}>
@@ -1017,7 +1262,13 @@ function StarMap({
       <div className="map-instructions">
         <span>{mode === "3d" ? "↻ Drag to orbit · Shift+drag to pan" : "↔ Drag to pan"}</span>
         <span>⊕ Scroll to zoom at cursor</span>
-        <span>{mode === "3d" ? "◎ Rigid Galactic-plane grid" : "◎ Hover for info"}</span>
+        <span>
+          {highlightedSector !== null
+            ? `□ Sector ${highlightedSector} spatial envelope`
+            : mode === "3d"
+              ? "◎ Rigid Galactic-plane grid"
+              : "◎ Hover for info"}
+        </span>
         <span>⌖ Click to select · Double-click to fit</span>
       </div>
       <div className="scale-bar">
@@ -1197,6 +1448,20 @@ export default function App() {
   const stats = survey?.stats || {};
   const activeCampaigns = survey?.active_campaigns || [];
   const activeCampaign = activeCampaigns[activeCampaigns.length - 1];
+  const highlightedSector =
+    sector !== "all"
+      ? Number(sector)
+      : activeCampaign?.sectors?.length === 1
+        ? activeCampaign.sectors[0]
+        : null;
+  const highlightedSectorStars = useMemo(
+    () =>
+      highlightedSector === null || !survey
+        ? []
+        : survey.stars.filter((star) => star.sectors.includes(highlightedSector)),
+    [highlightedSector, survey],
+  );
+  const campaignPerformance = activeCampaign?.runtime?.performance;
   const activeProgress = activeCampaign?.total_targets
     ? Math.min(100, (activeCampaign.completed_targets / activeCampaign.total_targets) * 100)
     : 0;
@@ -1258,7 +1523,7 @@ export default function App() {
           <i />
           {survey
             ? activeCampaign
-              ? `${activeCampaign.name}: ${activeCampaign.completed_targets}/${activeCampaign.total_targets} · updated ${relativeUpdate(activeCampaign.updated_at_utc)}`
+              ? `${activeCampaign.name}: ${activeCampaign.completed_targets}/${activeCampaign.total_targets} · ${activeCampaign.runtime?.analysis_workers || 1} workers · updated ${relativeUpdate(activeCampaign.updated_at_utc)}`
               : `Data updated ${relativeUpdate(survey.generated_at_utc)}`
             : "Connecting…"}
         </div>
@@ -1309,8 +1574,8 @@ export default function App() {
               ))}
             </div>
             <p className="status-scope-note">
-              <InfoTerm description={HELP.noVettedSignal}>
-                Mapped-star outcomes only. “No vetted signal” does not mean planet-free.
+              <InfoTerm description={HELP.noTransitDetected}>
+                No category means planet-free. Every label describes only this search window and pipeline.
               </InfoTerm>
             </p>
             <div className="legend">
@@ -1397,6 +1662,8 @@ export default function App() {
           ) : (
             <StarMap
               stars={filteredStars}
+              sectorStars={highlightedSectorStars}
+              highlightedSector={highlightedSector}
               selected={selected}
               onSelect={(star) => setSelectedId(star.tic_id)}
               mode={mode}
@@ -1482,6 +1749,52 @@ export default function App() {
                   <dd>{fmt(selected.snr, 2)}</dd>
                 </div>
                 <div>
+                  <dt><InfoTerm description={HELP.followupPriority}>Follow-up Priority</InfoTerm></dt>
+                  <dd>{selected.followup_priority ?? 0}/100</dd>
+                </div>
+                <div>
+                  <dt><InfoTerm description={HELP.deeperVetting}>Deeper Vetting Tier</InfoTerm></dt>
+                  <dd>{(selected.vetting_tier || "legacy_unmeasured").replaceAll("_", " ")}</dd>
+                </div>
+                <div>
+                  <dt><InfoTerm description={HELP.redNoiseSnr}>Red-noise S/N</InfoTerm></dt>
+                  <dd>{fmt(selected.red_noise_adjusted_snr, 2)}</dd>
+                </div>
+                <div>
+                  <dt><InfoTerm description={HELP.eventCoverage}>Event Coverage</InfoTerm></dt>
+                  <dd>
+                    {selected.event_coverage_fraction === null ||
+                    selected.event_coverage_fraction === undefined
+                      ? "Legacy / not measured"
+                      : `${fmt(selected.event_coverage_fraction * 100, 0)}%`}
+                  </dd>
+                </div>
+                <div>
+                  <dt><InfoTerm description={HELP.positiveEventFraction}>Positive-depth Events</InfoTerm></dt>
+                  <dd>
+                    {selected.positive_depth_event_fraction === null ||
+                    selected.positive_depth_event_fraction === undefined
+                      ? "Legacy / not measured"
+                      : `${fmt(selected.positive_depth_event_fraction * 100, 0)}%`}
+                  </dd>
+                </div>
+                <div>
+                  <dt><InfoTerm description={HELP.sensitivityProbe}>3-day Sensitivity Probe</InfoTerm></dt>
+                  <dd>
+                    {selected.sensitivity_3d_ppm
+                      ? `${fmt(selected.sensitivity_3d_ppm, 0)} ppm`
+                      : "Legacy / not measured"}
+                  </dd>
+                </div>
+                <div>
+                  <dt><InfoTerm description={HELP.sensitivityProbe}>12-day Sensitivity Probe</InfoTerm></dt>
+                  <dd>
+                    {selected.sensitivity_12d_ppm
+                      ? `${fmt(selected.sensitivity_12d_ppm, 0)} ppm`
+                      : "Legacy / not measured"}
+                  </dd>
+                </div>
+                <div>
                   <dt><InfoTerm description={HELP.catalogueStatus}>Catalogue Status</InfoTerm></dt>
                   <dd className={STATUS_META[selected.status].className}>
                     {selected.status_label}
@@ -1492,6 +1805,23 @@ export default function App() {
                   <dd className="cyan">{selected.coordinate_source}</dd>
                 </div>
               </dl>
+              {(selected.deeper_vetting_flags || selected.recommended_data_sources) && (
+                <section className="mini-section followup-section">
+                  <h2>
+                    <InfoTerm description={HELP.deeperVetting}>DEEPER FOLLOW-UP PLAN</InfoTerm>
+                  </h2>
+                  <p>
+                    <strong>Automated flags:</strong>{" "}
+                    {selected.deeper_vetting_flags || "No additional in-light-curve flags."}
+                  </p>
+                  <p>
+                    <InfoTerm description={HELP.followupSources}>
+                      <strong>Independent data:</strong>{" "}
+                      {selected.recommended_data_sources || "Legacy result; availability not planned."}
+                    </InfoTerm>
+                  </p>
+                </section>
+              )}
               <section className="mini-section">
                 <h2>
                   <InfoTerm description={HELP.phaseFolded}>
@@ -1576,11 +1906,21 @@ export default function App() {
             <InfoTerm description="Mapped-star outcomes plus cumulative validation and vetting performance. Hover each metric to see its scope.">
               SURVEY METRICS
             </InfoTerm>
-            <b>
-              {activeCampaign
-                ? `RUNNING ${activeCampaign.completed_targets}/${activeCampaign.total_targets}`
-                : "LIVE"}
-            </b>
+            {activeCampaign ? (
+              <div className="performance-head">
+                <InfoTerm description={HELP.rollingThroughput}>
+                  NOW {fmt(campaignPerformance?.rolling_stars_per_hour, 0)}/h
+                </InfoTerm>
+                <InfoTerm description={HELP.averageThroughput}>
+                  AVG {fmt(campaignPerformance?.average_stars_per_hour, 0)}/h
+                </InfoTerm>
+                <InfoTerm description={HELP.estimatedTime}>
+                  ETA {fmtDuration(campaignPerformance?.eta_hours)}
+                </InfoTerm>
+              </div>
+            ) : (
+              <b>LIVE</b>
+            )}
           </div>
           <div className="metric-row">
             <Metric
@@ -1589,34 +1929,34 @@ export default function App() {
               value={fmtInteger(survey?.stars.length)}
             />
             <Metric
-              label="No vetted signal"
-              description={HELP.noVettedSignal}
-              value={fmtInteger(survey?.status_counts.searched)}
-              color="#35d7e8"
+              label="No transit in window"
+              description={HELP.noTransitDetected}
+              value={fmtInteger(survey?.status_counts.no_transit_detected)}
+              color="#55c6d8"
+            />
+            <Metric
+              label="Signals screened out"
+              description={HELP.screenedRejected}
+              value={fmtInteger(survey?.status_counts.screened_rejected)}
+              color="#8098a5"
+            />
+            <Metric
+              label="Single-event leads"
+              description={HELP.singleEventLeads}
+              value={fmtInteger(survey?.status_counts.single_event_lead)}
+              color="#ffd166"
+            />
+            <Metric
+              label="Automated survivors"
+              description={HELP.automatedSurvivors}
+              value={fmtInteger(survey?.status_counts.automated_survivor)}
+              color="#62e6a7"
             />
             <Metric
               label="Retry needed"
               description={HELP.searchErrors}
               value={fmtInteger(survey?.status_counts.search_error)}
               color="#ff7b54"
-            />
-            <Metric
-              label="Mapped planet recoveries"
-              description={HELP.planetRecoveries}
-              value={fmtInteger(survey?.status_counts.rediscovery)}
-              color="#ffad20"
-            />
-            <Metric
-              label="TCE rediscoveries"
-              description={HELP.tceRecoveries}
-              value={fmtInteger(survey?.status_counts.known_tce_rediscovery)}
-              color="#bf7aff"
-            />
-            <Metric
-              label="False positives"
-              description={HELP.falsePositives}
-              value={fmtInteger(survey?.status_counts.false_positive)}
-              color="#ff563d"
             />
             <Metric
               label="New candidates"
@@ -1642,6 +1982,38 @@ export default function App() {
             <InfoTerm description={HELP.campaignRuns}>
               {Number(stats.campaign_runs_logged || 0)} campaign runs
             </InfoTerm>
+            {activeCampaign ? (
+              <InfoTerm description={HELP.parallelWorkers}>
+                {activeCampaign.runtime?.analysis_workers || 1} analysis workers ·{" "}
+                {activeCampaign.runtime?.downloads_in_flight || 0} downloading ·{" "}
+                {activeCampaign.runtime?.downloaded_waiting || 0} staged
+              </InfoTerm>
+            ) : null}
+            {activeCampaign ? (
+              <InfoTerm description={HELP.vettingCoverage}>
+                Deep vetting{" "}
+                {fmtInteger(activeCampaign.runtime?.vetting_coverage?.measured_targets)}/
+                {fmtInteger(activeCampaign.runtime?.vetting_coverage?.eligible_targets)}
+                {activeCampaign.runtime?.vetting_coverage?.legacy_unmeasured_targets
+                  ? ` · ${fmtInteger(
+                      activeCampaign.runtime.vetting_coverage.legacy_unmeasured_targets,
+                    )} legacy`
+                  : ""}
+              </InfoTerm>
+            ) : null}
+            {activeCampaign ? (
+              <InfoTerm description={HELP.estimatedTime}>
+                Estimated finish{" "}
+                {campaignPerformance?.estimated_completion_utc
+                  ? new Date(
+                      campaignPerformance.estimated_completion_utc,
+                    ).toLocaleTimeString([], {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })
+                  : "calculating"}
+              </InfoTerm>
+            ) : null}
             <InfoTerm description={HELP.validationRecoveries}>
               {fmtInteger(stats.known_planet_rediscoveries as number)} separate validation
               recoveries
@@ -1698,15 +2070,13 @@ export default function App() {
                 <button
                   key={value}
                   aria-label={label}
-                  className={
-                    isActive
-                      ? "active-sector"
-                      : observed.has(value)
-                        ? "observed"
-                        : value === latestObservedSector
-                          ? "latest"
-                          : ""
-                  }
+                  className={`${isActive
+                    ? "active-sector"
+                    : observed.has(value)
+                      ? "observed"
+                      : value === latestObservedSector
+                        ? "latest"
+                        : ""} ${Number(sector) === value ? "selected-sector" : ""}`.trim()}
                   style={
                     isActive
                       ? ({ "--sector-progress": `${activeProgress}%` } as React.CSSProperties)

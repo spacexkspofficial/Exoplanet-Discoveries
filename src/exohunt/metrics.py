@@ -181,6 +181,7 @@ def record_campaign(
                 reason_counts[reason.strip()] += 1
     settings = dict(summary.get("settings") or {})
     settings.pop("storage_retention", None)
+    settings.pop("execution", None)
     campaign_identity = {
         "target_list": summary.get("target_list"),
         "settings": settings,

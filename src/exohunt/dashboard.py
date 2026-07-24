@@ -44,6 +44,57 @@ def _sectors(value: object) -> list[int]:
     return sorted(set(values))
 
 
+def _screening_class(result: dict[str, object]) -> str:
+    explicit = str(result.get("screening_class") or "")
+    if explicit in {
+        "automated_survivor",
+        "single_event_lead",
+        "screened_rejected",
+        "no_transit_detected",
+        "search_error",
+    }:
+        return explicit
+    status = str(result.get("status") or "")
+    if status == "error":
+        return "search_error"
+    if status == "survivor":
+        return "automated_survivor"
+    reasons = {
+        value.strip()
+        for value in str(result.get("rejection_reasons") or "").split(";")
+        if value.strip()
+    }
+    snr = _optional_float(result.get("depth_snr")) or 0.0
+    if (
+        "fewer than two transit events are represented" in reasons
+        and snr >= 7.1
+        and not reasons.intersection(
+            {
+                "odd and even transit depths differ by more than 3 sigma",
+                "a secondary eclipse is detected above 3 sigma",
+                "the fitted transit duty cycle exceeds 15 percent",
+                "the fitted transit depth exceeds 5 percent",
+            }
+        )
+    ):
+        return "single_event_lead"
+    if reasons == {"white-noise BLS depth S/N is below 7.1"}:
+        return "no_transit_detected"
+    if status == "rejected":
+        return "screened_rejected"
+    return "searched"
+
+
+SCREENING_LABELS = {
+    "searched": "Searched - awaiting classification",
+    "automated_survivor": "Automated survivor - deeper vetting needed",
+    "single_event_lead": "Single-event lead - longer baseline needed",
+    "screened_rejected": "Strongest signal screened out",
+    "no_transit_detected": "No transit detected in searched window",
+    "search_error": "Search error - retry needed",
+}
+
+
 def _read_catalog_cache(path: Path) -> dict[int, dict[str, object]]:
     if not path.exists():
         return {}
@@ -174,7 +225,11 @@ def export_dashboard_data(
                 progress = json.loads(progress_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
-            if progress.get("state") not in {"running", "finalizing"}:
+            if progress.get("state") not in {
+                "running",
+                "finalizing",
+                "retry_pending",
+            }:
                 continue
             progress_results = list(progress.get("results", []))
             active_results.extend(progress_results)
@@ -196,6 +251,7 @@ def export_dashboard_data(
                         progress.get("completed_targets", len(progress_results))
                     ),
                     "counts": progress.get("counts", {}),
+                    "runtime": progress.get("runtime", {}),
                     "started_at_utc": progress.get("started_at_utc"),
                     "updated_at_utc": progress.get("updated_at_utc"),
                 }
@@ -291,6 +347,35 @@ def export_dashboard_data(
                 "duration_hours": _optional_float(result.get("duration_hours")),
                 "observed_transits": result.get("observed_transits"),
                 "screening_status": result.get("status"),
+                "screening_class": _screening_class(result),
+                "rejection_reasons": result.get("rejection_reasons", ""),
+                "followup_priority": int(result.get("followup_priority", 0)),
+                "followup_reasons": result.get("followup_reasons", ""),
+                "vetting_tier": result.get(
+                    "vetting_tier", "legacy_unmeasured"
+                ),
+                "deeper_vetting_flags": result.get(
+                    "deeper_vetting_flags", ""
+                ),
+                "recommended_data_sources": result.get(
+                    "recommended_data_sources", ""
+                ),
+                "planet_free": False,
+                "sensitivity_3d_ppm": _optional_float(
+                    result.get("sensitivity_3d_ppm")
+                ),
+                "sensitivity_12d_ppm": _optional_float(
+                    result.get("sensitivity_12d_ppm")
+                ),
+                "red_noise_adjusted_snr": _optional_float(
+                    result.get("red_noise_adjusted_snr")
+                ),
+                "event_coverage_fraction": _optional_float(
+                    result.get("event_coverage_fraction")
+                ),
+                "positive_depth_event_fraction": _optional_float(
+                    result.get("positive_depth_event_fraction")
+                ),
                 "sectors": row_sectors,
                 "phase_curve_available": bool(
                     result.get("phase_curve_available", False)
@@ -313,6 +398,31 @@ def export_dashboard_data(
             "duration_hours": _optional_float(result.get("duration_hours")),
             "observed_transits": result.get("observed_transits"),
             "screening_status": result.get("status"),
+            "screening_class": _screening_class(result),
+            "rejection_reasons": result.get("rejection_reasons", ""),
+            "followup_priority": int(result.get("followup_priority", 0)),
+            "followup_reasons": result.get("followup_reasons", ""),
+            "vetting_tier": result.get("vetting_tier", "legacy_unmeasured"),
+            "deeper_vetting_flags": result.get("deeper_vetting_flags", ""),
+            "recommended_data_sources": result.get(
+                "recommended_data_sources", ""
+            ),
+            "planet_free": False,
+            "sensitivity_3d_ppm": _optional_float(
+                result.get("sensitivity_3d_ppm")
+            ),
+            "sensitivity_12d_ppm": _optional_float(
+                result.get("sensitivity_12d_ppm")
+            ),
+            "red_noise_adjusted_snr": _optional_float(
+                result.get("red_noise_adjusted_snr")
+            ),
+            "event_coverage_fraction": _optional_float(
+                result.get("event_coverage_fraction")
+            ),
+            "positive_depth_event_fraction": _optional_float(
+                result.get("positive_depth_event_fraction")
+            ),
             "sectors": row_sectors,
             "phase_curve_available": bool(
                 result.get("phase_curve_available", False)
@@ -337,11 +447,15 @@ def export_dashboard_data(
     priorities = {
         "searched": 0,
         "search_error": 0,
-        "false_positive": 1,
-        "rediscovery": 2,
-        "known_tce_rediscovery": 3,
-        "vetted_candidate": 4,
-        "confirmed_planet": 5,
+        "no_transit_detected": 0,
+        "screened_rejected": 0,
+        "single_event_lead": 1,
+        "automated_survivor": 1,
+        "false_positive": 2,
+        "rediscovery": 3,
+        "known_tce_rediscovery": 4,
+        "vetted_candidate": 5,
+        "confirmed_planet": 6,
     }
     stars: list[dict[str, object]] = []
     for tic_id in searched_ids:
@@ -363,14 +477,10 @@ def export_dashboard_data(
             coordinate_source = "TIC sky position and distance"
 
         signal = signals.get(tic_id, {})
-        is_search_error = signal.get("screening_status") == "error"
-        status = "search_error" if is_search_error else "searched"
-        label = (
-            "Search error — retry needed"
-            if is_search_error
-            else "Searched — no vetted signal"
-        )
-        notes = ""
+        screening_class = str(signal.get("screening_class") or "searched")
+        status = screening_class if screening_class in SCREENING_LABELS else "searched"
+        label = SCREENING_LABELS[status]
+        notes = str(signal.get("followup_reasons") or "")
         for outcome in outcomes.get(tic_id, []):
             kind = str(outcome.get("kind"))
             if priorities.get(kind, -1) >= priorities.get(status, -1):
@@ -418,6 +528,8 @@ def export_dashboard_data(
         "stars": stars,
         "warnings": [
             "Automated survivors are not planet candidates.",
+            "No transit detected in a searched window does not mean planet-free.",
+            "Single-event leads require a longer observing baseline.",
             "A rediscovery is explicitly not a new planet.",
             "Display-fallback coordinates are labeled and should be replaced by TIC data.",
         ],

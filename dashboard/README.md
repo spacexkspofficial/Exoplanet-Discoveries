@@ -23,4 +23,9 @@ so it is not reachable from other computers on the LAN or from the internet.
 active campaign checkpoints, then served with `Cache-Control: no-store`. The UI
 polls it every five seconds and ignores late responses from older polls.
 Search/download errors are shown as `Retry needed`, separately from completed
-searches with no vetted signal.
+searches. Completed targets are split into `No transit detected in search
+window`, `Strongest signal screened out`, `Single-event lead`, and `Automated
+survivor` classes. None of those labels means a star is planet-free, and an
+automated survivor is a follow-up lead rather than a vetted candidate. During a
+parallel campaign the live snapshot also reports analysis workers, downloads
+in flight, and staged targets.
