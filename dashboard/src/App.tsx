@@ -911,6 +911,24 @@ function StarMap({
     setRotation({ x: -0.36, y: -0.52 });
   };
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = canvas.getBoundingClientRect();
+      changeZoom(Math.exp(-event.deltaY * 0.0015), {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      });
+    };
+
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", handleWheel);
+  }, [mode]);
+
   return (
     <div className="map-stage">
       <canvas
@@ -957,14 +975,6 @@ function StarMap({
         onPointerLeave={() => {
           dragRef.current.active = false;
           setHovered(null);
-        }}
-        onWheel={(event) => {
-          event.preventDefault();
-          const rect = event.currentTarget.getBoundingClientRect();
-          changeZoom(Math.exp(-event.deltaY * 0.0015), {
-            x: event.clientX - rect.left,
-            y: event.clientY - rect.top,
-          });
         }}
         onDoubleClick={resetView}
       />
