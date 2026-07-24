@@ -173,12 +173,15 @@ already-downloaded light curves. For example:
   --output-dir results\campaign\sector105_overnight_5000 `
   --author TESScut --cadence-seconds 158 --allow-no-known `
   --min-period 0.5 --max-period 13 `
-  --workers 3 --prefetch 6 --cache-max-gb 10 --workspace-max-gb 20
+  --workers 4 --download-workers 3 --prefetch 8 `
+  --cache-max-gb 10 --workspace-max-gb 20
 ```
 
-One coordinator remains the only checkpoint/dashboard writer. Here, three
-analysis threads and two download threads keep at most six targets downloading,
-staged, or analyzing; the whole list is never pre-downloaded. Retention is
+One coordinator remains the only checkpoint/dashboard writer. The conservative
+default still uses at most two download threads; `--download-workers 3` is an
+explicit option for a measured download-bound campaign. In this example, four
+analysis threads and three download threads keep at most eight targets
+downloading, staged, or analyzing; the whole list is never pre-downloaded. Retention is
 checked every ten completed targets and at finalization. With
 `--workspace-max-gb 20`, the entire project directory has a 20-decimal-GB hard
 ceiling and the download cache is automatically reduced below its configured
@@ -306,6 +309,22 @@ Kepler/K2, Hubble, Webb, and other collections, and screens TIC/Gaia-crossmatche
 neighbors. It downloads no light curves, images, or spectra. The report orders
 the evidence that is actually available so expensive follow-up can be limited
 to the strongest targets.
+
+After a campaign finalizes its durable follow-up queue, run the same compact
+triage across the entire queue:
+
+```powershell
+.\.venv\Scripts\exohunt.exe context-vet-queue `
+  --queue results\campaign\sector100_expansion_5000\deep_followup_queue.json `
+  --output-dir results\vetting\sector100_expansion_5000\context `
+  --workers 2
+```
+
+The queue runner is idempotent, checkpointed, and limited to four metadata
+workers. It records which TESS reductions, Kepler/K2 observations, Hubble/Webb
+programs, and nearby TIC/Gaia sources exist while downloading zero telescope
+science products. Actual light curves, images, or spectra should be fetched
+later only for the highest-ranked applicable targets.
 
 Test the same ephemeris independently in each sector, then compare it with the
 official public MAST threshold-crossing-event tables:

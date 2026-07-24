@@ -1,3 +1,9 @@
+import argparse
+import json
+from pathlib import Path
+
+import exohunt.cli as cli_module
+from exohunt.cli import _run_context_vet_queue
 from exohunt.context import (
     build_followup_actions,
     summarize_mast_observations,
@@ -99,3 +105,79 @@ def test_followup_actions_put_giant_and_multisector_checks_first():
     assert any("additional TESS sectors" in row["action"] for row in actions)
     assert any("independently extracted" in row["action"] for row in actions)
     assert any("HST" in row["action"] for row in actions)
+
+
+def test_context_vet_queue_is_compact_and_idempotent(
+    tmp_path: Path, monkeypatch
+) -> None:
+    queue_path = tmp_path / "deep_followup_queue.json"
+    queue_path.write_text(
+        json.dumps(
+            {
+                "targets": [
+                    {
+                        "tic_id": 42,
+                        "target": "TIC 42",
+                        "followup_priority": 99,
+                        "vetting_tier": "high_priority_followup",
+                        "period_days": 3.5,
+                    },
+                    {
+                        "tic_id": 43,
+                        "target": "TIC 43",
+                        "followup_priority": 80,
+                        "vetting_tier": "needs_manual_review",
+                        "period_days": 7.0,
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    calls: list[int] = []
+
+    def fake_query(tic_id: int, **_kwargs):
+        calls.append(tic_id)
+        return {
+            "schema_version": 1,
+            "tic": {"tic_id": tic_id},
+            "mast_holdings": {
+                "observation_records": 2,
+                "collection_counts": {"TESS": 2},
+                "tess": {
+                    "all_sectors": [100],
+                    "alternate_reductions": ["QLP"],
+                },
+            },
+            "neighbor_context": {"crowding_risk": "low"},
+            "recommended_actions": [{"priority": "high", "action": "check"}],
+        }
+
+    monkeypatch.setattr(cli_module, "query_cross_mission_context", fake_query)
+    output_dir = tmp_path / "context"
+    args = argparse.Namespace(
+        queue=str(queue_path),
+        output_dir=str(output_dir),
+        max_targets=None,
+        workers=2,
+        force=False,
+        mast_radius_arcsec=3.0,
+        neighbor_radius_arcsec=42.0,
+    )
+
+    assert _run_context_vet_queue(args) == 0
+    assert sorted(calls) == [42, 43]
+    summary = json.loads(
+        (output_dir / "context_vet_summary.json").read_text(encoding="utf-8")
+    )
+    assert summary["state"] == "completed"
+    assert summary["counts"] == {"completed": 2, "error": 0, "remaining": 0}
+    assert summary["runtime"]["science_products_downloaded"] == 0
+
+    calls.clear()
+    assert _run_context_vet_queue(args) == 0
+    assert calls == []
+    reused = json.loads(
+        (output_dir / "context_vet_summary.json").read_text(encoding="utf-8")
+    )
+    assert all(row["run_state"] == "reused" for row in reused["results"])

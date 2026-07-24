@@ -439,13 +439,19 @@ def _scientific_settings(args: argparse.Namespace) -> dict[str, object]:
 
 def _campaign_settings(args: argparse.Namespace) -> dict[str, object]:
     workers = max(1, int(getattr(args, "workers", 1)))
+    download_workers_arg = getattr(args, "download_workers", None)
+    download_workers = (
+        max(1, int(download_workers_arg))
+        if download_workers_arg is not None
+        else min(2, workers)
+    )
     prefetch = getattr(args, "prefetch", None)
     prefetch = max(workers, int(prefetch) if prefetch is not None else workers * 2)
     return {
         **_scientific_settings(args),
         "execution": {
             "analysis_workers": workers,
-            "download_workers": min(2, workers),
+            "download_workers": download_workers,
             "prefetch_targets": prefetch,
             "checkpoint_writer": "single coordinator",
         },
@@ -1068,7 +1074,14 @@ def _run_batch_hunt(args: argparse.Namespace) -> int:
     )
     if prefetch > 64:
         raise ValueError("At most 64 targets may be staged for download-ahead.")
-    download_workers = min(2, workers)
+    download_workers_arg = getattr(args, "download_workers", None)
+    download_workers = (
+        int(download_workers_arg)
+        if download_workers_arg is not None
+        else min(2, workers)
+    )
+    if download_workers <= 0 or download_workers > 8:
+        raise ValueError("Use between 1 and 8 download workers.")
     specs = [
         _batch_target_spec(index, row, output_dir)
         for index, row in enumerate(rows, start=1)
@@ -1820,6 +1833,243 @@ def _context_vet(args: argparse.Namespace) -> int:
     print(json.dumps(context, indent=2))
     print(f"\nSaved {report_path}")
     return 0
+
+
+def _context_queue_result(
+    queue_row: dict[str, object],
+    *,
+    context_path: Path | None,
+    context: dict[str, object] | None,
+    run_state: str,
+    error: str = "",
+) -> dict[str, object]:
+    mast = context.get("mast_holdings", {}) if context else {}
+    mast = mast if isinstance(mast, dict) else {}
+    tess = mast.get("tess", {})
+    tess = tess if isinstance(tess, dict) else {}
+    neighbors = context.get("neighbor_context", {}) if context else {}
+    neighbors = neighbors if isinstance(neighbors, dict) else {}
+    collections = mast.get("collection_counts", {})
+    collections = collections if isinstance(collections, dict) else {}
+    return {
+        "tic_id": int(queue_row["tic_id"]),
+        "target": queue_row.get("target"),
+        "followup_priority": int(queue_row.get("followup_priority", 0)),
+        "vetting_tier": queue_row.get("vetting_tier"),
+        "status": "error" if error else "completed",
+        "run_state": run_state,
+        "context_report": str(context_path) if context_path else "",
+        "error": error,
+        "mast_observation_records": int(mast.get("observation_records", 0)),
+        "mast_collection_counts": json.dumps(collections, sort_keys=True),
+        "tess_sectors": ",".join(str(value) for value in tess.get("all_sectors", [])),
+        "alternate_tess_reductions": ",".join(
+            str(value) for value in tess.get("alternate_reductions", [])
+        ),
+        "crowding_risk": neighbors.get("crowding_risk", ""),
+        "recommended_action_count": len(
+            context.get("recommended_actions", []) if context else []
+        ),
+    }
+
+
+def _run_context_vet_queue(args: argparse.Namespace) -> int:
+    """Vet a saved follow-up queue using compact, metadata-only mission queries."""
+
+    queue_path = Path(args.queue)
+    queue_payload = json.loads(queue_path.read_text(encoding="utf-8"))
+    raw_targets = queue_payload.get("targets", [])
+    if not isinstance(raw_targets, list) or not raw_targets:
+        raise RuntimeError("Context-vetting queue contains no targets.")
+
+    targets: list[dict[str, object]] = []
+    seen_tic_ids: set[int] = set()
+    for raw in raw_targets:
+        if not isinstance(raw, dict) or not raw.get("tic_id"):
+            raise RuntimeError("Every context-vetting queue row needs a TIC ID.")
+        tic_id = int(raw["tic_id"])
+        if tic_id in seen_tic_ids:
+            raise RuntimeError(f"Duplicate TIC ID in context-vetting queue: {tic_id}.")
+        seen_tic_ids.add(tic_id)
+        targets.append(raw)
+    if args.max_targets is not None:
+        if int(args.max_targets) <= 0:
+            raise ValueError("--max-targets must be greater than zero.")
+        targets = targets[: int(args.max_targets)]
+
+    workers = int(args.workers)
+    if workers <= 0 or workers > 4:
+        raise ValueError("Use between 1 and 4 context-vetting workers.")
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    started_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    progress_path = output_dir / "context_vet_progress.json"
+    results_by_tic: dict[int, dict[str, object]] = {}
+    pending: deque[dict[str, object]] = deque()
+
+    for queue_row in targets:
+        tic_id = int(queue_row["tic_id"])
+        context_path = output_dir / f"TIC_{tic_id}_cross_mission_context.json"
+        if context_path.exists() and not args.force:
+            try:
+                context = json.loads(context_path.read_text(encoding="utf-8"))
+                context_tic = context.get("tic", {})
+                if (
+                    not isinstance(context_tic, dict)
+                    or int(context_tic.get("tic_id", 0)) != tic_id
+                ):
+                    raise ValueError("context report TIC ID does not match")
+                results_by_tic[tic_id] = _context_queue_result(
+                    queue_row,
+                    context_path=context_path,
+                    context=context,
+                    run_state="reused",
+                )
+                continue
+            except (OSError, ValueError, TypeError, json.JSONDecodeError):
+                pass
+        pending.append(queue_row)
+
+    def ordered_results() -> list[dict[str, object]]:
+        return [
+            results_by_tic[int(row["tic_id"])]
+            for row in targets
+            if int(row["tic_id"]) in results_by_tic
+        ]
+
+    def publish(state: str) -> None:
+        results = ordered_results()
+        errors = sum(row["status"] == "error" for row in results)
+        _atomic_write_json(
+            progress_path,
+            {
+                "schema_version": 1,
+                "state": state,
+                "warning": (
+                    "This workflow queries catalogs and observation metadata only. "
+                    "It downloads zero telescope science products."
+                ),
+                "queue": str(queue_path),
+                "output_dir": str(output_dir),
+                "started_at_utc": started_at,
+                "updated_at_utc": datetime.now(timezone.utc)
+                .replace(microsecond=0)
+                .isoformat(),
+                "total_targets": len(targets),
+                "completed_targets": len(results),
+                "counts": {
+                    "completed": len(results) - errors,
+                    "error": errors,
+                    "remaining": len(targets) - len(results),
+                },
+                "runtime": {
+                    "workers": workers,
+                    "science_products_downloaded": 0,
+                },
+                "results": results,
+            },
+        )
+
+    publish("running")
+    futures: dict[Future[dict[str, object]], dict[str, object]] = {}
+    with ThreadPoolExecutor(
+        max_workers=workers, thread_name_prefix="exohunt-context"
+    ) as executor:
+        while pending or futures:
+            while pending and len(futures) < workers:
+                queue_row = pending.popleft()
+                future = executor.submit(
+                    query_cross_mission_context,
+                    int(queue_row["tic_id"]),
+                    mast_radius_arcsec=args.mast_radius_arcsec,
+                    neighbor_radius_arcsec=args.neighbor_radius_arcsec,
+                )
+                futures[future] = queue_row
+            done, _ = wait(futures, return_when=FIRST_COMPLETED)
+            for future in done:
+                queue_row = futures.pop(future)
+                tic_id = int(queue_row["tic_id"])
+                context_path = output_dir / f"TIC_{tic_id}_cross_mission_context.json"
+                try:
+                    context = future.result()
+                    context["source_queue"] = str(queue_path)
+                    context["source_report"] = queue_row.get("report")
+                    context["signal_under_review"] = {
+                        key: queue_row.get(key)
+                        for key in (
+                            "period_days",
+                            "depth_ppm",
+                            "depth_snr",
+                            "observed_transits",
+                        )
+                    }
+                    _atomic_write_json(context_path, context)
+                    result = _context_queue_result(
+                        queue_row,
+                        context_path=context_path,
+                        context=context,
+                        run_state="completed",
+                    )
+                except Exception as error:
+                    result = _context_queue_result(
+                        queue_row,
+                        context_path=None,
+                        context=None,
+                        run_state="error",
+                        error=str(error),
+                    )
+                results_by_tic[tic_id] = result
+                publish("running")
+
+    results = ordered_results()
+    errors = sum(row["status"] == "error" for row in results)
+    final_state = "completed" if errors == 0 else "retry_pending"
+    publish(final_state)
+    summary = json.loads(progress_path.read_text(encoding="utf-8"))
+    _atomic_write_json(output_dir / "context_vet_summary.json", summary)
+    fieldnames = [
+        "tic_id",
+        "target",
+        "followup_priority",
+        "vetting_tier",
+        "status",
+        "run_state",
+        "context_report",
+        "error",
+        "mast_observation_records",
+        "mast_collection_counts",
+        "tess_sectors",
+        "alternate_tess_reductions",
+        "crowding_risk",
+        "recommended_action_count",
+    ]
+    temporary = output_dir / "context_vet_summary.csv.tmp"
+    with temporary.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(results)
+    _replace_with_retry(temporary, output_dir / "context_vet_summary.csv")
+    print(
+        f"Cross-mission metadata vetting: {len(results) - errors} complete, "
+        f"{errors} error(s), {len(results)} total."
+    )
+    return 0 if errors == 0 else 1
+
+
+def _context_vet_queue(args: argparse.Namespace) -> int:
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    lock = FileLock(str(output_dir / ".context-vet.lock"))
+    try:
+        lock.acquire(timeout=0)
+    except Timeout as error:
+        raise RuntimeError(
+            f"Another context-vetting worker already owns {output_dir}."
+        ) from error
+    try:
+        return _run_context_vet_queue(args)
+    finally:
+        lock.release()
 
 
 def _pixel_vet(args: argparse.Namespace) -> int:
@@ -3291,6 +3541,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     batch.add_argument(
+        "--download-workers",
+        type=int,
+        help=(
+            "Download this many targets concurrently (default: min(2, --workers); "
+            "use 3 cautiously for a download-bound TESScut campaign)."
+        ),
+    )
+    batch.add_argument(
         "--prefetch",
         type=int,
         help=(
@@ -3403,6 +3661,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     context_vet.add_argument("--output-dir", default="results/context_vet")
     context_vet.set_defaults(func=_context_vet)
+
+    context_queue = subparsers.add_parser(
+        "context-vet-queue",
+        help=(
+            "Process a deep-followup queue with compact TIC, NASA catalog, MAST "
+            "mission-coverage, and nearby-source metadata queries."
+        ),
+    )
+    context_queue.add_argument("--queue", required=True)
+    context_queue.add_argument(
+        "--output-dir", default="results/context_vet_queue"
+    )
+    context_queue.add_argument("--max-targets", type=int)
+    context_queue.add_argument("--workers", type=int, default=2)
+    context_queue.add_argument("--force", action="store_true")
+    context_queue.add_argument(
+        "--mast-radius-arcsec", type=float, default=3.0
+    )
+    context_queue.add_argument(
+        "--neighbor-radius-arcsec", type=float, default=42.0
+    )
+    context_queue.set_defaults(func=_context_vet_queue)
 
     inject = subparsers.add_parser(
         "inject-recover",

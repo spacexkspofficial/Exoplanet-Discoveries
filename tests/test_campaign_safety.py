@@ -14,6 +14,7 @@ from exohunt.cli import (
     LEGACY_COMMON_MODE_REASON,
     LEGACY_COMMON_MODE_REASONS,
     _batch_hunt,
+    _campaign_settings,
     _is_transient_search_error,
     _load_reusable_report,
     _performance_snapshot,
@@ -350,6 +351,7 @@ def test_parallel_batch_uses_bounded_download_ahead_and_ordered_checkpoint(
         cache_max_gb=10.0,
         retain_rejected_plots=True,
         workers=3,
+        download_workers=3,
         prefetch=6,
     )
     assert _run_batch_hunt(args) == 0
@@ -357,12 +359,30 @@ def test_parallel_batch_uses_bounded_download_ahead_and_ordered_checkpoint(
     progress = json.loads(
         (output_dir / "batch_progress.json").read_text(encoding="utf-8")
     )
-    assert maximum_downloads == 2
+    assert maximum_downloads == 3
     assert maximum_analyses == 3
     assert progress["state"] == "completed"
     assert progress["completed_targets"] == 8
     assert progress["runtime"]["analysis_workers"] == 3
-    assert progress["runtime"]["download_workers"] == 2
+    assert progress["runtime"]["download_workers"] == 3
     assert progress["runtime"]["prefetch_targets"] == 6
     assert [row["tic_id"] for row in progress["results"]] == list(range(1, 9))
     assert all(row["planet_free"] is False for row in progress["results"])
+
+
+def test_campaign_settings_preserve_two_download_default() -> None:
+    args = argparse.Namespace(
+        author="TESScut",
+        cadence_seconds=158.0,
+        min_period=0.5,
+        max_period=13.0,
+        mask_width=1.5,
+        allow_no_known=True,
+        workers=3,
+        prefetch=6,
+        cache_max_gb=10.0,
+        workspace_max_gb=20.0,
+        retain_rejected_plots=False,
+    )
+
+    assert _campaign_settings(args)["execution"]["download_workers"] == 2

@@ -33,6 +33,21 @@ download science products. Hubble and Webb matches are treated as sparse,
 targeted archival context—not as all-sky transit searches or automatic evidence
 for a planet.
 
+After the active campaign finishes, process its complete durable queue with:
+
+```powershell
+.\.venv\Scripts\exohunt.exe context-vet-queue `
+  --queue results\campaign\sector100_expansion_5000\deep_followup_queue.json `
+  --output-dir results\vetting\sector100_expansion_5000\context `
+  --workers 2
+```
+
+This idempotent job writes a compact context JSON per TIC plus checkpointed
+JSON/CSV summaries. It queries which TESS reductions, Kepler/K2 observations,
+Hubble/Webb programs, and other MAST holdings exist, but downloads zero science
+products. Failed metadata queries remain retryable without repeating completed
+targets.
+
 ### 2. Pixel-source localization
 
 For the highest-priority survivors, use a target-pixel file or a small TESScut
