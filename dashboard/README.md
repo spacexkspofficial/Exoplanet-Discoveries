@@ -22,6 +22,10 @@ so it is not reachable from other computers on the LAN or from the internet.
 `/data/survey.json` is generated from the local append-only search ledger and
 active campaign checkpoints, then served with `Cache-Control: no-store`. The UI
 polls it every five seconds and ignores late responses from older polls.
+When more than one nonterminal checkpoint exists, a `running` or `finalizing`
+campaign takes precedence over `retry_pending`; within the same state class,
+the freshest checkpoint is selected. This keeps a completed partial campaign
+visible without allowing it to replace the live campaign progress display.
 Search/download errors are shown as `Retry needed`, separately from completed
 searches. Completed targets are split into `No transit detected in search
 window`, `Strongest signal screened out`, `Single-event lead`, and `Automated

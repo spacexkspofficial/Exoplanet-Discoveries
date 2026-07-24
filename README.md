@@ -44,6 +44,8 @@ Open `http://127.0.0.1:8765`. The server deliberately binds to `127.0.0.1`,
 not `0.0.0.0`, so other LAN devices and the public internet cannot connect.
 Each metrics refresh also updates the local dashboard dataset, and the browser
 polls that local file every five seconds and whenever the tab regains focus.
+If an older campaign remains `retry_pending`, the dashboard still selects the
+freshest `running` or `finalizing` campaign for its live progress HUD.
 The 3D view converts ICRS positions into Sun-centered Galactic XYZ coordinates;
 its Milky Way mid-plane disk, distance rings, and vertical scale curves remain
 rigidly aligned with the stars while the camera orbits.
