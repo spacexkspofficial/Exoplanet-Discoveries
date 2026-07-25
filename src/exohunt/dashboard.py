@@ -185,6 +185,147 @@ def _cartesian(ra_deg: float, dec_deg: float, distance_pc: float) -> dict[str, f
     }
 
 
+def _sector_coverage(
+    root: Path,
+    artifacts: dict[Path, dict[str, object]],
+) -> list[dict[str, object]]:
+    """Summarize local target-plan completion without claiming sky completeness.
+
+    A TESS sector contains far more stars than this project targets. Coverage
+    therefore uses unique TICs in campaign target lists as the denominator and
+    successful, non-error result rows as the numerator. Blue/completed is
+    reserved for an entirely successful sector-scoped local target plan.
+    """
+
+    targeted: dict[int, set[int]] = {}
+    analyzed: dict[int, set[int]] = {}
+    sector_scoped: set[int] = set()
+    active: dict[int, dict[str, object]] = {}
+
+    for artifact_dir, artifact in artifacts.items():
+        results = [
+            row
+            for row in artifact.get("results", [])
+            if isinstance(row, dict)
+        ]
+        result_sectors_by_tic = {
+            tic_id: _sectors(row.get("sectors"))
+            for row in results
+            if (tic_id := _tic_id(row)) is not None
+        }
+        target_rows: list[dict[str, object]] = []
+        target_text = str(artifact.get("target_list") or "")
+        target_path = root / target_text if target_text else None
+        if target_path is not None and target_path.exists():
+            try:
+                with target_path.open(newline="", encoding="utf-8-sig") as handle:
+                    target_rows = [
+                        dict(row)
+                        for row in csv.DictReader(handle)
+                    ]
+            except (OSError, csv.Error, UnicodeDecodeError):
+                target_rows = []
+
+        campaign_targets: dict[int, set[int]] = {}
+        rows_for_plan = target_rows or results
+        for row in rows_for_plan:
+            tic_id = _tic_id(row)
+            if tic_id is None:
+                continue
+            row_sectors = _sectors(row.get("sectors") or row.get("sector"))
+            if not row_sectors:
+                row_sectors = result_sectors_by_tic.get(tic_id, [])
+            for sector in row_sectors:
+                campaign_targets.setdefault(sector, set()).add(tic_id)
+                targeted.setdefault(sector, set()).add(tic_id)
+
+        campaign_sector_values = set(campaign_targets)
+        if len(campaign_sector_values) == 1:
+            sector_scoped.update(campaign_sector_values)
+
+        campaign_analyzed: dict[int, set[int]] = {}
+        for row in results:
+            if str(row.get("status") or "") == "error":
+                continue
+            tic_id = _tic_id(row)
+            if tic_id is None:
+                continue
+            row_sectors = _sectors(row.get("sectors"))
+            if not row_sectors:
+                row_sectors = result_sectors_by_tic.get(tic_id, [])
+            for sector in row_sectors:
+                campaign_analyzed.setdefault(sector, set()).add(tic_id)
+                analyzed.setdefault(sector, set()).add(tic_id)
+
+        state = str(artifact.get("state") or "completed")
+        if state in {"running", "finalizing"}:
+            updated = str(artifact.get("updated_at_utc") or "")
+            for sector, tic_ids in campaign_targets.items():
+                campaign_total = (
+                    int(artifact.get("total_targets", 0))
+                    if len(campaign_targets) == 1
+                    else 0
+                )
+                candidate = {
+                    "campaign": artifact_dir.name,
+                    "targeted_stars": max(len(tic_ids), campaign_total),
+                    "analyzed_stars": len(campaign_analyzed.get(sector, set())),
+                    "updated_at_utc": updated,
+                }
+                previous = active.get(sector)
+                if previous is None or updated >= str(
+                    previous.get("updated_at_utc") or ""
+                ):
+                    active[sector] = candidate
+
+    coverage: list[dict[str, object]] = []
+    for sector in sorted(set(targeted) | set(analyzed) | set(active)):
+        active_campaign = active.get(sector)
+        if active_campaign is not None:
+            targeted_count = int(active_campaign["targeted_stars"])
+            analyzed_count = int(active_campaign["analyzed_stars"])
+            state = "active"
+        else:
+            targeted_count = len(targeted.get(sector, set()))
+            analyzed_count = len(analyzed.get(sector, set()))
+            if (
+                sector in sector_scoped
+                and targeted_count > 0
+                and analyzed_count >= targeted_count
+            ):
+                state = "completed"
+            elif analyzed_count > 0:
+                state = "partial"
+            else:
+                state = "unsearched"
+        progress = (
+            min(1.0, analyzed_count / targeted_count)
+            if targeted_count > 0
+            else 0.0
+        )
+        coverage.append(
+            {
+                "sector": sector,
+                "state": state,
+                "targeted_stars": targeted_count,
+                "analyzed_stars": analyzed_count,
+                "progress_fraction": round(progress, 6),
+                "active_campaign": (
+                    active_campaign.get("campaign")
+                    if active_campaign is not None
+                    else None
+                ),
+                "updated_at_utc": (
+                    active_campaign.get("updated_at_utc")
+                    if active_campaign is not None
+                    else None
+                ),
+                "scope": "local campaign target plan, not every star in the TESS sector",
+            }
+        )
+    return coverage
+
+
 def export_dashboard_data(
     workspace: str | Path = ".",
     *,
@@ -228,6 +369,7 @@ def export_dashboard_data(
 
     active_campaigns: list[dict[str, object]] = []
     active_results: list[dict[str, object]] = []
+    coverage_artifacts: dict[Path, dict[str, object]] = {}
     results_root = root / "results"
     if results_root.exists():
         for progress_path in sorted(results_root.rglob("batch_progress.json")):
@@ -235,6 +377,7 @@ def export_dashboard_data(
                 progress = json.loads(progress_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
+            coverage_artifacts[progress_path.parent] = progress
             if progress.get("state") not in {
                 "running",
                 "finalizing",
@@ -354,6 +497,7 @@ def export_dashboard_data(
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
+        coverage_artifacts.setdefault(summary_path.parent, summary)
         for result in summary.get("results", []):
             tic_id = _tic_id(result)
             if tic_id is None:
@@ -600,13 +744,14 @@ def export_dashboard_data(
         key = str(star["status"])
         counts[key] = counts.get(key, 0) + 1
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "generated_at_utc": datetime.now(timezone.utc)
         .replace(microsecond=0)
         .isoformat(),
         "stats": stats,
         "status_counts": counts,
         "observed_sectors": sorted(observed_sectors),
+        "sector_coverage": _sector_coverage(root, coverage_artifacts),
         "campaigns": campaigns,
         "active_campaigns": active_campaigns,
         "stars": stars,

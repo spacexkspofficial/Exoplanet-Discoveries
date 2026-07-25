@@ -50,3 +50,16 @@ boundaries in RA/Dec; the 3D and Earth views extend the same angular boundaries
 as sight lines from the observer. Their far end is only a visualization cutoff.
 The small bundled Sector 1–107 file is generated from the `tess-point` focal-
 plane model, while calibrated image WCS remains the final pixel-level authority.
+
+The sector timeline reports local campaign coverage, not the fraction of every
+star or detector pixel in a TESS sector. Its denominator is the deduplicated
+target plan stored in the local campaign CSVs, and its numerator is targets with
+successful result reports. Blue means a sector-specific local plan is complete,
+orange means that plan is the active campaign, and gray fill shows partial
+coverage from an inactive plan or opportunistic targets. An empty gray cell
+means no local target has been successfully analyzed there. Tooltips always show
+the analyzed/targeted counts and state this scope explicitly.
+
+The 2D and 3D star maps share the same flat status symbols and colors as the
+status filters. Marker shape remains meaningful at small sizes, and no glow is
+used to imply scientific confidence.

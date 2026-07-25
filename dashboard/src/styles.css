@@ -956,7 +956,7 @@ button {
 .metric-row {
   height: 66px;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(9, minmax(0, 1fr));
   align-items: center;
   padding: 7px 10px 3px;
 }
@@ -972,10 +972,17 @@ button {
 }
 
 .metric-label {
-  display: block;
+  min-height: 22px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 3px;
   color: #8da1aa;
-  font-size: 9px;
-  white-space: nowrap;
+  font-size: 8px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  text-align: center;
+  white-space: normal;
 }
 
 .metric strong {
@@ -1058,20 +1065,19 @@ button {
   background: #17232c;
 }
 
-.timeline-legend i.observed {
-  border-color: #35d7e8;
-  background: #35d7e8;
+.timeline-legend i.completed {
+  border-color: #22b8cf;
+  background: #22b8cf;
 }
 
-.timeline-legend i.latest {
-  border-color: #ffad20;
-  background: #ffad20;
+.timeline-legend i.partial {
+  border-color: #71808a;
+  background: linear-gradient(0deg, #71808a 0 55%, #17232c 55%);
 }
 
 .timeline-legend i.active {
   border-color: #ffad20;
   background: linear-gradient(0deg, #ffad20 0 55%, #17232c 55%);
-  box-shadow: 0 0 5px rgba(255, 173, 32, 0.28);
 }
 
 .timeline-progress {
@@ -1111,35 +1117,40 @@ button {
   cursor: pointer;
 }
 
-.sector-strip button.observed {
-  border-color: rgba(53, 215, 232, 0.85);
-  background: rgba(53, 215, 232, 0.76);
-  box-shadow: 0 0 5px rgba(53, 215, 232, 0.18);
+.sector-strip button.coverage-completed {
+  border-color: rgba(34, 184, 207, 0.95);
+  background: rgba(34, 184, 207, 0.86);
 }
 
-.sector-strip button.latest {
-  border-color: rgba(255, 173, 32, 0.95);
-  background: rgba(255, 173, 32, 0.88);
-  box-shadow: 0 0 6px rgba(255, 173, 32, 0.32);
-}
-
-.sector-strip button.active-sector {
+.sector-strip button.coverage-active,
+.sector-strip button.coverage-partial {
   --sector-progress: 0%;
-  border-color: rgba(255, 173, 32, 0.95);
   background: rgba(38, 45, 49, 0.9);
-  box-shadow:
-    0 0 8px rgba(255, 173, 32, 0.38),
-    inset 0 0 0 1px rgba(255, 173, 32, 0.15);
 }
 
-.sector-strip button.active-sector::before {
+.sector-strip button.coverage-active {
+  border-color: rgba(255, 173, 32, 0.95);
+}
+
+.sector-strip button.coverage-partial {
+  border-color: rgba(113, 128, 138, 0.88);
+}
+
+.sector-strip button.coverage-active::before,
+.sector-strip button.coverage-partial::before {
   content: "";
   position: absolute;
   inset: auto 0 0;
   height: var(--sector-progress);
-  background: linear-gradient(0deg, #ffad20, #ffd36e);
-  box-shadow: 0 0 6px rgba(255, 173, 32, 0.5);
   transition: height 420ms ease-out;
+}
+
+.sector-strip button.coverage-active::before {
+  background: #ffad20;
+}
+
+.sector-strip button.coverage-partial::before {
+  background: #71808a;
 }
 
 .sector-strip button.selected-sector {

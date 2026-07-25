@@ -18,6 +18,7 @@ from .dashboard import export_dashboard_data
 WORKSPACE = Path(__file__).resolve().parents[2]
 DASHBOARD_DIR = WORKSPACE / "dashboard"
 DIST_DIR = DASHBOARD_DIR / "dist"
+CURRENT_SURVEY_SCHEMA_VERSION = 2
 
 
 def _prefer_live_campaign_last(payload: dict[str, object]) -> None:
@@ -34,6 +35,17 @@ def _prefer_live_campaign_last(payload: dict[str, object]) -> None:
             if isinstance(campaign, dict)
             else "",
         )
+    )
+
+
+def _needs_survey_refresh(payload: dict[str, object]) -> bool:
+    """Detect data written by a still-running older campaign process."""
+
+    schema_version = payload.get("schema_version")
+    return (
+        not isinstance(schema_version, int)
+        or schema_version < CURRENT_SURVEY_SCHEMA_VERSION
+        or not isinstance(payload.get("sector_coverage"), list)
     )
 
 
@@ -146,6 +158,17 @@ def create_app(workspace: str | Path = WORKSPACE) -> FastAPI:
             raise HTTPException(
                 status_code=503, detail="Survey data is temporarily unavailable."
             ) from error
+        if _needs_survey_refresh(payload):
+            # A long-running campaign may have imported the previous exporter
+            # before the dashboard was upgraded. Preserve that campaign and
+            # upgrade only its derived, replaceable browser snapshot.
+            output = export_dashboard_data(root)
+            try:
+                payload = json.loads(output.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as error:
+                raise HTTPException(
+                    status_code=503, detail="Survey data is temporarily unavailable."
+                ) from error
         _prefer_live_campaign_last(payload)
         return JSONResponse(payload, headers={"Cache-Control": "no-store"})
 

@@ -1,7 +1,11 @@
 import json
 from pathlib import Path
 
-from exohunt.dashboard_server import _phase_curve_for_tic, _prefer_live_campaign_last
+from exohunt.dashboard_server import (
+    _needs_survey_refresh,
+    _phase_curve_for_tic,
+    _prefer_live_campaign_last,
+)
 
 
 def _workspace(tmp_path: Path) -> tuple[Path, Path]:
@@ -35,6 +39,12 @@ def test_live_campaign_is_last_for_older_dashboard_bundles() -> None:
         "retry",
         "running",
     ]
+
+
+def test_old_campaign_snapshot_requires_schema_refresh() -> None:
+    assert _needs_survey_refresh({"schema_version": 1})
+    assert _needs_survey_refresh({"schema_version": 2})
+    assert not _needs_survey_refresh({"schema_version": 2, "sector_coverage": []})
 
 
 def test_phase_curve_endpoint_returns_only_compact_curve(tmp_path: Path):

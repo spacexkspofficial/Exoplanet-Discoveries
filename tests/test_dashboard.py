@@ -84,10 +84,97 @@ def test_dashboard_includes_active_campaign_checkpoint(tmp_path: Path):
     assert payload["active_campaigns"][0]["completed_targets"] == 1
     assert payload["active_campaigns"][0]["total_targets"] == 1000
     assert payload["active_campaigns"][0]["sectors"] == [105]
+    assert payload["sector_coverage"] == [
+        {
+            "sector": 105,
+            "state": "active",
+            "targeted_stars": 1000,
+            "analyzed_stars": 1,
+            "progress_fraction": 0.001,
+            "active_campaign": "overnight",
+            "updated_at_utc": "2026-07-23T07:01:00+00:00",
+            "scope": (
+                "local campaign target plan, not every star in the TESS sector"
+            ),
+        }
+    ]
     assert payload["stars"][0]["tic_id"] == 42
     assert payload["stars"][0]["screening_status"] == "rejected"
     assert payload["stars"][0]["distance_pc"] == 12.5
     assert payload["stars"][0]["phase_curve_available"] is True
+
+
+def test_sector_coverage_distinguishes_complete_partial_and_opportunistic(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "dashboard").mkdir()
+    targets = tmp_path / "targets"
+    targets.mkdir()
+    (targets / "complete.csv").write_text(
+        "target,tic_id,sector\nTIC 1,1,42\nTIC 2,2,42\n",
+        encoding="utf-8",
+    )
+    (targets / "partial.csv").write_text(
+        "target,tic_id,sector\nTIC 3,3,43\nTIC 4,4,43\n",
+        encoding="utf-8",
+    )
+    (targets / "multi.csv").write_text(
+        "target,tic_id,sectors\nTIC 5,5,1;2\n",
+        encoding="utf-8",
+    )
+    campaign_root = tmp_path / "results" / "campaign"
+    fixtures = {
+        "complete": {
+            "state": "completed",
+            "target_list": "targets/complete.csv",
+            "total_targets": 2,
+            "completed_targets": 2,
+            "results": [
+                {"tic_id": 1, "sectors": "42", "status": "rejected"},
+                {"tic_id": 2, "sectors": "42", "status": "survivor"},
+            ],
+        },
+        "partial": {
+            "state": "retry_pending",
+            "target_list": "targets/partial.csv",
+            "total_targets": 2,
+            "completed_targets": 2,
+            "results": [
+                {"tic_id": 3, "sectors": "43", "status": "rejected"},
+                {"tic_id": 4, "sectors": "43", "status": "error"},
+            ],
+        },
+        "multi": {
+            "state": "completed",
+            "target_list": "targets/multi.csv",
+            "total_targets": 1,
+            "completed_targets": 1,
+            "results": [
+                {"tic_id": 5, "sectors": "1;2", "status": "rejected"},
+            ],
+        },
+    }
+    for name, fixture in fixtures.items():
+        directory = campaign_root / name
+        directory.mkdir(parents=True)
+        (directory / "batch_progress.json").write_text(
+            json.dumps(fixture),
+            encoding="utf-8",
+        )
+
+    output = export_dashboard_data(tmp_path, events=[], stats={})
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    coverage = {row["sector"]: row for row in payload["sector_coverage"]}
+
+    assert coverage[42]["state"] == "completed"
+    assert coverage[42]["analyzed_stars"] == 2
+    assert coverage[42]["targeted_stars"] == 2
+    assert coverage[43]["state"] == "partial"
+    assert coverage[43]["progress_fraction"] == 0.5
+    # One opportunistic multi-sector target must not imply that either entire
+    # sector has a completed sector-specific local plan.
+    assert coverage[1]["state"] == "partial"
+    assert coverage[2]["state"] == "partial"
 
 
 def test_dashboard_orders_live_campaign_after_retry_pending(tmp_path: Path) -> None:

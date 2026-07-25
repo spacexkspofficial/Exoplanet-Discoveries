@@ -130,8 +130,20 @@ type SurveyData = {
   stats: Record<string, number | string | Record<string, number>>;
   status_counts: Record<string, number>;
   observed_sectors: number[];
+  sector_coverage: SectorCoverage[];
   active_campaigns: ActiveCampaign[];
   stars: Star[];
+};
+
+type SectorCoverage = {
+  sector: number;
+  state: "completed" | "active" | "partial" | "unsearched";
+  targeted_stars: number;
+  analyzed_stars: number;
+  progress_fraction: number;
+  active_campaign: string | null;
+  updated_at_utc: string | null;
+  scope: string;
 };
 
 type ViewMode = "3d" | "sky" | "earth";
@@ -435,14 +447,20 @@ const HELP = {
   newCandidates: "Signals that passed the defined vetting steps but are not confirmed planets.",
   coverage:
     "The map's display-distance scale. Catalog distances are used when available; display-only estimates are marked and are not excluded by the distance filter.",
-  sectorsRepresented: "How many distinct TESS observing sectors appear in the local results.",
+  sectorsRepresented:
+    "How many distinct TESS sectors contain at least one successfully analyzed local target. This is not whole-sector sky completeness.",
   campaignRuns: "Completed batches of stars recorded in the permanent survey ledger.",
   polling: "How often the browser asks the local server for new campaign data.",
-  timeline: "All TESS observing sectors, with local coverage and the current campaign highlighted.",
-  searchedSector: "At least one locally analyzed star has data from this sector.",
+  timeline:
+    "Completion of this project's local target plans by TESS sector. It does not claim that every star or pixel in a sector was searched.",
+  completedSector:
+    "Every unique star in the local sector-specific campaign plan finished successfully. Blue means the local plan is complete, not that every star in the TESS sector was analyzed.",
   activeSector:
     "This sector is being processed now. Its orange fill grows as more targets finish.",
-  noLocalTarget: "No searched target in the local ledger currently uses this sector.",
+  partialSector:
+    "Some locally targeted stars were analyzed, but no complete sector-specific plan exists or unresolved targets remain. Gray fill shows the local analyzed/targeted fraction.",
+  noLocalTarget:
+    "No active or previously analyzed local campaign target is recorded for this sector.",
   sectorFootprint:
     "The modeled TESS observing footprint for the highlighted sector: four cameras with four CCDs each. In 3D the lines are angular sight lines extending from the observer, not a finite box in space. Boundaries come from the TESS focal-plane pointing model; calibrated-image WCS is the final pixel-level authority.",
 };
@@ -625,6 +643,68 @@ function Marker({ status, small = false }: { status: Status; small?: boolean }) 
       {STATUS_SYMBOL[status]}
     </span>
   );
+}
+
+function drawCanvasStatusMarker(
+  ctx: CanvasRenderingContext2D,
+  star: Star,
+  x: number,
+  y: number,
+  selected: boolean,
+) {
+  const meta = STATUS_META[star.status];
+  const symbol = STATUS_SYMBOL[star.status];
+  const size = selected ? 13 : star.status === "searched" ? 5 : 10;
+  const half = size / 2;
+  ctx.save();
+  ctx.globalAlpha = star.status === "searched" ? 0.72 : 0.96;
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = meta.color;
+  ctx.fillStyle = meta.color;
+  ctx.lineWidth = selected ? 2 : 1.4;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `800 ${selected ? 10 : 8}px ui-monospace, monospace`;
+
+  if (star.status === "searched") {
+    ctx.fillRect(x - half, y - half, size, size);
+  } else if (star.status === "no_transit_detected") {
+    ctx.beginPath();
+    ctx.arc(x, y, half, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (
+    star.status === "screened_rejected" ||
+    star.status === "false_positive"
+  ) {
+    ctx.font = `800 ${selected ? 15 : 12}px ui-monospace, monospace`;
+    ctx.fillText(symbol, x, y + 0.5);
+  } else {
+    const filled =
+      star.status === "automated_survivor" ||
+      star.status === "vetted_candidate" ||
+      star.status === "confirmed_planet";
+    if (star.status === "known_variable_star_review") {
+      ctx.beginPath();
+      ctx.arc(x, y, half + 0.5, 0, Math.PI * 2);
+      if (filled) ctx.fill();
+      else ctx.stroke();
+    } else {
+      if (filled) ctx.fillRect(x - half, y - half, size, size);
+      else ctx.strokeRect(x - half, y - half, size, size);
+    }
+    ctx.fillStyle = filled ? "#06111a" : meta.color;
+    ctx.fillText(symbol, x, y + 0.5);
+  }
+
+  if (selected) {
+    ctx.strokeStyle = meta.color;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.arc(x, y, half + 5, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+  return Math.max(8, half + 5);
 }
 
 function ActualPhaseCurve({ curve, color }: { curve: PhaseCurve; color: string }) {
@@ -1155,49 +1235,21 @@ function StarMap({
     const hitPoints: Array<{ star: Star; x: number; y: number; r: number }> = [];
     for (const point of projected) {
       const { star, x, y } = point;
-      const meta = STATUS_META[star.status];
-      const important = star.status !== "searched";
       const selectedPoint = selected?.tic_id === star.tic_id;
-      const radius = selectedPoint ? 7 : important ? 4.4 : 2.1;
       if (x < -20 || x > w + 20 || y < -20 || y > h + 20) continue;
-      ctx.save();
-      ctx.globalAlpha = important ? 0.95 : 0.7;
-      ctx.shadowColor = meta.color;
-      ctx.shadowBlur = selectedPoint ? 18 : important ? 9 : 4;
-      ctx.fillStyle = meta.color;
-      ctx.strokeStyle = meta.color;
-      if (star.status === "false_positive") {
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.stroke();
-      } else {
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      if (star.status === "known_tce_rediscovery" || star.status === "rediscovery") {
-        ctx.shadowBlur = 0;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(x, y, radius + 3, 0, Math.PI * 2);
-        ctx.stroke();
-        if (star.status === "known_tce_rediscovery") {
-          ctx.beginPath();
-          ctx.arc(x, y, radius + 6, 0, Math.PI * 2);
-          ctx.stroke();
-        }
-      }
+      const hitRadius = drawCanvasStatusMarker(ctx, star, x, y, selectedPoint);
       if (selectedPoint) {
+        ctx.save();
         ctx.setLineDash([3, 4]);
         ctx.globalAlpha = 0.58;
+        ctx.strokeStyle = STATUS_META[star.status].color;
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(x, y);
         ctx.stroke();
+        ctx.restore();
       }
-      ctx.restore();
-      hitPoints.push({ star, x, y, r: Math.max(8, radius + 4) });
+      hitPoints.push({ star, x, y, r: hitRadius });
     }
     pointsRef.current = hitPoints;
 
@@ -1620,10 +1672,18 @@ export default function App() {
   const activePercent = activeCampaign?.total_targets
     ? Math.round(activeProgress)
     : 0;
-  const maxSector = Math.max(105, ...(survey?.observed_sectors || [105]));
-  const observed = new Set(survey?.observed_sectors || []);
-  const activeSectors = new Set(activeCampaign?.sectors || []);
-  const latestObservedSector = Math.max(0, ...(survey?.observed_sectors || []));
+  const sectorCoverage = survey?.sector_coverage || [];
+  const sectorCoverageByNumber = new Map(
+    sectorCoverage.map((coverage) => [coverage.sector, coverage]),
+  );
+  const maxSector = Math.max(
+    105,
+    ...(survey?.observed_sectors || [105]),
+    ...sectorCoverage.map((coverage) => coverage.sector),
+  );
+  const representedSectorCount = sectorCoverage.filter(
+    (coverage) => coverage.analyzed_stars > 0,
+  ).length;
   const liveStatusCounts = survey?.status_counts || {};
 
   return (
@@ -2164,7 +2224,7 @@ export default function App() {
               </InfoTerm>
             ) : null}
             <InfoTerm description={HELP.sectorsRepresented}>
-              {survey?.observed_sectors.length || 0} sectors represented
+              {representedSectorCount} sectors represented
             </InfoTerm>
             <InfoTerm description={HELP.campaignRuns}>
               {Number(stats.campaign_runs_logged || 0)} campaign runs
@@ -2222,18 +2282,21 @@ export default function App() {
               <p>
                 {activeCampaign
                   ? `Sector ${[...(activeCampaign.sectors || [])].join(", ") || "—"} active • ${activeCampaign.completed_targets}/${activeCampaign.total_targets} targets • ${activePercent}% • updated ${relativeUpdate(activeCampaign.updated_at_utc)}`
-                  : "Hover for sector number • cyan sectors contain searched targets"}
+                  : "Hover for local analyzed/targeted coverage; this is not all stars in each TESS sector"}
               </p>
             </div>
             <div className="timeline-legend">
-              <InfoTerm description={HELP.searchedSector}>
-                <i className="observed" /> Searched
+              <InfoTerm description={HELP.completedSector}>
+                <i className="completed" /> Local plan complete
               </InfoTerm>
               <InfoTerm description={HELP.activeSector}>
                 <i className="active" /> Active campaign
               </InfoTerm>
+              <InfoTerm description={HELP.partialSector}>
+                <i className="partial" /> Partial / inactive
+              </InfoTerm>
               <InfoTerm description={HELP.noLocalTarget}>
-                <i /> No local target
+                <i /> No local coverage
               </InfoTerm>
             </div>
           </div>
@@ -2251,26 +2314,30 @@ export default function App() {
             style={{ gridTemplateColumns: `repeat(${maxSector}, minmax(2px, 1fr))` }}
           >
             {Array.from({ length: maxSector }, (_, index) => index + 1).map((value) => {
-              const isActive = activeSectors.has(value);
-              const label = isActive
-                ? `TESS Sector ${value} — active: ${activeCampaign?.completed_targets}/${activeCampaign?.total_targets} targets (${activePercent}%)`
-                : `TESS Sector ${value}${observed.has(value) ? " — represented" : " — no local target"}`;
+              const coverage = sectorCoverageByNumber.get(value);
+              const state = coverage?.state || "unsearched";
+              const progress = Math.max(
+                0,
+                Math.min(100, (coverage?.progress_fraction || 0) * 100),
+              );
+              const countLabel = coverage
+                ? `${coverage.analyzed_stars}/${coverage.targeted_stars} local targets (${Math.round(progress)}%)`
+                : "no local campaign targets";
+              const stateLabel =
+                state === "active"
+                  ? "active campaign"
+                  : state === "completed"
+                    ? "local sector plan complete"
+                    : state === "partial"
+                      ? "partial inactive coverage"
+                      : "no local coverage";
+              const label = `TESS Sector ${value} — ${stateLabel}: ${countLabel}. Coverage is scoped to this project's target plans, not every star in the sector.`;
               return (
                 <button
                   key={value}
                   aria-label={label}
-                  className={`${isActive
-                    ? "active-sector"
-                    : observed.has(value)
-                      ? "observed"
-                      : value === latestObservedSector
-                        ? "latest"
-                        : ""} ${Number(sector) === value ? "selected-sector" : ""}`.trim()}
-                  style={
-                    isActive
-                      ? ({ "--sector-progress": `${activeProgress}%` } as React.CSSProperties)
-                      : undefined
-                  }
+                  className={`coverage-${state} ${Number(sector) === value ? "selected-sector" : ""}`.trim()}
+                  style={{ "--sector-progress": `${progress}%` } as React.CSSProperties}
                   title={label}
                   type="button"
                   onClick={() => setSector(String(value))}
