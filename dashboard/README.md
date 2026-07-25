@@ -19,13 +19,15 @@ Start the FastAPI service from the repository root:
 Then open `http://127.0.0.1:8765`. The server binds to the loopback interface,
 so it is not reachable from other computers on the LAN or from the internet.
 
-`/data/survey.json` is generated from the local append-only search ledger and
-active campaign checkpoints, then served with `Cache-Control: no-store`. The UI
-polls it every five seconds and ignores late responses from older polls.
-When more than one nonterminal checkpoint exists, a `running` or `finalizing`
-campaign takes precedence over `retry_pending`; within the same state class,
-the freshest checkpoint is selected. This keeps a completed partial campaign
-visible without allowing it to replace the live campaign progress display.
+`/data/survey.json` is generated from the local append-only search ledger plus
+campaign, context-vetting, and science-vetting checkpoints, then served with
+`Cache-Control: no-store`. The server regenerates the snapshot when any of
+those durable sources is newer, while the UI polls every five seconds and
+ignores late responses from older polls. When more than one nonterminal
+checkpoint exists, a `running` or `finalizing` workflow takes precedence over
+`retry_pending`; within the same state class, the freshest checkpoint is
+selected. This keeps a completed partial campaign visible without allowing it
+to replace the live context- or science-vetting progress display.
 Search/download errors are shown as `Retry needed`, separately from completed
 searches. Completed targets are split into `No transit detected in search
 window`, `Strongest signal screened out`, `Single-event lead`, and `Automated
@@ -34,7 +36,9 @@ automated survivor is a follow-up lead rather than a vetted candidate. During a
 parallel campaign the live snapshot also reports analysis workers, downloads
 in flight, staged targets, and active versus configured worker slots. Analysis
 and download pools are reported separately so idle capacity is not shown as
-active work.
+active work. During context or focused science vetting, the same live panel
+instead reports queue completion, vetting workers, and downloaded science
+products.
 
 When a schema-v2 context report exists under `results/`, its authoritative
 metadata disposition overlays the initial screening label. The filters and
@@ -42,7 +46,8 @@ metrics distinguish known EB rediscoveries, known-binary residual review,
 known-variable review, crowding review, catalog gaps, incomplete context
 queries, and unresolved transit-like signals. “Unresolved” still does not mean
 candidate or planet. The selected-target panel lists the follow-up lane and
-per-source completion states.
+per-source completion states. These metrics update incrementally as each
+context report becomes durable; they do not wait for the whole queue to finish.
 
 The selected-sector overlay is mission geometry, not a box fitted to the local
 stars. It renders four TESS cameras and their sixteen CCD science-pixel

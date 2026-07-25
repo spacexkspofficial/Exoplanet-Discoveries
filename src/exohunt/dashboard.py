@@ -9,7 +9,7 @@ import math
 import os
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -326,6 +326,101 @@ def _sector_coverage(
     return coverage
 
 
+def _parse_utc(value: object) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+
+
+def _vetting_progress_campaign(
+    progress_path: Path,
+    progress: dict[str, object],
+    *,
+    workflow: str,
+) -> dict[str, object]:
+    """Normalize context/science checkpoints for the live dashboard panel."""
+
+    total = int(progress.get("total_targets", 0))
+    completed = int(progress.get("completed_targets", 0))
+    counts = progress.get("counts", {})
+    counts = counts if isinstance(counts, dict) else {}
+    remaining = int(counts.get("remaining", max(0, total - completed)))
+    runtime = progress.get("runtime", {})
+    runtime = runtime if isinstance(runtime, dict) else {}
+    workers = int(runtime.get("workers", 1))
+    started = _parse_utc(progress.get("started_at_utc"))
+    updated = _parse_utc(progress.get("updated_at_utc"))
+    elapsed_hours = (
+        max(0.0, (updated - started).total_seconds() / 3600.0)
+        if started is not None and updated is not None
+        else 0.0
+    )
+    average_rate = completed / elapsed_hours if elapsed_hours > 0 else None
+    eta_hours = (
+        remaining / average_rate
+        if average_rate is not None and average_rate > 0
+        else None
+    )
+    estimated_completion = (
+        (updated + timedelta(hours=eta_hours))
+        .replace(microsecond=0)
+        .isoformat()
+        if updated is not None and eta_hours is not None
+        else None
+    )
+    scope_name = (
+        progress_path.parent.parent.name
+        if progress_path.parent.parent.name
+        else progress_path.parent.name
+    )
+    return {
+        "name": f"{scope_name}_{workflow}",
+        "workflow": workflow,
+        "state": progress.get("state"),
+        "target_list": progress.get("queue"),
+        "sectors": [],
+        "total_targets": total,
+        "completed_targets": completed,
+        "counts": counts,
+        "runtime": {
+            "analysis_workers": workers,
+            "download_workers": 0,
+            "prefetch_targets": 0,
+            "downloads_in_flight": 0,
+            "analyses_in_flight": min(workers, remaining)
+            if progress.get("state") == "running"
+            else 0,
+            "downloaded_waiting": 0,
+            "targets_remaining": remaining,
+            "science_products_downloaded": int(
+                runtime.get("science_products_downloaded", 0)
+            ),
+            "performance": {
+                "average_stars_per_hour": average_rate,
+                "rolling_stars_per_hour": None,
+                "rolling_window_minutes": None,
+                "rolling_samples": 0,
+                "elapsed_hours": elapsed_hours,
+                "eta_hours": eta_hours,
+                "estimated_completion_utc": estimated_completion,
+            },
+            "vetting_coverage": {
+                "eligible_targets": total,
+                "measured_targets": completed,
+                "legacy_unmeasured_targets": 0,
+                "coverage_fraction": completed / total if total else None,
+                "warning": None,
+            },
+        },
+        "started_at_utc": progress.get("started_at_utc"),
+        "updated_at_utc": progress.get("updated_at_utc"),
+    }
+
+
 def export_dashboard_data(
     workspace: str | Path = ".",
     *,
@@ -409,6 +504,30 @@ def export_dashboard_data(
                     "updated_at_utc": progress.get("updated_at_utc"),
                 }
             )
+        for filename, workflow in (
+            ("context_vet_progress.json", "context_vet"),
+            ("science_vet_progress.json", "science_vet"),
+        ):
+            for progress_path in sorted(results_root.rglob(filename)):
+                try:
+                    progress = json.loads(
+                        progress_path.read_text(encoding="utf-8")
+                    )
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if progress.get("state") not in {
+                    "running",
+                    "finalizing",
+                    "retry_pending",
+                }:
+                    continue
+                active_campaigns.append(
+                    _vetting_progress_campaign(
+                        progress_path,
+                        progress,
+                        workflow=workflow,
+                    )
+                )
 
     # Keep a live coordinator last for compatibility with already-loaded
     # dashboards that historically selected the final checkpoint in this list.

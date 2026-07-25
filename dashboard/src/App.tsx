@@ -90,8 +90,9 @@ type PhaseCurve = {
 
 type ActiveCampaign = {
   name: string;
+  workflow?: "batch_hunt" | "context_vet" | "science_vet";
   state: "running" | "finalizing" | "retry_pending";
-  target_list: string;
+  target_list: string | null;
   sectors: number[];
   total_targets: number;
   completed_targets: number;
@@ -104,6 +105,7 @@ type ActiveCampaign = {
     analyses_in_flight?: number;
     downloaded_waiting?: number;
     targets_remaining?: number;
+    science_products_downloaded?: number;
     performance?: {
       average_stars_per_hour?: number | null;
       rolling_stars_per_hour?: number | null;
@@ -431,11 +433,11 @@ const HELP = {
   estimatedTime:
     "Remaining targets divided by the recent completion rate. It will move as archive speed, retries, and target complexity change.",
   vettingCoverage:
-    "Targets processed after the deeper-vetting feature was added, compared with eligible completed targets. Legacy-unmeasured targets are retained without pretending those newer checks ran retroactively.",
+    "For a live context/science workflow, completed leads divided by its queue total. During a batch search, this instead reports how many eligible targets received the newer in-light-curve diagnostics.",
   parallelWorkers:
     "The live coordinator runs several analysis workers while a bounded download queue stages upcoming stars. One coordinator remains responsible for the checkpoint and dashboard.",
   activeWorkers:
-    "Live tasks currently occupying worker slots. Analysis and download pools are shown separately because a star can be waiting on the archive while CPU analysis slots are idle, or vice versa. Configured capacity is not the same thing as active work.",
+    "Live tasks currently occupying worker slots. Batch searches separate analysis and download pools; context/science workflows report their vetting workers and science-product count. Configured capacity is not the same thing as active work.",
   searchErrors:
     "Targets whose data retrieval or analysis did not finish. They need a retry and are kept separate from completed no-signal searches.",
   planetRecoveries:
@@ -1659,6 +1661,13 @@ export default function App() {
       ? null
       : TESS_SECTOR_GEOMETRY.sectors[String(highlightedSector)] || null;
   const campaignPerformance = activeCampaign?.runtime?.performance;
+  const activeWorkflow = activeCampaign?.workflow || "batch_hunt";
+  const activeWorkflowLabel =
+    activeWorkflow === "context_vet"
+      ? "context vetting"
+      : activeWorkflow === "science_vet"
+        ? "science vetting"
+        : "overnight run";
   const analysisWorkerCapacity = activeCampaign?.runtime?.analysis_workers || 1;
   const downloadWorkerCapacity = activeCampaign?.runtime?.download_workers || 0;
   const activeAnalysisWorkers = activeCampaign?.runtime?.analyses_in_flight || 0;
@@ -2217,10 +2226,10 @@ export default function App() {
             {activeCampaign ? (
               <InfoTerm
                 className="active-campaign"
-                description={`${activeCampaign.completed_targets} of ${activeCampaign.total_targets} campaign targets have finished processing.`}
+                description={`${activeCampaign.completed_targets} of ${activeCampaign.total_targets} ${activeWorkflowLabel} targets have finished processing.`}
               >
                 <i style={{ "--campaign-progress": `${activePercent}%` } as React.CSSProperties} />
-                {activePercent}% overnight run
+                {activePercent}% {activeWorkflowLabel}
               </InfoTerm>
             ) : null}
             <InfoTerm description={HELP.sectorsRepresented}>
@@ -2231,16 +2240,30 @@ export default function App() {
             </InfoTerm>
             {activeCampaign ? (
               <InfoTerm description={HELP.activeWorkers}>
-                {activeWorkerCount}/{workerSlotCount} active ·{" "}
-                {activeAnalysisWorkers}/{analysisWorkerCapacity} analyzing ·{" "}
-                {activeDownloadWorkers}/{downloadWorkerCapacity} downloading ·{" "}
-                {idleWorkerCount} idle ·{" "}
-                {activeCampaign.runtime?.downloaded_waiting || 0} staged
+                {activeWorkflow === "batch_hunt" ? (
+                  <>
+                    {activeWorkerCount}/{workerSlotCount} active ·{" "}
+                    {activeAnalysisWorkers}/{analysisWorkerCapacity} analyzing ·{" "}
+                    {activeDownloadWorkers}/{downloadWorkerCapacity} downloading ·{" "}
+                    {idleWorkerCount} idle ·{" "}
+                    {activeCampaign.runtime?.downloaded_waiting || 0} staged
+                  </>
+                ) : (
+                  <>
+                    {activeAnalysisWorkers}/{analysisWorkerCapacity} vetting ·{" "}
+                    {idleWorkerCount} idle ·{" "}
+                    {fmtInteger(activeCampaign.runtime?.science_products_downloaded)} science products
+                  </>
+                )}
               </InfoTerm>
             ) : null}
             {activeCampaign ? (
               <InfoTerm description={HELP.vettingCoverage}>
-                Deep vetting{" "}
+                {activeWorkflow === "context_vet"
+                  ? "Context vetted"
+                  : activeWorkflow === "science_vet"
+                    ? "Science vetted"
+                    : "Deep vetting"}{" "}
                 {fmtInteger(activeCampaign.runtime?.vetting_coverage?.measured_targets)}/
                 {fmtInteger(activeCampaign.runtime?.vetting_coverage?.eligible_targets)}
                 {activeCampaign.runtime?.vetting_coverage?.legacy_unmeasured_targets
@@ -2281,7 +2304,9 @@ export default function App() {
               </InfoTerm>
               <p>
                 {activeCampaign
-                  ? `Sector ${[...(activeCampaign.sectors || [])].join(", ") || "—"} active • ${activeCampaign.completed_targets}/${activeCampaign.total_targets} targets • ${activePercent}% • updated ${relativeUpdate(activeCampaign.updated_at_utc)}`
+                  ? activeWorkflow === "batch_hunt"
+                    ? `Sector ${[...(activeCampaign.sectors || [])].join(", ") || "—"} active • ${activeCampaign.completed_targets}/${activeCampaign.total_targets} targets • ${activePercent}% • updated ${relativeUpdate(activeCampaign.updated_at_utc)}`
+                    : `${activeWorkflow === "context_vet" ? "Context metadata vetting" : "Focused science vetting"} active • ${activeCampaign.completed_targets}/${activeCampaign.total_targets} leads • ${activePercent}% • updated ${relativeUpdate(activeCampaign.updated_at_utc)}`
                   : "Hover for local analyzed/targeted coverage; this is not all stars in each TESS sector"}
               </p>
             </div>
@@ -2303,8 +2328,8 @@ export default function App() {
           {activeCampaign ? (
             <div
               className="timeline-progress"
-              aria-label={`${activeCampaign.completed_targets} of ${activeCampaign.total_targets} targets complete`}
-              title={`${activeCampaign.completed_targets} of ${activeCampaign.total_targets} targets complete`}
+              aria-label={`${activeCampaign.completed_targets} of ${activeCampaign.total_targets} ${activeWorkflowLabel} targets complete`}
+              title={`${activeCampaign.completed_targets} of ${activeCampaign.total_targets} ${activeWorkflowLabel} targets complete`}
             >
               <i style={{ "--timeline-progress": `${activeProgress}%` } as React.CSSProperties} />
             </div>

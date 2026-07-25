@@ -1,10 +1,12 @@
 import json
+import os
 from pathlib import Path
 
 from exohunt.dashboard_server import (
     _needs_survey_refresh,
     _phase_curve_for_tic,
     _prefer_live_campaign_last,
+    _survey_sources_are_newer,
 )
 
 
@@ -45,6 +47,31 @@ def test_old_campaign_snapshot_requires_schema_refresh() -> None:
     assert _needs_survey_refresh({"schema_version": 1})
     assert _needs_survey_refresh({"schema_version": 2})
     assert not _needs_survey_refresh({"schema_version": 2, "sector_coverage": []})
+
+
+def test_live_context_checkpoint_invalidates_dashboard_snapshot(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "dashboard" / "public" / "data" / "survey.json"
+    output.parent.mkdir(parents=True)
+    output.write_text("{}", encoding="utf-8")
+    progress = (
+        tmp_path
+        / "results"
+        / "vetting"
+        / "all_campaigns"
+        / "context"
+        / "context_vet_progress.json"
+    )
+    progress.parent.mkdir(parents=True)
+    progress.write_text("{}", encoding="utf-8")
+    os.utime(output, (100, 100))
+    os.utime(progress, (200, 200))
+
+    assert _survey_sources_are_newer(tmp_path, output)
+
+    os.utime(output, (300, 300))
+    assert not _survey_sources_are_newer(tmp_path, output)
 
 
 def test_phase_curve_endpoint_returns_only_compact_curve(tmp_path: Path):

@@ -49,6 +49,41 @@ def _needs_survey_refresh(payload: dict[str, object]) -> bool:
     )
 
 
+def _survey_sources_are_newer(root: Path, output: Path) -> bool:
+    """Refresh when a live checkpoint is newer than the derived survey JSON."""
+
+    if not output.exists():
+        return True
+    try:
+        snapshot_mtime = output.stat().st_mtime_ns
+    except OSError:
+        return True
+    candidates: list[Path] = []
+    results_root = root / "results"
+    campaign_root = results_root / "campaign"
+    vetting_root = results_root / "vetting"
+    if campaign_root.exists():
+        candidates.extend(campaign_root.rglob("batch_progress.json"))
+    if vetting_root.exists():
+        candidates.extend(vetting_root.rglob("context_vet_progress.json"))
+        candidates.extend(vetting_root.rglob("science_vet_progress.json"))
+    candidates.extend(
+        path
+        for path in (
+            root / "metrics" / "events.jsonl",
+            root / "metrics" / "current_stats.json",
+        )
+        if path.exists()
+    )
+    for candidate in candidates:
+        try:
+            if candidate.stat().st_mtime_ns > snapshot_mtime:
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def _phase_curve_for_tic(root: Path, tic_id: int) -> dict[str, object] | None:
     """Load one compact curve without exposing arbitrary report files."""
 
@@ -158,10 +193,13 @@ def create_app(workspace: str | Path = WORKSPACE) -> FastAPI:
             raise HTTPException(
                 status_code=503, detail="Survey data is temporarily unavailable."
             ) from error
-        if _needs_survey_refresh(payload):
+        if _needs_survey_refresh(payload) or _survey_sources_are_newer(
+            root, output
+        ):
             # A long-running campaign may have imported the previous exporter
-            # before the dashboard was upgraded. Preserve that campaign and
-            # upgrade only its derived, replaceable browser snapshot.
+            # before the dashboard was upgraded, while context/science vetters
+            # update their own checkpoints. Preserve those workers and upgrade
+            # only the derived, replaceable browser snapshot.
             output = export_dashboard_data(root)
             try:
                 payload = json.loads(output.read_text(encoding="utf-8"))

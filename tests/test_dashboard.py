@@ -222,6 +222,59 @@ def test_dashboard_orders_live_campaign_after_retry_pending(tmp_path: Path) -> N
     assert payload["active_campaigns"][-1]["state"] == "running"
 
 
+def test_dashboard_promotes_live_context_vetting_over_terminal_batch(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "dashboard").mkdir()
+    batch_dir = tmp_path / "results" / "campaign" / "terminal_batch"
+    batch_dir.mkdir(parents=True)
+    (batch_dir / "batch_progress.json").write_text(
+        json.dumps(
+            {
+                "state": "retry_pending",
+                "total_targets": 5000,
+                "completed_targets": 5000,
+                "updated_at_utc": "2026-07-25T10:00:00+00:00",
+                "counts": {"survivor": 2343, "rejected": 2654, "error": 3},
+                "results": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    context_dir = tmp_path / "results" / "vetting" / "all_campaigns" / "context"
+    context_dir.mkdir(parents=True)
+    (context_dir / "context_vet_progress.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "queue": "results/vetting/all_campaigns/context_queue.json",
+                "total_targets": 3565,
+                "completed_targets": 42,
+                "started_at_utc": "2026-07-25T10:05:00+00:00",
+                "updated_at_utc": "2026-07-25T10:15:00+00:00",
+                "counts": {"completed": 42, "error": 0, "remaining": 3523},
+                "runtime": {"workers": 2, "science_products_downloaded": 0},
+                "results": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output = export_dashboard_data(tmp_path, events=[], stats={})
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    active = payload["active_campaigns"][-1]
+
+    assert active["workflow"] == "context_vet"
+    assert active["state"] == "running"
+    assert active["completed_targets"] == 42
+    assert active["total_targets"] == 3565
+    assert active["runtime"]["analysis_workers"] == 2
+    assert active["runtime"]["download_workers"] == 0
+    assert active["runtime"]["analyses_in_flight"] == 2
+    assert active["runtime"]["science_products_downloaded"] == 0
+    assert active["runtime"]["vetting_coverage"]["measured_targets"] == 42
+
+
 def test_dashboard_distinguishes_search_errors_and_handles_empty_metrics(
     tmp_path: Path,
 ) -> None:
