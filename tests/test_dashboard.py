@@ -252,3 +252,73 @@ def test_dashboard_exports_scoped_screening_classes_and_runtime(tmp_path: Path) 
     assert stars[3]["status"] == "screened_rejected"
     assert stars[4]["status"] == "automated_survivor"
     assert all(star.get("planet_free") is not True for star in stars.values())
+
+
+def test_dashboard_overlays_authoritative_eb_context(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "dashboard").mkdir()
+    (tmp_path / "targets").mkdir()
+    (tmp_path / "targets" / "targets.csv").write_text(
+        "target,tic_id,sectors,ra_deg,dec_deg,distance_pc\n"
+        "TIC 303427297,303427297,100,164.19,-57.75,106.3\n",
+        encoding="utf-8",
+    )
+    campaign = tmp_path / "results" / "campaign" / "sector100"
+    campaign.mkdir(parents=True)
+    (campaign / "batch_progress.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "total_targets": 1,
+                "completed_targets": 1,
+                "runtime": {},
+                "results": [
+                    {
+                        "target": "TIC 303427297",
+                        "tic_id": 303427297,
+                        "sectors": "100",
+                        "status": "survivor",
+                        "screening_class": "automated_survivor",
+                        "followup_priority": 99,
+                        "period_days": 4.295591,
+                        "depth_ppm": 9100.0,
+                        "depth_snr": 103.0,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    context_dir = tmp_path / "results" / "vetting" / "context"
+    context_dir.mkdir(parents=True)
+    (context_dir / "TIC_303427297_cross_mission_context.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "generated_at_utc": "2026-07-25T00:00:00+00:00",
+                "tic": {"tic_id": 303427297},
+                "context_classification": {
+                    "disposition": "known_eb_rediscovery",
+                    "followup_lane": "stellar_eclipse_or_etv_followup",
+                    "source_states": {
+                        "tess_eclipsing_binary_catalog": "completed"
+                    },
+                    "reasons": [
+                        "The target and period match a known eclipsing binary."
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output = export_dashboard_data(tmp_path, events=[], stats={})
+    payload = json.loads(output.read_text(encoding="utf-8"))
+
+    star = payload["stars"][0]
+    assert star["status"] == "known_eb_rediscovery"
+    assert star["context_followup_lane"] == (
+        "stellar_eclipse_or_etv_followup"
+    )
+    assert payload["status_counts"]["known_eb_rediscovery"] == 1

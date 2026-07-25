@@ -15,6 +15,7 @@ from exohunt.cli import (
     LEGACY_COMMON_MODE_REASONS,
     _batch_hunt,
     _campaign_settings,
+    _download_batch_target,
     _is_transient_search_error,
     _load_reusable_report,
     _performance_snapshot,
@@ -386,3 +387,42 @@ def test_campaign_settings_preserve_two_download_default() -> None:
     )
 
     assert _campaign_settings(args)["execution"]["download_workers"] == 2
+
+
+def test_parallel_tesscut_targets_use_isolated_cache_namespaces(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    namespaces: list[str] = []
+
+    def fake_download(*_args, cache_namespace=None, **_kwargs):
+        namespaces.append(cache_namespace)
+        values = np.arange(5, dtype=float)
+        return values, np.ones_like(values), {}
+
+    monkeypatch.setattr(cli_module, "_download_light_curve", fake_download)
+    args = argparse.Namespace(author="TESScut", cadence_seconds=158.0)
+
+    _download_batch_target(
+        {"target": "TIC 101", "tic_id": 101, "sectors": [100]},
+        args,
+    )
+    _download_batch_target(
+        {"target": "TIC 202", "tic_id": 202, "sectors": [100]},
+        args,
+    )
+
+    assert namespaces == ["TIC_101_s100", "TIC_202_s100"]
+    assert len(set(namespaces)) == 2
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Bad magic number for file header",
+        "Bad CRC-32 for file",
+        "File name in directory and header differ",
+        "[Errno 22] Invalid argument",
+    ],
+)
+def test_corrupt_parallel_tesscut_archives_are_retryable(message: str) -> None:
+    assert _is_transient_search_error(RuntimeError(message))

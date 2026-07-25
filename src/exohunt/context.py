@@ -13,6 +13,11 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import Iterable, Mapping
 
+from .evidence import (
+    classify_context_evidence,
+    query_authoritative_evidence,
+)
+
 
 TESS_REDUCTIONS = {
     "CDIPS",
@@ -246,10 +251,61 @@ def build_followup_actions(
     catalog: Mapping[str, object],
     mast: Mapping[str, object],
     neighbors: Mapping[str, object],
+    classification: Mapping[str, object] | None = None,
 ) -> list[dict[str, str]]:
     """Turn compact context into an ordered, conservative follow-up plan."""
 
     actions: list[dict[str, str]] = []
+    disposition = str(
+        (classification or {}).get("disposition") or ""
+    )
+    if disposition == "known_eb_rediscovery":
+        actions.append(
+            {
+                "priority": "critical",
+                "action": (
+                    "Classify this signal as a known eclipsing-binary "
+                    "rediscovery, not a planet survivor."
+                ),
+                "reason": (
+                    "An authoritative EB record matches both the TIC host "
+                    "and the recovered period or a simple eclipse alias."
+                ),
+            }
+        )
+    elif disposition == "known_eb_host_residual_review":
+        actions.append(
+            {
+                "priority": "critical",
+                "action": (
+                    "Separate the binary eclipse ephemeris from any residual "
+                    "or circumbinary signal before promotion."
+                ),
+                "reason": (
+                    "The host is a known binary even though the recovered "
+                    "period has not yet been matched to the catalogued eclipse."
+                ),
+            }
+        )
+    elif disposition == "known_tce_rediscovery":
+        actions.append(
+            {
+                "priority": "critical",
+                "action": "Route this result to known-TCE validation.",
+                "reason": "The recovered period matches an official TESS TCE.",
+            }
+        )
+    elif disposition == "context_incomplete":
+        actions.append(
+            {
+                "priority": "critical",
+                "action": "Retry failed authoritative metadata sources.",
+                "reason": (
+                    "A partial catalog pass cannot clear this signal for "
+                    "candidate promotion."
+                ),
+            }
+        )
     tois = list(catalog.get("tois", []))
     confirmed = list(catalog.get("confirmed_planets", []))
     if tois or confirmed:
@@ -359,6 +415,8 @@ def query_cross_mission_context(
     *,
     mast_radius_arcsec: float = 3.0,
     neighbor_radius_arcsec: float = 42.0,
+    signal: Mapping[str, object] | None = None,
+    sectors: Iterable[int] = (),
 ) -> dict[str, object]:
     """Query compact public metadata for one TIC target."""
 
@@ -413,8 +471,30 @@ def query_cross_mission_context(
     neighbors = summarize_tic_neighbors(
         neighbor_rows, target_tic_id=tic_id, target_tmag=tmag
     )
+    candidate_period = _optional_float(
+        (signal or {}).get("period_days")
+    )
+    requested_sectors = sorted(
+        {
+            int(value)
+            for value in sectors
+            if _optional_int(value) is not None and int(value) > 0
+        }
+    )
+    authoritative = query_authoritative_evidence(
+        tic_id,
+        gaia_source_id=_optional_int(tic.get("gaia_source_id")),
+        sectors=requested_sectors,
+        candidate_period_days=candidate_period,
+    )
+    classification = classify_context_evidence(
+        candidate_period_days=candidate_period,
+        nasa_catalog=catalog,
+        evidence=authoritative,
+        neighbors=neighbors,
+    )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "generated_at_utc": datetime.now(timezone.utc)
         .replace(microsecond=0)
         .isoformat(),
@@ -425,13 +505,20 @@ def query_cross_mission_context(
         "query": {
             "mast_radius_arcsec": mast_radius_arcsec,
             "neighbor_radius_arcsec": neighbor_radius_arcsec,
+            "searched_sectors": requested_sectors,
             "science_products_downloaded": 0,
         },
         "tic": tic,
         "nasa_exoplanet_archive": catalog,
         "mast_holdings": mast,
         "neighbor_context": neighbors,
+        "authoritative_evidence": authoritative,
+        "context_classification": classification,
         "recommended_actions": build_followup_actions(
-            tic=tic, catalog=catalog, mast=mast, neighbors=neighbors
+            tic=tic,
+            catalog=catalog,
+            mast=mast,
+            neighbors=neighbors,
+            classification=classification,
         ),
     }

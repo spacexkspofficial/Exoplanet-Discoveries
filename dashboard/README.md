@@ -36,6 +36,14 @@ in flight, staged targets, and active versus configured worker slots. Analysis
 and download pools are reported separately so idle capacity is not shown as
 active work.
 
+When a schema-v2 context report exists under `results/`, its authoritative
+metadata disposition overlays the initial screening label. The filters and
+metrics distinguish known EB rediscoveries, known-binary residual review,
+known-variable review, crowding review, catalog gaps, incomplete context
+queries, and unresolved transit-like signals. “Unresolved” still does not mean
+candidate or planet. The selected-target panel lists the follow-up lane and
+per-source completion states.
+
 The selected-sector overlay is mission geometry, not a box fitted to the local
 stars. It renders four TESS cameras and their sixteen CCD science-pixel
 boundaries in RA/Dec; the 3D and Earth views extend the same angular boundaries

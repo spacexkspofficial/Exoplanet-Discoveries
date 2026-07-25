@@ -100,6 +100,12 @@ without replacing 5,000 new observations.
   coverage is needed.
 - **Automated survivor:** a signal passed the first screen and needs pixel,
   catalog, independent-reduction, and multi-sector vetting.
+- **Known EB/TCE/planet rediscovery:** the metadata pass found an existing
+  authoritative signal; this validates the pipeline but is not a new planet.
+- **Known binary/variable/crowding review:** an astrophysical or scene-level
+  alternative must be resolved before promotion.
+- **Unresolved transit-like signal:** the checked metadata does not explain the
+  feature. This is still a follow-up lead, not a vetted candidate.
 
 ## How to see the planets TESS misses
 

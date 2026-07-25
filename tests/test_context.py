@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 
 import exohunt.cli as cli_module
-from exohunt.cli import _run_context_vet_queue
+from exohunt.cli import build_history_context_queue, _run_context_vet_queue
 from exohunt.context import (
     build_followup_actions,
     summarize_mast_observations,
@@ -139,8 +139,16 @@ def test_context_vet_queue_is_compact_and_idempotent(
     def fake_query(tic_id: int, **_kwargs):
         calls.append(tic_id)
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "tic": {"tic_id": tic_id},
+            "context_classification": {
+                "disposition": "unresolved_transit_like_signal",
+                "followup_lane": "independent_photometry_and_pixel_vetting",
+                "followup_priority": 90,
+                "known_binary_host": False,
+                "source_states": {"tess_tce": "completed"},
+                "exact_period_matches": [],
+            },
             "mast_holdings": {
                 "observation_records": 2,
                 "collection_counts": {"TESS": 2},
@@ -181,3 +189,91 @@ def test_context_vet_queue_is_compact_and_idempotent(
         (output_dir / "context_vet_summary.json").read_text(encoding="utf-8")
     )
     assert all(row["run_state"] == "reused" for row in reused["results"])
+
+
+def test_history_queue_preserves_initial_checks_without_tess_redownload(
+    tmp_path: Path,
+) -> None:
+    campaign = tmp_path / "results" / "campaign" / "one"
+    campaign.mkdir(parents=True)
+    report_path = campaign / "TIC_42_s100_residual.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "data": {
+                    "target": "TIC 42",
+                    "tic_id": 42,
+                    "requested_sectors": [100],
+                },
+                "search_configuration": {
+                    "data_pipeline_version": "test-v1"
+                },
+                "observation_window": {"measurements": 1000},
+                "strongest_residual_signal": {
+                    "period_days": 3.5,
+                    "depth_ppm": 900.0,
+                    "depth_snr": 12.0,
+                    "observed_transits": 4,
+                    "secondary_snr": 0.2,
+                },
+                "automated_triage": {
+                    "passes": True,
+                    "rejection_reasons": [],
+                },
+                "screening_flags": {
+                    "secondary_eclipse_over_3_sigma": False
+                },
+                "deeper_vetting": {
+                    "red_noise_adjusted_snr": 9.0,
+                    "event_coverage_fraction": 1.0,
+                    "positive_depth_event_fraction": 1.0,
+                },
+                "sensitivity_probe": {"periods": []},
+                "catalog_checked": {
+                    "tois": [],
+                    "confirmed_planets": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (campaign / "batch_progress.json").write_text(
+        json.dumps(
+            {
+                "results": [
+                    {
+                        "tic_id": 42,
+                        "target": "TIC 42",
+                        "sectors": "100",
+                        "status": "survivor",
+                        "screening_class": "automated_survivor",
+                        "followup_priority": 90,
+                        "vetting_tier": "high_priority_followup",
+                        "period_days": 3.5,
+                        "depth_ppm": 900.0,
+                        "depth_snr": 12.0,
+                        "observed_transits": 4,
+                        "report": str(report_path),
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "results" / "vetting" / "context_queue.json"
+
+    payload = build_history_context_queue(
+        tmp_path / "results" / "campaign",
+        output,
+    )
+
+    assert len(payload["targets"]) == 1
+    target = payload["targets"][0]
+    assert target["prior_scan_count"] == 1
+    initial = target["initial_scan_evidence"][0]
+    assert initial["searched_sectors"] == [100]
+    assert initial["screening_flags"][
+        "secondary_eclipse_over_3_sigma"
+    ] is False
+    assert initial["deeper_vetting"]["red_noise_adjusted_snr"] == 9.0
+    assert output.exists()

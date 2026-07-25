@@ -4,21 +4,30 @@ from __future__ import annotations
 
 import csv
 import io
+import json
+import os
 import re
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+from filelock import FileLock
 
 
 TAP_URL = "https://exoplanetarchive.ipac.caltech.edu/TAP/sync"
+CATALOG_CACHE_MAX_AGE = timedelta(days=7)
+_CATALOG_QUERY_LIMIT = threading.BoundedSemaphore(2)
 
 
 def _tap_csv(
     query: str,
-    timeout: int = 30,
+    timeout: int = 45,
     *,
-    attempts: int = 3,
+    attempts: int = 5,
 ) -> list[dict[str, str]]:
     if attempts < 1:
         raise ValueError("attempts must be at least 1")
@@ -35,26 +44,94 @@ def _tap_csv(
         except (urllib.error.URLError, TimeoutError, ConnectionError):
             if attempt >= attempts:
                 raise
-        time.sleep(min(2 ** (attempt - 1), 4))
+        time.sleep(min(2 ** (attempt - 1), 16))
     raise RuntimeError("NASA Exoplanet Archive request failed without an exception")
 
 
-def check_tic(tic_id: int) -> dict[str, object]:
+def _catalog_cache_root(cache_dir: str | Path | None = None) -> Path:
+    raw = (
+        Path(cache_dir)
+        if cache_dir is not None
+        else Path(
+            os.environ.get(
+                "EXOHUNT_CATALOG_CACHE_DIR",
+                "data/catalogs/nasa_exoplanet_archive",
+            )
+        )
+    )
+    root = raw.resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _read_fresh_cache(path: Path) -> dict[str, object] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        generated = datetime.fromisoformat(str(payload["generated_at_utc"]))
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if generated.tzinfo is None:
+        generated = generated.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) - generated > CATALOG_CACHE_MAX_AGE:
+        return None
+    result = payload.get("result")
+    return result if isinstance(result, dict) else None
+
+
+def _write_cache(path: Path, result: dict[str, object]) -> None:
+    payload = {
+        "schema_version": 1,
+        "generated_at_utc": datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat(),
+        "source": TAP_URL,
+        "result": result,
+    }
+    temporary = path.with_name(
+        f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+    )
+    temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    temporary.replace(path)
+
+
+def check_tic(
+    tic_id: int,
+    *,
+    force_refresh: bool = False,
+    cache_dir: str | Path | None = None,
+) -> dict[str, object]:
     """Find TOIs and confirmed planets already associated with a TIC ID."""
 
     if tic_id <= 0:
         raise ValueError("TIC ID must be a positive integer.")
-    tois = _tap_csv(
-        "select toi,tid,ctoi_alias,tfopwg_disp,pl_orbper,pl_tranmid,"
-        "pl_trandurh,pl_trandep,rowupdate "
-        f"from toi where tid={tic_id}"
-    )
-    confirmed = _tap_csv(
-        "select pl_name,hostname,pl_orbper,pl_tranmid,pl_trandur,pl_rade,"
-        "tran_flag,discoverymethod,disc_year "
-        f"from ps where default_flag=1 and tic_id='TIC {tic_id}'"
-    )
-    return {"tic_id": tic_id, "tois": tois, "confirmed_planets": confirmed}
+    cache_path = _catalog_cache_root(cache_dir) / f"TIC_{tic_id}.json"
+    lock = FileLock(str(cache_path.with_suffix(".lock")))
+    with lock.acquire(timeout=180):
+        if not force_refresh:
+            cached = _read_fresh_cache(cache_path)
+            if cached is not None and int(cached.get("tic_id", 0)) == tic_id:
+                return cached
+        # Limit concurrent TAP traffic across analysis threads. The previous
+        # unbounded per-target queries caused hundreds of exhausted timeouts
+        # during parallel campaigns even while TESScut itself was healthy.
+        with _CATALOG_QUERY_LIMIT:
+            tois = _tap_csv(
+                "select toi,tid,ctoi_alias,tfopwg_disp,pl_orbper,pl_tranmid,"
+                "pl_trandurh,pl_trandep,rowupdate "
+                f"from toi where tid={tic_id}"
+            )
+            confirmed = _tap_csv(
+                "select pl_name,hostname,pl_orbper,pl_tranmid,pl_trandur,pl_rade,"
+                "tran_flag,discoverymethod,disc_year "
+                f"from ps where default_flag=1 and tic_id='TIC {tic_id}'"
+            )
+        result: dict[str, object] = {
+            "tic_id": tic_id,
+            "tois": tois,
+            "confirmed_planets": confirmed,
+        }
+        _write_cache(cache_path, result)
+        return result
 
 
 def known_planet_host_tic_ids(tic_ids: list[int]) -> set[int]:

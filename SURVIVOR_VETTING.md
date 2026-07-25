@@ -5,22 +5,33 @@ gates. It is not yet a planet candidate. Survivor vetting is a separate,
 bounded workflow so broad survey throughput and focused evidence collection do
 not compete for storage or silently change each other's selection rules.
 
+If a known transiting system has a catalog period but lacks the epoch or
+duration needed for safe masking, `--allow-no-known` performs an explicitly
+unmasked recovery-only scan. That scan is forced into a non-promotable review
+class and records the incomplete mask fields instead of becoming a permanent
+batch error.
+
 ## Order of operations
 
 ### 1. Metadata and catalog triage
 
 Run low-storage checks for every queued survivor:
 
-- refresh confirmed-planet and TOI/CTOI matches from the NASA Exoplanet Archive
-  and ExoFOP;
-- compare the ephemeris against public TESS threshold-crossing events and data
-  validation products;
-- query Gaia DR3 around the aperture for nearby sources, duplicated-source or
-  non-single-star context, astrometric quality, and dilution risk; and
+- refresh confirmed-planet and TOI/CTOI matches from the NASA Exoplanet Archive;
+- compare the ephemeris against official public TESS threshold-crossing-event
+  statistics;
+- query the live Villanova TESS Eclipsing Binary Catalog by exact TIC and
+  compare its period and simple eclipse aliases;
+- query SIMBAD object types and aliases;
+- query Gaia DR3 variability, eclipsing-binary, planetary-transit, and
+  non-single-star records for the TIC/Gaia cross-match;
+- inspect nearby TIC/Gaia sources for crowding and dilution risk; and
 - record which independent light-curve products and observing sectors exist.
 
 These results are small JSON/CSV records. A catalog miss is not proof that the
-signal is new.
+signal is new. ExoFOP and literature review remain explicit human checks before
+promotion; the software does not claim to have queried a private or unstable
+interface.
 
 For one saved signal report, run:
 
@@ -47,6 +58,47 @@ JSON/CSV summaries. It queries which TESS reductions, Kepler/K2 observations,
 Hubble/Webb programs, and other MAST holdings exist, but downloads zero science
 products. Failed metadata queries remain retryable without repeating completed
 targets.
+
+To include all campaigns already scanned under the same rules, build a combined
+queue from their durable checkpoints and reports:
+
+```powershell
+.\.venv\Scripts\exohunt.exe build-context-queue `
+  --campaign-root results\campaign `
+  --output results\vetting\all_campaigns\context_queue.json
+
+.\.venv\Scripts\exohunt.exe context-vet-queue `
+  --queue results\vetting\all_campaigns\context_queue.json `
+  --output-dir results\vetting\all_campaigns\context `
+  --workers 2
+```
+
+This does not redownload TESS pixels. It carries forward the first-pass signal,
+automated triage, odd/even and secondary-eclipse flags, red-noise significance,
+event coverage, sensitivity probe, pipeline version, searched sectors, and
+initial NASA catalog snapshot. Multiple saved scans of the same TIC are
+deduplicated while retaining every source-report reference.
+
+## Metadata disposition lanes
+
+The word `survivor` is only a first-pass queue state. The metadata pass replaces
+it with a more specific disposition:
+
+- `known_planet_rediscovery`: period match to a NASA TOI/confirmed planet;
+- `known_tce_rediscovery`: period/alias match to an official TESS TCE;
+- `known_eb_rediscovery`: exact TIC plus period/alias match to the TESS EB
+  Catalog or Gaia EB evidence;
+- `known_eb_host_residual_review`: known binary host with a different residual
+  period, retained for binary subtraction, ETV, or circumbinary review;
+- `known_variable_star_review`: stellar variability remains a live alternative;
+- `crowding_contamination_review`: nearby-source localization is required;
+- `context_incomplete` or `catalog_coverage_gap`: public checks must be retried
+  or supplemented; and
+- `unresolved_transit_like_signal`: the checked catalogs do not explain the
+  feature, but it is still not a planet candidate.
+
+An EB match takes precedence over a generic TCE match because a TCE records a
+detected threshold crossing, not its astrophysical nature.
 
 ### 2. Pixel-source localization
 

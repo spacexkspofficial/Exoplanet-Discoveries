@@ -18,6 +18,13 @@ type Status =
   | "search_error"
   | "rediscovery"
   | "known_tce_rediscovery"
+  | "known_eb_rediscovery"
+  | "known_eb_host_residual_review"
+  | "known_variable_star_review"
+  | "crowding_contamination_review"
+  | "catalog_coverage_gap"
+  | "context_incomplete"
+  | "unresolved_transit_like_signal"
   | "false_positive"
   | "vetted_candidate"
   | "confirmed_planet";
@@ -58,6 +65,10 @@ type Star = {
   event_coverage_fraction: number | null;
   positive_depth_event_fraction: number | null;
   phase_curve_available: boolean;
+  context_disposition: string | null;
+  context_followup_lane: string | null;
+  context_source_states: Record<string, string>;
+  context_report: string | null;
   x: number;
   y: number;
   z: number;
@@ -166,67 +177,109 @@ const STATUS_META: Record<
   searched: {
     label: "Searched — Awaiting Classification",
     short: "Awaiting class",
-    color: "#35d7e8",
+    color: "#22b8cf",
     className: "cyan",
   },
   no_transit_detected: {
     label: "No Transit Detected in Search Window",
     short: "No transit found",
-    color: "#55c6d8",
+    color: "#2493a7",
     className: "cyan",
   },
   screened_rejected: {
     label: "Strongest Signal Screened Out",
     short: "Signal screened",
-    color: "#8098a5",
+    color: "#7d8b94",
     className: "muted",
   },
   single_event_lead: {
     label: "Single-Event Lead — Longer Baseline Needed",
     short: "Single event",
-    color: "#ffd166",
+    color: "#e9b949",
     className: "amber",
   },
   automated_survivor: {
     label: "Automated Survivor — Deeper Vetting Needed",
     short: "Needs vetting",
-    color: "#62e6a7",
+    color: "#2fbf71",
     className: "green",
   },
   search_error: {
     label: "Search Error — Retry Needed",
     short: "Retry needed",
-    color: "#ff7b54",
+    color: "#e4572e",
     className: "red",
   },
   rediscovery: {
     label: "Mapped Planet Recovery",
     short: "Planet recovered",
-    color: "#ffad20",
+    color: "#f59e0b",
     className: "amber",
   },
   known_tce_rediscovery: {
     label: "TCE Rediscovery",
     short: "TCE recovered",
-    color: "#bf7aff",
+    color: "#9b5de5",
     className: "violet",
+  },
+  known_eb_rediscovery: {
+    label: "Known Eclipsing-Binary Rediscovery",
+    short: "Known EB",
+    color: "#f97316",
+    className: "amber",
+  },
+  known_eb_host_residual_review: {
+    label: "Known Binary Host — Residual Review",
+    short: "Binary residual",
+    color: "#d97706",
+    className: "amber",
+  },
+  known_variable_star_review: {
+    label: "Known Variable Star — Signal Review",
+    short: "Variable star",
+    color: "#a855f7",
+    className: "violet",
+  },
+  crowding_contamination_review: {
+    label: "Crowding / Contamination Review",
+    short: "Crowding review",
+    color: "#3b82f6",
+    className: "cyan",
+  },
+  catalog_coverage_gap: {
+    label: "Public-Catalog Coverage Gap",
+    short: "Catalog gap",
+    color: "#94a3b8",
+    className: "muted",
+  },
+  context_incomplete: {
+    label: "Context Checks Incomplete — Retry Needed",
+    short: "Context retry",
+    color: "#dc5a3a",
+    className: "red",
+  },
+  unresolved_transit_like_signal: {
+    label: "Unresolved Transit-Like Signal",
+    short: "Unresolved lead",
+    color: "#16a34a",
+    className: "green",
   },
   false_positive: {
     label: "Vetted False Positive",
     short: "False positive",
-    color: "#ff563d",
+    color: "#dc2626",
     className: "red",
   },
   vetted_candidate: {
     label: "Vetted New Candidate",
     short: "Candidate",
-    color: "#77ff9f",
+    color: "#10b981",
     className: "green",
   },
   confirmed_planet: {
     label: "Confirmed Planet",
     short: "Confirmed",
-    color: "#f8ffb1",
+    color: "#c7d83d",
     className: "green",
   },
 };
@@ -250,6 +303,20 @@ const STATUS_HELP: Record<Status, string> = {
     "The search recovered a planet that was already known. This checks the pipeline; it is not a new discovery.",
   known_tce_rediscovery:
     "The signal matches an existing TESS threshold-crossing event, so TESS has already flagged it.",
+  known_eb_rediscovery:
+    "The TIC host and recovered period match an authoritative eclipsing-binary record. This is useful validation and possible eclipse-timing material, but it is not a planet survivor.",
+  known_eb_host_residual_review:
+    "The star is a known binary, but the recovered period is not yet tied to its catalogued eclipse. The binary must be modeled before a separate residual or circumbinary interpretation is considered.",
+  known_variable_star_review:
+    "Gaia or SIMBAD records stellar variability that can imitate transit-like dips. This signal remains in a stellar-variability review lane.",
+  crowding_contamination_review:
+    "Nearby sources can contribute flux inside a TESS pixel. Difference imaging or target-pixel localization is required before this lead can advance.",
+  catalog_coverage_gap:
+    "One or more applicable public catalogs do not yet cover the searched sector or signal. Independent data checks are still required.",
+  context_incomplete:
+    "At least one authoritative metadata source failed. The context pass must be retried; absence from the sources that did respond is not meaningful clearance.",
+  unresolved_transit_like_signal:
+    "No checked catalog currently explains the signal. It is still only an unresolved lead and must pass pixel localization, independent reduction, repeat-epoch, and human false-positive review.",
   false_positive:
     "Follow-up checks indicate that the signal is probably not a transiting planet.",
   vetted_candidate:
@@ -262,7 +329,6 @@ const HELP = {
   filters: "Controls that decide which analyzed stars are visible on the map.",
   statusFilters:
     "Show or hide mapped stars based on classification. These per-star totals refresh from the live campaign checkpoint every five seconds; they do not include aggregate validation benchmarks.",
-  legend: "Explains what each map marker color and shape means.",
   distanceRange:
     "Only show stars closer than this distance. One parsec is about 3.26 light-years.",
   stellarTemperature:
@@ -528,6 +594,27 @@ function angleScaleLabel(degrees: number) {
   return `${fmt(arcminutes * 60, 1)}″`;
 }
 
+const STATUS_SYMBOL: Record<Status, string> = {
+  searched: "·",
+  no_transit_detected: "○",
+  screened_rejected: "×",
+  single_event_lead: "1",
+  automated_survivor: "+",
+  search_error: "!",
+  rediscovery: "P",
+  known_tce_rediscovery: "T",
+  known_eb_rediscovery: "B",
+  known_eb_host_residual_review: "b",
+  known_variable_star_review: "V",
+  crowding_contamination_review: "C",
+  catalog_coverage_gap: "?",
+  context_incomplete: "!",
+  unresolved_transit_like_signal: "U",
+  false_positive: "×",
+  vetted_candidate: "◆",
+  confirmed_planet: "●",
+};
+
 function Marker({ status, small = false }: { status: Status; small?: boolean }) {
   return (
     <span
@@ -535,13 +622,7 @@ function Marker({ status, small = false }: { status: Status; small?: boolean }) 
       style={{ "--marker-color": STATUS_META[status].color } as React.CSSProperties}
       aria-hidden="true"
     >
-      {status === "known_tce_rediscovery"
-        ? "✦"
-        : status === "rediscovery"
-          ? "✶"
-          : status === "single_event_lead"
-            ? "1"
-            : ""}
+      {STATUS_SYMBOL[status]}
     </span>
   );
 }
@@ -1649,20 +1730,6 @@ export default function App() {
                 No category means planet-free. Every label describes only this search window and pipeline.
               </InfoTerm>
             </p>
-            <div className="legend">
-              <h2>
-                <InfoTerm description={HELP.legend}>LEGEND / MARKER STATUS</InfoTerm>
-              </h2>
-              {ALL_STATUSES.map((status) => (
-                <div key={status}>
-                  <Marker status={status} />
-                  <InfoTerm description={STATUS_HELP[status]}>
-                    {STATUS_META[status].label}
-                  </InfoTerm>
-                </div>
-              ))}
-              <p>Candidate styling is shown as a legend example only—not a claimed discovery.</p>
-            </div>
             <RangeControl
               label="DISTANCE RANGE"
               description={HELP.distanceRange}
@@ -1871,6 +1938,16 @@ export default function App() {
                     {selected.status_label}
                   </dd>
                 </div>
+                {selected.context_followup_lane && (
+                  <div>
+                    <dt>
+                      <InfoTerm description="The workflow lane assigned after independent public catalog and metadata checks.">
+                        Context Follow-up Lane
+                      </InfoTerm>
+                    </dt>
+                    <dd>{selected.context_followup_lane.replaceAll("_", " ")}</dd>
+                  </div>
+                )}
                 <div>
                   <dt><InfoTerm description={HELP.coordinateSource}>Coordinate Source</InfoTerm></dt>
                   <dd className="cyan">{selected.coordinate_source}</dd>
@@ -1890,6 +1967,28 @@ export default function App() {
                       <strong>Independent data:</strong>{" "}
                       {selected.recommended_data_sources || "Legacy result; availability not planned."}
                     </InfoTerm>
+                  </p>
+                </section>
+              )}
+              {selected.context_disposition && (
+                <section className="mini-section followup-section">
+                  <h2>
+                    <InfoTerm description="Independent metadata checks against NASA planet records, official TESS TCEs, the TESS eclipsing-binary catalog, SIMBAD, Gaia DR3, MAST holdings, and nearby TIC/Gaia sources.">
+                      AUTHORITATIVE CONTEXT CHECKS
+                    </InfoTerm>
+                  </h2>
+                  <p>
+                    <strong>Disposition:</strong>{" "}
+                    {selected.context_disposition.replaceAll("_", " ")}
+                  </p>
+                  <p>
+                    <strong>Source coverage:</strong>{" "}
+                    {Object.entries(selected.context_source_states || {})
+                      .map(([source, state]) => `${source.replaceAll("_", " ")}: ${state}`)
+                      .join("; ") || "No saved context pass yet."}
+                  </p>
+                  <p>
+                    <strong>Rule:</strong> Catalog absence never promotes a signal by itself.
                   </p>
                 </section>
               )}
@@ -2025,6 +2124,20 @@ export default function App() {
               description={HELP.automatedSurvivors}
               value={fmtInteger(survey?.status_counts.automated_survivor)}
               color="#62e6a7"
+            />
+            <Metric
+              label="Known EB recoveries"
+              description="Signals whose TIC host and recovered period match an authoritative eclipsing-binary record. These are validation results, not planets."
+              value={fmtInteger(survey?.status_counts.known_eb_rediscovery)}
+              color="#ff9f43"
+            />
+            <Metric
+              label="Unresolved after context"
+              description="Signals not explained by the checked catalogs. They still require pixel localization, an independent light-curve reduction, repeat-epoch support, and human review."
+              value={fmtInteger(
+                survey?.status_counts.unresolved_transit_like_signal,
+              )}
+              color="#77ff9f"
             />
             <Metric
               label="Retry needed"

@@ -134,8 +134,21 @@ def _download_light_curve(
     sector: int | list[int] | None,
     author: str,
     cadence_seconds: float | None = 120.0,
+    *,
+    cache_namespace: str | None = None,
 ):
     lk, cache_dir = _configured_lightkurve()
+    # Astroquery's TESScut client names its temporary ZIP with only
+    # second-level precision. Concurrent downloads into one directory can
+    # therefore overwrite each other, producing CRC, bad-magic, and
+    # cross-target filename errors. Give each batch target a stable isolated
+    # namespace while retaining every file beneath the rolling cache root.
+    download_dir = (
+        cache_dir / "batch_targets" / _safe_name(cache_namespace)
+        if cache_namespace
+        else cache_dir
+    )
+    download_dir.mkdir(parents=True, exist_ok=True)
     sectors = _sector_values(sector)
     if author == "TESScut":
         if len(sectors) != 1:
@@ -147,7 +160,7 @@ def _download_light_curve(
             search.download,
             cutout_size=11,
             quality_bitmask="default",
-            download_dir=str(cache_dir),
+            download_dir=str(download_dir),
         )
         if tpf is None:
             raise RuntimeError("MAST returned no downloadable TESScut target-pixel file.")
@@ -221,7 +234,7 @@ def _download_light_curve(
         )
     collection = _thread_safe_lightkurve_download(
         search.download_all,
-        quality_bitmask="default", download_dir=str(cache_dir)
+        quality_bitmask="default", download_dir=str(download_dir)
     )
     if collection is None or len(collection) == 0:
         raise RuntimeError("MAST returned no downloadable light curves.")
@@ -613,6 +626,12 @@ def _is_transient_search_error(exc: Exception) -> bool:
                 "http 502",
                 "http 503",
                 "http 504",
+                "bad magic number",
+                "bad crc-32",
+                "file name in directory",
+                "process cannot access the file",
+                "invalid argument",
+                "codec can't decode byte",
             )
         )
     )
@@ -960,6 +979,10 @@ def _download_batch_target(
     spec: dict[str, object],
     args: argparse.Namespace,
 ) -> tuple[np.ndarray, np.ndarray, dict[str, object]]:
+    namespace = (
+        f"TIC_{int(spec['tic_id'])}_s"
+        + "-".join(str(value) for value in spec["sectors"])
+    )
     for attempt in range(1, 4):
         try:
             return _download_light_curve(
@@ -967,10 +990,24 @@ def _download_batch_target(
                 list(spec["sectors"]),
                 args.author,
                 args.cadence_seconds,
+                cache_namespace=namespace,
             )
         except Exception as exc:
             if attempt >= 3 or not _is_transient_search_error(exc):
                 raise
+            try:
+                cache_root = _workspace_cache_dir(
+                    os.environ.get("EXOHUNT_CACHE_DIR", "data/lightkurve"),
+                    workspace_root=Path.cwd(),
+                )
+                failed_namespace = (
+                    cache_root / "batch_targets" / _safe_name(namespace)
+                )
+                prune_fits_cache(failed_namespace, max_bytes=0)
+            except Exception:
+                # The next attempt remains isolated even if Windows still has
+                # a failed archive open momentarily.
+                pass
             delay = 2 ** (attempt - 1)
             print(
                 f"{spec['target']}: transient download failure "
@@ -1815,16 +1852,24 @@ def _context_vet(args: argparse.Namespace) -> int:
     if not tic_id:
         raise RuntimeError("Could not infer a TIC ID; provide one with --tic.")
 
+    signal = source_report.get("strongest_residual_signal")
+    if not isinstance(signal, dict):
+        signal = source_report.get("candidate_signal")
+    data_sectors = data.get("requested_sectors", [])
+    sectors = _context_sector_values(data_sectors)
     context = query_cross_mission_context(
         int(tic_id),
         mast_radius_arcsec=args.mast_radius_arcsec,
         neighbor_radius_arcsec=args.neighbor_radius_arcsec,
+        signal=signal if isinstance(signal, dict) else None,
+        sectors=sectors,
     )
-    signal = source_report.get("strongest_residual_signal")
-    if not isinstance(signal, dict):
-        signal = source_report.get("candidate_signal")
     context["source_report"] = str(source_report_path)
     context["signal_under_review"] = signal if isinstance(signal, dict) else None
+    context["initial_scan_evidence"] = _compact_initial_scan_evidence(
+        source_report,
+        source_report_path,
+    )
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1833,6 +1878,110 @@ def _context_vet(args: argparse.Namespace) -> int:
     print(json.dumps(context, indent=2))
     print(f"\nSaved {report_path}")
     return 0
+
+
+def _context_sector_values(value: object) -> list[int]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, (list, tuple, set)):
+        raw_values = list(value)
+    else:
+        raw_values = str(value).replace(",", ";").split(";")
+    sectors: set[int] = set()
+    for raw in raw_values:
+        try:
+            sector = int(str(raw).strip())
+        except ValueError:
+            continue
+        if sector > 0:
+            sectors.add(sector)
+    return sorted(sectors)
+
+
+def _compact_initial_scan_evidence(
+    report: dict[str, object],
+    report_path: str | Path,
+) -> dict[str, object]:
+    """Retain the important first-pass evidence without copying large arrays."""
+
+    data = report.get("data")
+    data = data if isinstance(data, dict) else {}
+    signal = report.get("strongest_residual_signal")
+    signal = signal if isinstance(signal, dict) else {}
+    triage = report.get("automated_triage")
+    triage = triage if isinstance(triage, dict) else {}
+    deeper = report.get("deeper_vetting")
+    deeper = deeper if isinstance(deeper, dict) else {}
+    sensitivity = report.get("sensitivity_probe")
+    sensitivity = sensitivity if isinstance(sensitivity, dict) else {}
+    catalog = report.get("catalog_checked")
+    catalog = catalog if isinstance(catalog, dict) else {}
+    return {
+        "source_report": str(report_path),
+        "tic_id": data.get("tic_id"),
+        "searched_sectors": _context_sector_values(
+            data.get("requested_sectors")
+        ),
+        "search_configuration": report.get("search_configuration"),
+        "observation_window": report.get("observation_window"),
+        "search_mode": report.get("search_mode"),
+        "strongest_signal": {
+            key: signal.get(key)
+            for key in (
+                "period_days",
+                "transit_time",
+                "duration_hours",
+                "depth_ppm",
+                "depth_snr",
+                "observed_transits",
+                "odd_even_depth_difference_sigma",
+                "secondary_snr",
+            )
+        },
+        "automated_triage": triage,
+        "screening_flags": report.get("screening_flags"),
+        "deeper_vetting": {
+            key: deeper.get(key)
+            for key in (
+                "flags",
+                "red_noise_adjusted_snr",
+                "event_coverage_fraction",
+                "positive_depth_event_fraction",
+                "out_of_event_baseline_fraction",
+            )
+        },
+        "sensitivity_probe": sensitivity,
+        "initial_nasa_catalog_snapshot": catalog,
+        "known_signal_masks": report.get("known_signal_masks"),
+        "relations_to_masked_periods": report.get(
+            "relations_to_masked_periods"
+        ),
+    }
+
+
+def _queue_initial_scan_evidence(
+    queue_row: dict[str, object],
+) -> list[dict[str, object]]:
+    supplied = queue_row.get("initial_scan_evidence")
+    if isinstance(supplied, list):
+        return [row for row in supplied if isinstance(row, dict)]
+    if isinstance(supplied, dict):
+        return [supplied]
+    raw_paths = queue_row.get("source_reports")
+    if not isinstance(raw_paths, list):
+        raw_paths = [queue_row.get("report")]
+    evidence: list[dict[str, object]] = []
+    for raw_path in raw_paths:
+        if not raw_path:
+            continue
+        path = Path(str(raw_path))
+        try:
+            report = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(report, dict):
+            evidence.append(_compact_initial_scan_evidence(report, path))
+    return evidence
 
 
 def _context_queue_result(
@@ -1851,15 +2000,34 @@ def _context_queue_result(
     neighbors = neighbors if isinstance(neighbors, dict) else {}
     collections = mast.get("collection_counts", {})
     collections = collections if isinstance(collections, dict) else {}
+    classification = context.get("context_classification", {}) if context else {}
+    classification = classification if isinstance(classification, dict) else {}
+    source_incomplete = (
+        classification.get("disposition") == "context_incomplete"
+    )
+    source_error = ""
+    if source_incomplete:
+        states = classification.get("source_states", {})
+        failed_sources = [
+            str(name)
+            for name, state in (
+                states.items() if isinstance(states, dict) else []
+            )
+            if state == "error"
+        ]
+        source_error = (
+            "authoritative metadata source(s) incomplete: "
+            + ", ".join(failed_sources or ["unknown source"])
+        )
     return {
         "tic_id": int(queue_row["tic_id"]),
         "target": queue_row.get("target"),
         "followup_priority": int(queue_row.get("followup_priority", 0)),
         "vetting_tier": queue_row.get("vetting_tier"),
-        "status": "error" if error else "completed",
+        "status": "error" if error or source_incomplete else "completed",
         "run_state": run_state,
         "context_report": str(context_path) if context_path else "",
-        "error": error,
+        "error": error or source_error,
         "mast_observation_records": int(mast.get("observation_records", 0)),
         "mast_collection_counts": json.dumps(collections, sort_keys=True),
         "tess_sectors": ",".join(str(value) for value in tess.get("all_sectors", [])),
@@ -1867,6 +2035,21 @@ def _context_queue_result(
             str(value) for value in tess.get("alternate_reductions", [])
         ),
         "crowding_risk": neighbors.get("crowding_risk", ""),
+        "context_disposition": classification.get("disposition", ""),
+        "followup_lane": classification.get("followup_lane", ""),
+        "context_followup_priority": int(
+            classification.get("followup_priority", 0)
+        ),
+        "known_binary_host": bool(
+            classification.get("known_binary_host", False)
+        ),
+        "evidence_source_states": json.dumps(
+            classification.get("source_states", {}),
+            sort_keys=True,
+        ),
+        "exact_period_match_count": len(
+            classification.get("exact_period_matches", [])
+        ),
         "recommended_action_count": len(
             context.get("recommended_actions", []) if context else []
         ),
@@ -1917,6 +2100,17 @@ def _run_context_vet_queue(args: argparse.Namespace) -> int:
                 if (
                     not isinstance(context_tic, dict)
                     or int(context_tic.get("tic_id", 0)) != tic_id
+                    or int(context.get("schema_version", 0)) < 2
+                    or (
+                        isinstance(
+                            context.get("context_classification"),
+                            dict,
+                        )
+                        and context["context_classification"].get(
+                            "disposition"
+                        )
+                        == "context_incomplete"
+                    )
                 ):
                     raise ValueError("context report TIC ID does not match")
                 results_by_tic[tic_id] = _context_queue_result(
@@ -1983,6 +2177,18 @@ def _run_context_vet_queue(args: argparse.Namespace) -> int:
                     int(queue_row["tic_id"]),
                     mast_radius_arcsec=args.mast_radius_arcsec,
                     neighbor_radius_arcsec=args.neighbor_radius_arcsec,
+                    signal={
+                        key: queue_row.get(key)
+                        for key in (
+                            "period_days",
+                            "depth_ppm",
+                            "depth_snr",
+                            "observed_transits",
+                        )
+                    },
+                    sectors=_context_sector_values(
+                        queue_row.get("sectors")
+                    ),
                 )
                 futures[future] = queue_row
             done, _ = wait(futures, return_when=FIRST_COMPLETED)
@@ -1994,6 +2200,10 @@ def _run_context_vet_queue(args: argparse.Namespace) -> int:
                     context = future.result()
                     context["source_queue"] = str(queue_path)
                     context["source_report"] = queue_row.get("report")
+                    context["source_reports"] = queue_row.get(
+                        "source_reports",
+                        [queue_row.get("report")],
+                    )
                     context["signal_under_review"] = {
                         key: queue_row.get(key)
                         for key in (
@@ -2003,6 +2213,9 @@ def _run_context_vet_queue(args: argparse.Namespace) -> int:
                             "observed_transits",
                         )
                     }
+                    context["initial_scan_evidence"] = (
+                        _queue_initial_scan_evidence(queue_row)
+                    )
                     _atomic_write_json(context_path, context)
                     result = _context_queue_result(
                         queue_row,
@@ -2041,6 +2254,12 @@ def _run_context_vet_queue(args: argparse.Namespace) -> int:
         "tess_sectors",
         "alternate_tess_reductions",
         "crowding_risk",
+        "context_disposition",
+        "followup_lane",
+        "context_followup_priority",
+        "known_binary_host",
+        "evidence_source_states",
+        "exact_period_match_count",
         "recommended_action_count",
     ]
     temporary = output_dir / "context_vet_summary.csv.tmp"
@@ -2070,6 +2289,143 @@ def _context_vet_queue(args: argparse.Namespace) -> int:
         return _run_context_vet_queue(args)
     finally:
         lock.release()
+
+
+def build_history_context_queue(
+    campaign_root: str | Path,
+    output_path: str | Path,
+    *,
+    minimum_priority: int = 50,
+) -> dict[str, object]:
+    """Build one deduplicated survivor queue from every saved campaign.
+
+    Existing JSON reports are summarized, not re-analyzed, so old stars inherit
+    the upgraded metadata rules without another TESS download.
+    """
+
+    root = Path(campaign_root)
+    if not root.exists():
+        raise RuntimeError(f"Campaign root does not exist: {root}")
+    if minimum_priority < 0 or minimum_priority > 100:
+        raise ValueError("Minimum priority must be between 0 and 100.")
+    grouped: dict[int, list[dict[str, object]]] = {}
+    checkpoints_read = 0
+    for campaign_dir in sorted(
+        {path.parent for path in root.rglob("batch_progress.json")}
+    ):
+        progress_path = campaign_dir / "batch_progress.json"
+        try:
+            payload = json.loads(progress_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        checkpoints_read += 1
+        for row in payload.get("results", []):
+            if not isinstance(row, dict) or not row.get("tic_id"):
+                continue
+            if row.get("status") == "error":
+                continue
+            priority = int(row.get("followup_priority", 0))
+            if priority < minimum_priority:
+                continue
+            grouped.setdefault(int(row["tic_id"]), []).append(
+                {
+                    **row,
+                    "campaign_checkpoint": str(progress_path),
+                }
+            )
+
+    targets: list[dict[str, object]] = []
+    for tic_id, rows in grouped.items():
+        ordered = sorted(
+            rows,
+            key=lambda row: (
+                -int(row.get("followup_priority", 0)),
+                str(row.get("completed_at_utc") or ""),
+            ),
+        )
+        primary = dict(ordered[0])
+        reports = list(
+            dict.fromkeys(
+                str(row["report"])
+                for row in ordered
+                if row.get("report")
+            )
+        )
+        primary["tic_id"] = tic_id
+        primary["source_reports"] = reports
+        primary["prior_scan_count"] = len(ordered)
+        primary["initial_scan_evidence"] = _queue_initial_scan_evidence(
+            {"source_reports": reports}
+        )
+        primary["campaign_checkpoints"] = list(
+            dict.fromkeys(
+                str(row["campaign_checkpoint"]) for row in ordered
+            )
+        )
+        targets.append(primary)
+    targets.sort(
+        key=lambda row: (
+            -int(row.get("followup_priority", 0)),
+            int(row["tic_id"]),
+        )
+    )
+    payload = {
+        "schema_version": 2,
+        "generated_at_utc": datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat(),
+        "campaign_root": str(root),
+        "checkpoints_read": checkpoints_read,
+        "minimum_priority": minimum_priority,
+        "warning": (
+            "These are unresolved automated leads, not planet candidates. "
+            "The queue preserves first-pass evidence and adds metadata-only "
+            "known-object vetting without redownloading TESS science products."
+        ),
+        "targets": targets,
+    }
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    _atomic_write_json(destination, payload)
+    csv_path = destination.with_suffix(".csv")
+    fieldnames = [
+        "tic_id",
+        "target",
+        "sectors",
+        "screening_class",
+        "followup_priority",
+        "vetting_tier",
+        "period_days",
+        "depth_ppm",
+        "depth_snr",
+        "observed_transits",
+        "prior_scan_count",
+        "report",
+    ]
+    temporary = csv_path.with_name(csv_path.name + ".tmp")
+    with temporary.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(
+            {key: row.get(key) for key in fieldnames}
+            for row in targets
+        )
+    _replace_with_retry(temporary, csv_path)
+    return payload
+
+
+def _build_context_queue(args: argparse.Namespace) -> int:
+    payload = build_history_context_queue(
+        args.campaign_root,
+        args.output,
+        minimum_priority=int(args.minimum_priority),
+    )
+    print(
+        f"Saved {len(payload['targets'])} deduplicated historical lead(s) "
+        f"from {payload['checkpoints_read']} campaign checkpoint(s) to "
+        f"{args.output}."
+    )
+    return 0
 
 
 def _pixel_vet(args: argparse.Namespace) -> int:
@@ -3136,7 +3492,7 @@ def _hunt_from_light_curve(
         for period in known_periods
         if not any(abs(period - maskable) / period < 0.01 for maskable in maskable_periods)
     ]
-    if unmaskable_periods:
+    if unmaskable_periods and not allow_no_known:
         values = ", ".join(f"{period:.8g}" for period in unmaskable_periods)
         raise RuntimeError(
             "Known transiting signals lack a complete period/epoch/duration mask: " + values
@@ -3156,15 +3512,37 @@ def _hunt_from_light_curve(
     alias_checks = harmonic_diagnostics(
         arrays["period_grid"], arrays["power"], result.period_days
     )
+    known_period_records = [
+        {
+            "label": event["label"],
+            "period_days": float(event["period_days"]),
+            "mask_status": "masked",
+        }
+        for event in ephemerides
+    ]
+    known_period_records.extend(
+        {
+            "label": f"catalogued transit period {period:.8g} d",
+            "period_days": period,
+            "mask_status": "unmasked_incomplete_ephemeris",
+        }
+        for period in unmaskable_periods
+    )
     known_relations = []
-    for event in ephemerides:
+    for event in known_period_records:
         relation = compare_period(
             result.period_days,
             float(event["period_days"]),
             tolerance_fraction=0.05,
         )
         if relation["status"] != "miss":
-            known_relations.append({"known_signal": event["label"], **relation})
+            known_relations.append(
+                {
+                    "known_signal": event["label"],
+                    "mask_status": event["mask_status"],
+                    **relation,
+                }
+            )
 
     screening_flags = _screening_flags(result)
     strong_harmonic_ambiguity = any(
@@ -3185,9 +3563,15 @@ def _hunt_from_light_curve(
         rejection_reasons.append("the fitted transit depth exceeds 5 percent")
     if strong_harmonic_ambiguity:
         rejection_reasons.append("a simple harmonic retains at least 80% of the peak power")
+    if unmaskable_periods:
+        rejection_reasons.append(
+            "one or more known transiting signals lacked a complete ephemeris and "
+            "could not be masked; this is an unmasked recovery-only scan"
+        )
     if known_relations:
         rejection_reasons.append(
-            "the residual period is within 5% of a masked period or simple harmonic"
+            "the strongest period is within 5% of a catalogued transit period or "
+            "simple harmonic"
         )
     deeper_vetting = signal_vetting_diagnostics(
         cleaned_time,
@@ -3218,9 +3602,26 @@ def _hunt_from_light_curve(
             "end_btjd": float(np.nanmax(time)),
             "measurements": int(len(time)),
         },
-        "search_mode": "catalog-masked residual" if ephemerides else "zero-known-planet star",
+        "search_mode": (
+            "partially masked known-signal recovery"
+            if ephemerides and unmaskable_periods
+            else "catalog-masked residual"
+            if ephemerides
+            else "unmasked known-signal recovery"
+            if unmaskable_periods
+            else "zero-known-planet star"
+        ),
         "catalog_checked": catalog,
         "known_signal_masks": mask_records,
+        "known_signal_mask_limitations": {
+            "unmaskable_periods_days": unmaskable_periods,
+            "reason": (
+                "catalog rows lacked a complete period/epoch/duration ephemeris"
+                if unmaskable_periods
+                else None
+            ),
+            "promotion_allowed": not bool(unmaskable_periods),
+        },
         "mask_summary": {
             "original_measurements": int(len(time)),
             "remaining_measurements": int(len(cleaned_time)),
@@ -3243,6 +3644,9 @@ def _hunt_from_light_curve(
             arrays["period_grid"], arrays["power"]
         ),
         "harmonic_checks": alias_checks,
+        "relations_to_known_periods": known_relations,
+        # Retained for backward-compatible consumers; each row now states
+        # whether the corresponding catalog period was actually masked.
         "relations_to_masked_periods": known_relations,
         "screening_flags": {
             **screening_flags,
@@ -3683,6 +4087,28 @@ def build_parser() -> argparse.ArgumentParser:
         "--neighbor-radius-arcsec", type=float, default=42.0
     )
     context_queue.set_defaults(func=_context_vet_queue)
+
+    history_queue = subparsers.add_parser(
+        "build-context-queue",
+        help=(
+            "Build one deduplicated metadata-vetting queue from every saved "
+            "campaign survivor/single-event lead without redownloading TESS data."
+        ),
+    )
+    history_queue.add_argument(
+        "--campaign-root",
+        default="results/campaign",
+    )
+    history_queue.add_argument(
+        "--output",
+        default="results/vetting/all_campaigns/context_queue.json",
+    )
+    history_queue.add_argument(
+        "--minimum-priority",
+        type=int,
+        default=50,
+    )
+    history_queue.set_defaults(func=_build_context_queue)
 
     inject = subparsers.add_parser(
         "inject-recover",

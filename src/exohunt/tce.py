@@ -3,20 +3,66 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
+import os
 import re
+import threading
+import time
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from pathlib import Path
+
+from filelock import FileLock
 
 
 TCE_INDEX = "https://archive.stsci.edu/tess/bulk_downloads/bulk_downloads_tce.html"
+TCE_CACHE_MAX_AGE = timedelta(hours=24)
 
 
+def _tce_cache_root() -> Path:
+    root = Path(
+        os.environ.get("EXOHUNT_TCE_CACHE_DIR", "data/catalogs/tess_tce")
+    ).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+@lru_cache(maxsize=4)
 def _read_url(url: str, timeout: int = 60) -> str:
-    request = urllib.request.Request(url, headers={"User-Agent": "exohunt-starter/0.1"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return response.read().decode("utf-8")
+    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()
+    suffix = ".html" if url == TCE_INDEX else ".csv"
+    cache_path = _tce_cache_root() / f"{digest}{suffix}"
+    lock = FileLock(str(cache_path.with_suffix(cache_path.suffix + ".lock")))
+    with lock.acquire(timeout=180):
+        try:
+            modified = datetime.fromtimestamp(
+                cache_path.stat().st_mtime, timezone.utc
+            )
+            if datetime.now(timezone.utc) - modified <= TCE_CACHE_MAX_AGE:
+                return cache_path.read_text(encoding="utf-8")
+        except OSError:
+            pass
+        request = urllib.request.Request(
+            url, headers={"User-Agent": "exohunt-starter/0.1"}
+        )
+        for attempt in range(1, 4):
+            try:
+                with urllib.request.urlopen(request, timeout=timeout) as response:
+                    text = response.read().decode("utf-8")
+                temporary = cache_path.with_name(
+                    f"{cache_path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+                )
+                temporary.write_text(text, encoding="utf-8")
+                temporary.replace(cache_path)
+                return text
+            except Exception:
+                if attempt >= 3:
+                    raise
+                time.sleep(2 ** (attempt - 1))
+    raise RuntimeError("TCE catalog request failed without an exception.")
 
 
 def _catalog_urls(sectors: list[int]) -> list[str]:

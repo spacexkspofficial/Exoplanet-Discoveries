@@ -194,6 +194,14 @@ Matching reports are rediscovered on restart even if the last throttled
 checkpoint had not yet listed them. The process is fully automated and does not
 require an AI agent to remain attached.
 
+Each concurrent TESScut target uses its own stable cache subdirectory. This is
+required because Astroquery otherwise names temporary TESScut ZIPs with only
+second-level precision; two downloads started in the same second can overwrite
+one another. Archive CRC/header/filename failures are treated as retryable and
+the failed target namespace is cleared before retry. NASA Exoplanet Archive
+lookups are separately concurrency-limited and cached for seven days so four
+analysis threads do not overload the TAP endpoint.
+
 Change the rolling download allowance with `--cache-max-gb`; set the whole
 project ceiling with `--workspace-max-gb`. Use
 `--retain-rejected-plots` only when every rejected diagnostic image is needed.
@@ -307,10 +315,27 @@ source context for a survivor:
 
 This metadata-only command refreshes NASA catalog rows, resolves TIC stellar
 properties and its Gaia cross-match, inventories MAST holdings from TESS,
-Kepler/K2, Hubble, Webb, and other collections, and screens TIC/Gaia-crossmatched
-neighbors. It downloads no light curves, images, or spectra. The report orders
-the evidence that is actually available so expensive follow-up can be limited
-to the strongest targets.
+Kepler/K2, Hubble, Webb, and other collections, screens TIC/Gaia-crossmatched
+neighbors, and queries the live TESS Eclipsing Binary Catalog, official TESS
+TCE statistics, SIMBAD object types, and Gaia DR3 variability/non-single-star
+tables. It downloads no light curves, images, or spectra. Each source records
+`completed`, `not_available`, `not_applicable`, or `error`; a partial source
+pass cannot clear a signal.
+
+Context classifications are deliberately more specific than “survivor”:
+
+- `known_eb_rediscovery` when an authoritative EB period (including a simple
+  eclipse alias) matches the recovered signal;
+- `known_eb_host_residual_review` when the star is a known binary but the
+  residual period differs, preserving a separate circumbinary/ETV review lane;
+- `known_tce_rediscovery` or `known_planet_rediscovery` for existing public
+  signals;
+- `known_variable_star_review` or `crowding_contamination_review` for common
+  astrophysical/scene alternatives;
+- `context_incomplete` or `catalog_coverage_gap` when the public checks cannot
+  yet be completed; and
+- `unresolved_transit_like_signal` only when the checked metadata does not
+  explain the signal. This is still not a planet candidate.
 
 After a campaign finalizes its durable follow-up queue, run the same compact
 triage across the entire queue:
@@ -327,6 +352,26 @@ workers. It records which TESS reductions, Kepler/K2 observations, Hubble/Webb
 programs, and nearby TIC/Gaia sources exist while downloading zero telescope
 science products. Actual light curves, images, or spectra should be fetched
 later only for the highest-ranked applicable targets.
+
+To apply the same rules to every previous campaign without re-downloading or
+re-analyzing its TESS pixels, first build a deduplicated historical queue:
+
+```powershell
+.\.venv\Scripts\exohunt.exe build-context-queue `
+  --campaign-root results\campaign `
+  --output results\vetting\all_campaigns\context_queue.json
+
+.\.venv\Scripts\exohunt.exe context-vet-queue `
+  --queue results\vetting\all_campaigns\context_queue.json `
+  --output-dir results\vetting\all_campaigns\context `
+  --workers 2
+```
+
+The queue preserves the original signal, automated triage, odd/even and
+secondary-eclipse flags, red-noise/event-coverage checks, sensitivity probe,
+searched sectors, pipeline version, and initial NASA catalog snapshot. The
+external pass therefore augments rather than forgets the evidence already
+computed during the first scan.
 
 Test the same ephemeris independently in each sector, then compare it with the
 official public MAST threshold-crossing-event tables:

@@ -94,6 +94,16 @@ SCREENING_LABELS = {
     "search_error": "Search error - retry needed",
 }
 
+CONTEXT_LABELS = {
+    "known_eb_rediscovery": "Known eclipsing-binary rediscovery",
+    "known_eb_host_residual_review": "Known binary host - residual review",
+    "known_variable_star_review": "Known variable star - signal review",
+    "crowding_contamination_review": "Crowding/contamination review",
+    "catalog_coverage_gap": "Public-catalog coverage gap",
+    "context_incomplete": "Context checks incomplete - retry needed",
+    "unresolved_transit_like_signal": "Unresolved transit-like signal",
+}
+
 
 def _read_catalog_cache(path: Path) -> dict[int, dict[str, object]]:
     if not path.exists():
@@ -454,6 +464,40 @@ def export_dashboard_data(
             }
         )
 
+    context_by_tic: dict[int, dict[str, object]] = {}
+    if results_root.exists():
+        for context_path in sorted(
+            results_root.rglob("TIC_*_cross_mission_context.json")
+        ):
+            try:
+                context = json.loads(context_path.read_text(encoding="utf-8"))
+                tic = context.get("tic", {})
+                classification = context.get("context_classification", {})
+                tic_id = int(tic.get("tic_id", 0))
+            except (
+                OSError,
+                TypeError,
+                ValueError,
+                json.JSONDecodeError,
+            ):
+                continue
+            if (
+                tic_id <= 0
+                or not isinstance(classification, dict)
+                or classification.get("disposition") not in CONTEXT_LABELS
+            ):
+                continue
+            previous = context_by_tic.get(tic_id)
+            generated = str(context.get("generated_at_utc") or "")
+            if previous is None or generated >= str(
+                previous.get("generated_at_utc") or ""
+            ):
+                context_by_tic[tic_id] = {
+                    "generated_at_utc": generated,
+                    "report": str(context_path),
+                    **classification,
+                }
+
     priorities = {
         "searched": 0,
         "search_error": 0,
@@ -461,6 +505,13 @@ def export_dashboard_data(
         "screened_rejected": 0,
         "single_event_lead": 1,
         "automated_survivor": 1,
+        "catalog_coverage_gap": 2,
+        "context_incomplete": 2,
+        "crowding_contamination_review": 2,
+        "known_variable_star_review": 2,
+        "known_eb_host_residual_review": 3,
+        "known_eb_rediscovery": 4,
+        "unresolved_transit_like_signal": 4,
         "false_positive": 2,
         "rediscovery": 3,
         "known_tce_rediscovery": 4,
@@ -491,6 +542,17 @@ def export_dashboard_data(
         status = screening_class if screening_class in SCREENING_LABELS else "searched"
         label = SCREENING_LABELS[status]
         notes = str(signal.get("followup_reasons") or "")
+        context = context_by_tic.get(tic_id)
+        if context is not None:
+            disposition = str(context.get("disposition"))
+            if priorities.get(disposition, -1) >= priorities.get(status, -1):
+                status = disposition
+                label = CONTEXT_LABELS[disposition]
+                notes = "; ".join(
+                    str(value)
+                    for value in context.get("reasons", [])
+                    if str(value).strip()
+                )
         for outcome in outcomes.get(tic_id, []):
             kind = str(outcome.get("kind"))
             if priorities.get(kind, -1) >= priorities.get(status, -1):
@@ -516,6 +578,18 @@ def export_dashboard_data(
             "stellar_radius_solar": _optional_float(row.get("stellar_radius_solar")),
             "sectors": sectors,
             "phase_curve_available": False,
+            "context_disposition": (
+                context.get("disposition") if context is not None else None
+            ),
+            "context_followup_lane": (
+                context.get("followup_lane") if context is not None else None
+            ),
+            "context_source_states": (
+                context.get("source_states") if context is not None else {}
+            ),
+            "context_report": (
+                context.get("report") if context is not None else None
+            ),
             **signal,
             **_cartesian(ra, dec, distance),
         }
@@ -541,6 +615,8 @@ def export_dashboard_data(
             "No transit detected in a searched window does not mean planet-free.",
             "Single-event leads require a longer observing baseline.",
             "A rediscovery is explicitly not a new planet.",
+            "A known binary host can still retain a separate residual/circumbinary follow-up lane.",
+            "An unresolved context-vetted signal is still not a planet candidate.",
             "Display-fallback coordinates are labeled and should be replaced by TIC data.",
         ],
     }
