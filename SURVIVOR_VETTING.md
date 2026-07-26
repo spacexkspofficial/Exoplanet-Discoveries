@@ -100,6 +100,30 @@ it with a more specific disposition:
 An EB match takes precedence over a generic TCE match because a TCE records a
 detected threshold crossing, not its astrophysical nature.
 
+## Measured science lanes
+
+Metadata dispositions describe what public catalogs say. The pixel and sector
+stages below instead measure the actual photometry, so their verdicts replace
+the metadata disposition on the dashboard:
+
+- `pixel_offset_contamination`: the difference-image centroid sits more than one
+  TESS pixel (about 21 arcseconds) from the target, so the lost light most
+  likely belongs to a neighboring source;
+- `single_sector_unconfirmed`: the light was lost on target, but only the
+  discovery sector supports the fixed ephemeris; and
+- `science_vetted_lead`: the light was lost on target *and* at least one
+  independently searched sector reproduces the ephemeris.
+
+`science_vetted_lead` is the strongest state this pipeline produces. It is still
+not a planet candidate: independent reduction, alias checks, and human review in
+steps 3 through 5 remain outstanding. A star is only reclassified when both
+gates were actually measured; a single gate on its own leaves the metadata
+disposition in place.
+
+Because these verdicts are measurements rather than catalog lookups, a recorded
+human outcome (`false_positive`, `vetted_candidate`, `confirmed_planet`) still
+outranks them everywhere in the dashboard.
+
 ### 2. Pixel-source localization
 
 For the highest-priority survivors, use a target-pixel file or a small TESScut

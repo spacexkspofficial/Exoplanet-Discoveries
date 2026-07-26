@@ -7,6 +7,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -102,6 +103,12 @@ CONTEXT_LABELS = {
     "catalog_coverage_gap": "Public-catalog coverage gap",
     "context_incomplete": "Context checks incomplete - retry needed",
     "unresolved_transit_like_signal": "Unresolved transit-like signal",
+}
+
+SCIENCE_LABELS = {
+    "pixel_offset_contamination": "Lost light localized off target",
+    "single_sector_unconfirmed": "On target - single supporting sector",
+    "science_vetted_lead": "On target and multi-sector coherent",
 }
 
 
@@ -346,12 +353,29 @@ def _vetting_progress_campaign(
 
     total = int(progress.get("total_targets", 0))
     completed = int(progress.get("completed_targets", 0))
-    counts = progress.get("counts", {})
-    counts = counts if isinstance(counts, dict) else {}
-    remaining = int(counts.get("remaining", max(0, total - completed)))
     runtime = progress.get("runtime", {})
     runtime = runtime if isinstance(runtime, dict) else {}
+    counts = progress.get("counts", {})
+    counts = counts if isinstance(counts, dict) else {}
+    if not counts:
+        # The single-threaded science runner records flat totals instead of the
+        # nested counts/runtime blocks the concurrent context runner writes.
+        counts = {
+            "completed": completed,
+            "error": int(progress.get("error_targets", 0)),
+            "remaining": int(
+                progress.get("remaining_targets", max(0, total - completed))
+            ),
+        }
+    remaining = int(counts.get("remaining", max(0, total - completed)))
     workers = int(runtime.get("workers", 1))
+    products = int(
+        runtime.get(
+            "science_products_downloaded",
+            progress.get("science_products_downloaded", 0),
+        )
+        or 0
+    )
     started = _parse_utc(progress.get("started_at_utc"))
     updated = _parse_utc(progress.get("updated_at_utc"))
     elapsed_hours = (
@@ -396,9 +420,7 @@ def _vetting_progress_campaign(
             else 0,
             "downloaded_waiting": 0,
             "targets_remaining": remaining,
-            "science_products_downloaded": int(
-                runtime.get("science_products_downloaded", 0)
-            ),
+            "science_products_downloaded": products,
             "performance": {
                 "average_stars_per_hour": average_rate,
                 "rolling_stars_per_hour": None,
@@ -421,6 +443,200 @@ def _vetting_progress_campaign(
     }
 
 
+def _science_disposition(
+    on_target: bool | None, gate_passed: bool | None
+) -> str | None:
+    """Classify a lead from its two measured science gates.
+
+    Difference-image localization is the stronger statement: light lost more
+    than one TESS pixel from the target did not come from the target, so that
+    verdict is reported ahead of sector coherence. A signal is only promoted
+    when both gates were measured and both passed, and even then it remains a
+    lead rather than a planet candidate.
+    """
+
+    if on_target is False:
+        return "pixel_offset_contamination"
+    if on_target is None or gate_passed is None:
+        return None
+    return "science_vetted_lead" if gate_passed else "single_sector_unconfirmed"
+
+
+def _is_survey_source(name: str) -> bool:
+    """Report whether a results filename is an input to the survey snapshot."""
+
+    return name.endswith(
+        (
+            "_progress.json",
+            "batch_summary.json",
+            "_sector_vet.json",
+            "_pixel.json",
+            "_cross_mission_context.json",
+        )
+    )
+
+
+def survey_source_mtime_ns(root: str | Path = ".") -> int:
+    """Return the newest mtime among every input the snapshot derives from.
+
+    ``os.scandir`` is used instead of ``Path.rglob`` plus ``Path.stat`` because
+    a directory entry already carries its timestamp, so a large vetting tree
+    costs one enumeration rather than an extra stat call per file.
+    """
+
+    base = Path(root)
+    newest = 0
+    for path in (
+        base / "metrics" / "events.jsonl",
+        base / "metrics" / "current_stats.json",
+    ):
+        try:
+            newest = max(newest, path.stat().st_mtime_ns)
+        except OSError:
+            continue
+    pending = [base / "results" / "campaign", base / "results" / "vetting"]
+    while pending:
+        try:
+            entries = list(os.scandir(pending.pop()))
+        except OSError:
+            continue
+        for entry in entries:
+            try:
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append(Path(entry.path))
+                elif _is_survey_source(entry.name):
+                    newest = max(newest, entry.stat().st_mtime_ns)
+            except OSError:
+                continue
+    return newest
+
+
+def _science_notes(science: dict[str, object]) -> str:
+    """Describe the measured science gates in plain language."""
+
+    notes: list[str] = []
+    offset = _optional_float(science.get("science_centroid_offset_arcsec"))
+    if science.get("science_on_target") is False:
+        notes.append(
+            f"Difference-image centroid is {offset:.0f} arcsec from the target"
+            if offset is not None
+            else "Difference-image centroid is more than one pixel from the target"
+        )
+    elif science.get("science_on_target") is True:
+        notes.append(
+            f"Difference-image centroid is on target within {offset:.0f} arcsec"
+            if offset is not None
+            else "Difference-image centroid is on target within one pixel"
+        )
+    supported = science.get("science_supported_sector_count")
+    tested = science.get("science_sectors_tested")
+    if isinstance(supported, int) and isinstance(tested, int) and tested:
+        notes.append(
+            f"{supported} of {tested} tested sectors support the fixed ephemeris"
+        )
+    return "; ".join(notes)
+
+
+def _science_vetting_by_tic(results_root: Path) -> dict[int, dict[str, object]]:
+    """Collect pixel-localization and sector-coherence verdicts per TIC.
+
+    These reports are the deepest stage this project runs. They are written by
+    ``pixel-vet``/``sector-vet`` under a science queue directory and were
+    previously invisible to the dashboard, which left every science-vetted star
+    displaying its earlier metadata-only classification.
+    """
+
+    science: dict[int, dict[str, object]] = {}
+    if not results_root.exists():
+        return science
+
+    # The same target can be vetted more than once into different output
+    # directories. Keep the most recent verdict rather than whichever path
+    # happens to sort last.
+    newest_sector: dict[int, int] = {}
+    newest_pixel: dict[int, int] = {}
+
+    for path in sorted(results_root.rglob("*_sector_vet.json")):
+        try:
+            modified = path.stat().st_mtime_ns
+            report = json.loads(path.read_text(encoding="utf-8"))
+            tic_id = int(report.get("tic_id") or 0)
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if tic_id <= 0 or modified < newest_sector.get(tic_id, -1):
+            continue
+        newest_sector[tic_id] = modified
+        sectors = [
+            row for row in report.get("sectors", []) if isinstance(row, dict)
+        ]
+        row = science.setdefault(tic_id, {})
+        row.update(
+            {
+                "science_sector_gate_passed": bool(
+                    report.get("passes_distinct_sector_gate")
+                ),
+                "science_supported_sector_count": int(
+                    report.get("supported_sector_count") or 0
+                ),
+                "science_minimum_supporting_sectors": int(
+                    report.get("minimum_supporting_sectors") or 0
+                ),
+                "science_sectors_tested": len(sectors),
+                "science_supporting_sectors": sorted(
+                    int(entry["sector"])
+                    for entry in sectors
+                    if entry.get("supports_signal") and entry.get("sector") is not None
+                ),
+                "science_sector_report": str(path),
+            }
+        )
+
+    for path in sorted(results_root.rglob("*_pixel.json")):
+        try:
+            modified = path.stat().st_mtime_ns
+            report = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        tic_id = _tic_id(report)
+        if tic_id is None:
+            match = re.search(r"TIC[_ ]?(\d+)", str(report.get("target") or ""))
+            tic_id = int(match.group(1)) if match else None
+        if tic_id is None or tic_id <= 0:
+            continue
+        if "on_target_within_one_pixel" not in report:
+            continue
+        if modified < newest_pixel.get(tic_id, -1):
+            continue
+        newest_pixel[tic_id] = modified
+        row = science.setdefault(tic_id, {})
+        row.update(
+            {
+                "science_on_target": bool(report.get("on_target_within_one_pixel")),
+                "science_centroid_offset_pixels": _optional_float(
+                    report.get("centroid_offset_pixels")
+                ),
+                "science_centroid_offset_arcsec": _optional_float(
+                    report.get("centroid_offset_arcsec_approx")
+                ),
+                "science_pixel_sector": (
+                    int(report["sector"])
+                    if str(report.get("sector") or "").strip().lstrip("-").isdigit()
+                    else None
+                ),
+                "science_pixel_report": str(path),
+            }
+        )
+
+    for tic_id, row in science.items():
+        disposition = _science_disposition(
+            row.get("science_on_target"),  # type: ignore[arg-type]
+            row.get("science_sector_gate_passed"),  # type: ignore[arg-type]
+        )
+        row["science_disposition"] = disposition
+        row["science_vetted"] = disposition is not None
+    return science
+
+
 def export_dashboard_data(
     workspace: str | Path = ".",
     *,
@@ -434,6 +650,10 @@ def export_dashboard_data(
     dashboard = root / "dashboard"
     if not dashboard.exists():
         return None
+
+    # Sampled before anything is read so a checkpoint written mid-export is
+    # recorded as newer than this snapshot and triggers one more refresh.
+    source_mtime_ns = survey_source_mtime_ns(root)
 
     ledger_path = root / "metrics" / "events.jsonl"
     if events is None:
@@ -761,6 +981,14 @@ def export_dashboard_data(
                     **classification,
                 }
 
+    # Later evidence outranks earlier evidence. Stage 0-1 is the in-light-curve
+    # screen, 2-4 the metadata context pass, 5 the measured pixel/sector science
+    # pass, and 7+ a human-reviewed outcome recorded in the ledger. A logged
+    # outcome must therefore outrank every automated classification: a person
+    # who determines a lead is a false positive is more authoritative than the
+    # screen that produced the lead.
+    science_by_tic = _science_vetting_by_tic(results_root)
+
     priorities = {
         "searched": 0,
         "search_error": 0,
@@ -775,11 +1003,14 @@ def export_dashboard_data(
         "known_eb_host_residual_review": 3,
         "known_eb_rediscovery": 4,
         "unresolved_transit_like_signal": 4,
-        "false_positive": 2,
-        "rediscovery": 3,
-        "known_tce_rediscovery": 4,
-        "vetted_candidate": 5,
-        "confirmed_planet": 6,
+        "pixel_offset_contamination": 5,
+        "single_sector_unconfirmed": 5,
+        "science_vetted_lead": 5,
+        "false_positive": 7,
+        "rediscovery": 7,
+        "known_tce_rediscovery": 7,
+        "vetted_candidate": 8,
+        "confirmed_planet": 9,
     }
     stars: list[dict[str, object]] = []
     for tic_id in searched_ids:
@@ -816,6 +1047,15 @@ def export_dashboard_data(
                     for value in context.get("reasons", [])
                     if str(value).strip()
                 )
+        science = science_by_tic.get(tic_id)
+        if science is not None:
+            disposition = science.get("science_disposition")
+            if disposition is not None and priorities.get(
+                str(disposition), -1
+            ) >= priorities.get(status, -1):
+                status = str(disposition)
+                label = SCIENCE_LABELS[status]
+                notes = _science_notes(science)
         for outcome in outcomes.get(tic_id, []):
             kind = str(outcome.get("kind"))
             if priorities.get(kind, -1) >= priorities.get(status, -1):
@@ -853,6 +1093,36 @@ def export_dashboard_data(
             "context_report": (
                 context.get("report") if context is not None else None
             ),
+            "science_vetted": bool(science.get("science_vetted")) if science else False,
+            "science_disposition": (
+                science.get("science_disposition") if science is not None else None
+            ),
+            "science_on_target": (
+                science.get("science_on_target") if science is not None else None
+            ),
+            "science_centroid_offset_arcsec": (
+                science.get("science_centroid_offset_arcsec")
+                if science is not None
+                else None
+            ),
+            "science_sector_gate_passed": (
+                science.get("science_sector_gate_passed")
+                if science is not None
+                else None
+            ),
+            "science_supported_sector_count": (
+                science.get("science_supported_sector_count")
+                if science is not None
+                else None
+            ),
+            "science_sectors_tested": (
+                science.get("science_sectors_tested") if science is not None else None
+            ),
+            "science_supporting_sectors": (
+                science.get("science_supporting_sectors", [])
+                if science is not None
+                else []
+            ),
             **signal,
             **_cartesian(ra, dec, distance),
         }
@@ -862,13 +1132,35 @@ def export_dashboard_data(
     for star in stars:
         key = str(star["status"])
         counts[key] = counts.get(key, 0) + 1
+
+    vetted_science = [row for row in science_by_tic.values() if row.get("science_vetted")]
+    science_summary = {
+        "vetted_targets": len(vetted_science),
+        "on_target": sum(row.get("science_on_target") is True for row in vetted_science),
+        "off_target": sum(
+            row.get("science_on_target") is False for row in vetted_science
+        ),
+        "sector_gate_passed": sum(
+            row.get("science_sector_gate_passed") is True for row in vetted_science
+        ),
+        "passed_both_gates": sum(
+            row.get("science_disposition") == "science_vetted_lead"
+            for row in vetted_science
+        ),
+        "scope": (
+            "Measured pixel localization and fixed-ephemeris sector coherence. "
+            "Passing both gates is a screening result, not a planet candidate."
+        ),
+    }
     payload = {
         "schema_version": 2,
         "generated_at_utc": datetime.now(timezone.utc)
         .replace(microsecond=0)
         .isoformat(),
+        "source_mtime_ns": source_mtime_ns,
         "stats": stats,
         "status_counts": counts,
+        "science_vetting": science_summary,
         "observed_sectors": sorted(observed_sectors),
         "sector_coverage": _sector_coverage(root, coverage_artifacts),
         "campaigns": campaigns,
@@ -881,6 +1173,8 @@ def export_dashboard_data(
             "A rediscovery is explicitly not a new planet.",
             "A known binary host can still retain a separate residual/circumbinary follow-up lane.",
             "An unresolved context-vetted signal is still not a planet candidate.",
+            "Passing pixel localization and sector coherence is a screening result, not a planet candidate.",
+            "An off-target difference-image centroid indicates the light was lost near, not necessarily at, the target.",
             "Display-fallback coordinates are labeled and should be replaced by TIC data.",
         ],
     }

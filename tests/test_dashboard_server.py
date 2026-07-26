@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 
+from exohunt.dashboard import survey_source_mtime_ns
 from exohunt.dashboard_server import (
     _needs_survey_refresh,
     _phase_curve_for_tic,
@@ -49,12 +50,7 @@ def test_old_campaign_snapshot_requires_schema_refresh() -> None:
     assert not _needs_survey_refresh({"schema_version": 2, "sector_coverage": []})
 
 
-def test_live_context_checkpoint_invalidates_dashboard_snapshot(
-    tmp_path: Path,
-) -> None:
-    output = tmp_path / "dashboard" / "public" / "data" / "survey.json"
-    output.parent.mkdir(parents=True)
-    output.write_text("{}", encoding="utf-8")
+def _write_checkpoint(tmp_path: Path, mtime: int) -> Path:
     progress = (
         tmp_path
         / "results"
@@ -63,15 +59,66 @@ def test_live_context_checkpoint_invalidates_dashboard_snapshot(
         / "context"
         / "context_vet_progress.json"
     )
-    progress.parent.mkdir(parents=True)
+    progress.parent.mkdir(parents=True, exist_ok=True)
     progress.write_text("{}", encoding="utf-8")
-    os.utime(output, (100, 100))
-    os.utime(progress, (200, 200))
+    os.utime(progress, (mtime, mtime))
+    return progress
 
-    assert _survey_sources_are_newer(tmp_path, output)
 
-    os.utime(output, (300, 300))
-    assert not _survey_sources_are_newer(tmp_path, output)
+def test_live_context_checkpoint_invalidates_dashboard_snapshot(
+    tmp_path: Path,
+) -> None:
+    progress = _write_checkpoint(tmp_path, 200)
+    stale = progress.stat().st_mtime_ns - 1
+
+    assert _survey_sources_are_newer(tmp_path, {"source_mtime_ns": stale})
+    assert not _survey_sources_are_newer(
+        tmp_path, {"source_mtime_ns": progress.stat().st_mtime_ns}
+    )
+
+
+def test_snapshot_without_fingerprint_is_always_refreshed(tmp_path: Path) -> None:
+    _write_checkpoint(tmp_path, 200)
+
+    assert _survey_sources_are_newer(tmp_path, {})
+
+
+def test_checkpoint_written_during_export_still_invalidates_snapshot(
+    tmp_path: Path,
+) -> None:
+    """A snapshot must not look fresh merely because it was written last.
+
+    The exporter samples its fingerprint before reading, so a checkpoint saved
+    while the export was in flight is newer than the fingerprint even though
+    the resulting file is newer than the checkpoint.
+    """
+
+    _write_checkpoint(tmp_path, 200)
+    fingerprint = survey_source_mtime_ns(tmp_path)
+
+    # The vetter finishes and rewrites its checkpoint mid-export.
+    progress = _write_checkpoint(tmp_path, 400)
+    output = tmp_path / "dashboard" / "public" / "data" / "survey.json"
+    output.parent.mkdir(parents=True)
+    output.write_text("{}", encoding="utf-8")
+    os.utime(output, (900, 900))
+    assert output.stat().st_mtime_ns > progress.stat().st_mtime_ns
+
+    assert _survey_sources_are_newer(tmp_path, {"source_mtime_ns": fingerprint})
+
+
+def test_per_target_vetting_reports_invalidate_snapshot(tmp_path: Path) -> None:
+    """A manually rerun single-target vet updates no checkpoint at all."""
+
+    _write_checkpoint(tmp_path, 200)
+    fingerprint = survey_source_mtime_ns(tmp_path)
+    science = tmp_path / "results" / "vetting" / "all_campaigns" / "science" / "TIC_7"
+    science.mkdir(parents=True)
+    report = science / "TIC_7_sector_vet.json"
+    report.write_text("{}", encoding="utf-8")
+    os.utime(report, (500, 500))
+
+    assert _survey_sources_are_newer(tmp_path, {"source_mtime_ns": fingerprint})
 
 
 def test_phase_curve_endpoint_returns_only_compact_curve(tmp_path: Path):

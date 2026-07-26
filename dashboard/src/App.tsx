@@ -25,6 +25,9 @@ type Status =
   | "catalog_coverage_gap"
   | "context_incomplete"
   | "unresolved_transit_like_signal"
+  | "pixel_offset_contamination"
+  | "single_sector_unconfirmed"
+  | "science_vetted_lead"
   | "false_positive"
   | "vetted_candidate"
   | "confirmed_planet";
@@ -69,6 +72,14 @@ type Star = {
   context_followup_lane: string | null;
   context_source_states: Record<string, string>;
   context_report: string | null;
+  science_vetted: boolean;
+  science_disposition: string | null;
+  science_on_target: boolean | null;
+  science_centroid_offset_arcsec: number | null;
+  science_sector_gate_passed: boolean | null;
+  science_supported_sector_count: number | null;
+  science_sectors_tested: number | null;
+  science_supporting_sectors: number[];
   x: number;
   y: number;
   z: number;
@@ -131,6 +142,14 @@ type SurveyData = {
   generated_at_utc: string;
   stats: Record<string, number | string | Record<string, number>>;
   status_counts: Record<string, number>;
+  science_vetting?: {
+    vetted_targets: number;
+    on_target: number;
+    off_target: number;
+    sector_gate_passed: number;
+    passed_both_gates: number;
+    scope: string;
+  };
   observed_sectors: number[];
   sector_coverage: SectorCoverage[];
   active_campaigns: ActiveCampaign[];
@@ -278,6 +297,24 @@ const STATUS_META: Record<
     color: "#16a34a",
     className: "green",
   },
+  pixel_offset_contamination: {
+    label: "Lost Light Localized Off Target",
+    short: "Off-target light",
+    color: "#0ea5e9",
+    className: "cyan",
+  },
+  single_sector_unconfirmed: {
+    label: "On Target — Single Supporting Sector",
+    short: "One sector only",
+    color: "#eab308",
+    className: "amber",
+  },
+  science_vetted_lead: {
+    label: "On Target and Multi-Sector Coherent",
+    short: "Science-vetted lead",
+    color: "#34d399",
+    className: "green",
+  },
   false_positive: {
     label: "Vetted False Positive",
     short: "False positive",
@@ -299,6 +336,21 @@ const STATUS_META: Record<
 };
 
 const ALL_STATUSES = Object.keys(STATUS_META) as Status[];
+
+const UNKNOWN_STATUS_HELP =
+  "This classification was produced by a newer exporter than the loaded dashboard bundle. Rebuild the dashboard to see its full description.";
+
+const UNKNOWN_STATUS_META = {
+  label: "Unrecognized Classification",
+  short: "Unknown class",
+  color: "#94a3b8",
+  className: "muted",
+};
+
+/** Tolerate a status written by a newer exporter than this bundle. */
+function statusMeta(status: Status) {
+  return STATUS_META[status] ?? UNKNOWN_STATUS_META;
+}
 
 const STATUS_HELP: Record<Status, string> = {
   searched:
@@ -331,6 +383,12 @@ const STATUS_HELP: Record<Status, string> = {
     "At least one authoritative metadata source failed. The context pass must be retried; absence from the sources that did respond is not meaningful clearance.",
   unresolved_transit_like_signal:
     "No checked catalog currently explains the signal. It is still only an unresolved lead and must pass pixel localization, independent reduction, repeat-epoch, and human false-positive review.",
+  pixel_offset_contamination:
+    "Difference imaging places the lost light more than one TESS pixel from this star, so the dimming most likely belongs to a neighbouring source rather than the target. The centroid is a screening measurement; one pixel spans roughly 21 arcseconds.",
+  single_sector_unconfirmed:
+    "The light was lost on target, but only the discovery sector supports the fixed ephemeris. A signal absent from independently searched sectors is not yet coherent; it may still be a systematic, or the other sectors may not constrain it well.",
+  science_vetted_lead:
+    "The lost light is on target and the fixed ephemeris is supported in more than one independently searched sector. This is the strongest screening state this pipeline produces and is still not a planet candidate: independent reduction, alias checks, and human review remain outstanding.",
   false_positive:
     "Follow-up checks indicate that the signal is probably not a transiting planet.",
   vetted_candidate:
@@ -630,6 +688,9 @@ const STATUS_SYMBOL: Record<Status, string> = {
   catalog_coverage_gap: "?",
   context_incomplete: "!",
   unresolved_transit_like_signal: "U",
+  pixel_offset_contamination: "⊗",
+  single_sector_unconfirmed: "s",
+  science_vetted_lead: "◇",
   false_positive: "×",
   vetted_candidate: "◆",
   confirmed_planet: "●",
@@ -639,10 +700,10 @@ function Marker({ status, small = false }: { status: Status; small?: boolean }) 
   return (
     <span
       className={`marker marker-${status} ${small ? "marker-small" : ""}`}
-      style={{ "--marker-color": STATUS_META[status].color } as React.CSSProperties}
+      style={{ "--marker-color": statusMeta(status).color } as React.CSSProperties}
       aria-hidden="true"
     >
-      {STATUS_SYMBOL[status]}
+      {STATUS_SYMBOL[status] ?? "?"}
     </span>
   );
 }
@@ -654,8 +715,8 @@ function drawCanvasStatusMarker(
   y: number,
   selected: boolean,
 ) {
-  const meta = STATUS_META[star.status];
-  const symbol = STATUS_SYMBOL[star.status];
+  const meta = statusMeta(star.status);
+  const symbol = STATUS_SYMBOL[star.status] ?? "?";
   const size = selected ? 13 : star.status === "searched" ? 5 : 10;
   const half = size / 2;
   ctx.save();
@@ -1244,7 +1305,7 @@ function StarMap({
         ctx.save();
         ctx.setLineDash([3, 4]);
         ctx.globalAlpha = 0.58;
-        ctx.strokeStyle = STATUS_META[star.status].color;
+        ctx.strokeStyle = statusMeta(star.status).color;
         ctx.beginPath();
         ctx.moveTo(cx, cy);
         ctx.lineTo(x, y);
@@ -1280,17 +1341,17 @@ function StarMap({
         const bx = Math.min(w - boxW - 12, hit.x + 16);
         const by = Math.max(12, Math.min(h - boxH - 12, hit.y - boxH / 2));
         ctx.fillStyle = "rgba(4, 15, 24, .94)";
-        ctx.strokeStyle = STATUS_META[hovered.status].color;
+        ctx.strokeStyle = statusMeta(hovered.status).color;
         ctx.lineWidth = 1;
         ctx.fillRect(bx, by, boxW, boxH);
         ctx.strokeRect(bx, by, boxW, boxH);
-        ctx.fillStyle = STATUS_META[hovered.status].color;
+        ctx.fillStyle = statusMeta(hovered.status).color;
         ctx.font = "700 11px var(--font-geist-mono)";
         ctx.fillText(`TIC ${hovered.tic_id}`, bx + 10, by + 18);
         ctx.fillStyle = "#c8d9e0";
         ctx.font = "10px var(--font-geist-mono)";
         ctx.fillText(`${fmt(hovered.distance_pc, 1)} pc`, bx + 10, by + 36);
-        ctx.fillText(STATUS_META[hovered.status].short, bx + 10, by + 52);
+        ctx.fillText(statusMeta(hovered.status).short, bx + 10, by + 52);
       }
     }
   }, [
@@ -1783,7 +1844,7 @@ export default function App() {
                   />
                   <Marker status={status} small />
                   <InfoTerm description={STATUS_HELP[status]} focusable={false}>
-                    {STATUS_META[status].label}
+                    {statusMeta(status).label}
                   </InfoTerm>
                   <b
                     key={`${status}-${liveStatusCounts[status] || 0}`}
@@ -1912,11 +1973,11 @@ export default function App() {
                   </p>
                 </div>
               </div>
-              <div className={`status-banner ${STATUS_META[selected.status].className}`}>
-                <InfoTerm description={STATUS_HELP[selected.status]}>
+              <div className={`status-banner ${statusMeta(selected.status).className}`}>
+                <InfoTerm description={STATUS_HELP[selected.status] ?? UNKNOWN_STATUS_HELP}>
                   {selected.status === "known_tce_rediscovery"
                     ? "REDISCOVERED / NOT A NEW PLANET"
-                    : STATUS_META[selected.status].label.toUpperCase()}
+                    : statusMeta(selected.status).label.toUpperCase()}
                 </InfoTerm>
               </div>
               <dl className="target-data">
@@ -2003,7 +2064,7 @@ export default function App() {
                 </div>
                 <div>
                   <dt><InfoTerm description={HELP.catalogueStatus}>Catalogue Status</InfoTerm></dt>
-                  <dd className={STATUS_META[selected.status].className}>
+                  <dd className={statusMeta(selected.status).className}>
                     {selected.status_label}
                   </dd>
                 </div>
@@ -2061,6 +2122,46 @@ export default function App() {
                   </p>
                 </section>
               )}
+              {selected.science_vetted && (
+                <section className="mini-section followup-section">
+                  <h2>
+                    <InfoTerm description="Measured checks that use actual pixel and multi-sector photometry: where the lost light came from, and whether independently searched sectors reproduce the same fixed ephemeris.">
+                      MEASURED SCIENCE CHECKS
+                    </InfoTerm>
+                  </h2>
+                  <p>
+                    <strong>Pixel localization:</strong>{" "}
+                    {selected.science_on_target === null
+                      ? "Not measured."
+                      : `${
+                          selected.science_on_target ? "On target" : "Off target"
+                        }${
+                          selected.science_centroid_offset_arcsec !== null
+                            ? ` — centroid ${fmt(
+                                selected.science_centroid_offset_arcsec,
+                                0,
+                              )}″ from the star`
+                            : ""
+                        }`}
+                  </p>
+                  <p>
+                    <strong>Sector coherence:</strong>{" "}
+                    {selected.science_sector_gate_passed === null
+                      ? "Not measured."
+                      : `${selected.science_supported_sector_count ?? 0} of ${
+                          selected.science_sectors_tested ?? 0
+                        } tested sectors support the ephemeris${
+                          selected.science_supporting_sectors.length > 0
+                            ? ` (${selected.science_supporting_sectors.join(", ")})`
+                            : ""
+                        }`}
+                  </p>
+                  <p>
+                    <strong>Rule:</strong> One TESS pixel spans roughly 21″. Passing both
+                    checks is a screening result, not a planet candidate.
+                  </p>
+                </section>
+              )}
               <section className="mini-section">
                 <h2>
                   <InfoTerm description={HELP.phaseFolded}>
@@ -2071,7 +2172,7 @@ export default function App() {
                   <>
                     <ActualPhaseCurve
                       curve={phaseCurve}
-                      color={STATUS_META[selected.status].color}
+                      color={statusMeta(selected.status).color}
                     />
                     <div className="phase-labels">
                       <span>{fmt(phaseCurve.phase_min, 2)}</span>
@@ -2207,6 +2308,26 @@ export default function App() {
                 survey?.status_counts.unresolved_transit_like_signal,
               )}
               color="#77ff9f"
+            />
+            <Metric
+              label="Off-target light"
+              description="Signals whose difference-image centroid falls more than one TESS pixel from the star. The dimming most likely belongs to a neighbouring source."
+              value={fmtInteger(
+                survey?.status_counts.pixel_offset_contamination,
+              )}
+              color="#38bdf8"
+            />
+            <Metric
+              label="Single supporting sector"
+              description="On-target signals that only the discovery sector supports. Independently searched sectors did not reproduce the fixed ephemeris."
+              value={fmtInteger(survey?.status_counts.single_sector_unconfirmed)}
+              color="#f5c542"
+            />
+            <Metric
+              label="Science-vetted leads"
+              description="On target and supported in more than one independently searched sector. This is the strongest screening state the pipeline produces and is still not a planet candidate."
+              value={fmtInteger(survey?.status_counts.science_vetted_lead)}
+              color="#34d399"
             />
             <Metric
               label="Retry needed"

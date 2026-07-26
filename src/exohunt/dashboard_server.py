@@ -12,7 +12,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from .dashboard import export_dashboard_data
+from .dashboard import export_dashboard_data, survey_source_mtime_ns
 
 
 WORKSPACE = Path(__file__).resolve().parents[2]
@@ -49,39 +49,20 @@ def _needs_survey_refresh(payload: dict[str, object]) -> bool:
     )
 
 
-def _survey_sources_are_newer(root: Path, output: Path) -> bool:
-    """Refresh when a live checkpoint is newer than the derived survey JSON."""
+def _survey_sources_are_newer(root: Path, payload: dict[str, object]) -> bool:
+    """Refresh when any snapshot input changed after the snapshot was built.
 
-    if not output.exists():
+    The recorded fingerprint is sampled before the exporter reads anything, so
+    a checkpoint written while an export was in flight still counts as newer.
+    Comparing against the snapshot's own mtime instead would mark that stale
+    result fresh forever, because the export finishes after the write it
+    missed.
+    """
+
+    recorded = payload.get("source_mtime_ns")
+    if not isinstance(recorded, int):
         return True
-    try:
-        snapshot_mtime = output.stat().st_mtime_ns
-    except OSError:
-        return True
-    candidates: list[Path] = []
-    results_root = root / "results"
-    campaign_root = results_root / "campaign"
-    vetting_root = results_root / "vetting"
-    if campaign_root.exists():
-        candidates.extend(campaign_root.rglob("batch_progress.json"))
-    if vetting_root.exists():
-        candidates.extend(vetting_root.rglob("context_vet_progress.json"))
-        candidates.extend(vetting_root.rglob("science_vet_progress.json"))
-    candidates.extend(
-        path
-        for path in (
-            root / "metrics" / "events.jsonl",
-            root / "metrics" / "current_stats.json",
-        )
-        if path.exists()
-    )
-    for candidate in candidates:
-        try:
-            if candidate.stat().st_mtime_ns > snapshot_mtime:
-                return True
-        except OSError:
-            continue
-    return False
+    return survey_source_mtime_ns(root) > recorded
 
 
 def _phase_curve_for_tic(root: Path, tic_id: int) -> dict[str, object] | None:
@@ -194,7 +175,7 @@ def create_app(workspace: str | Path = WORKSPACE) -> FastAPI:
                 status_code=503, detail="Survey data is temporarily unavailable."
             ) from error
         if _needs_survey_refresh(payload) or _survey_sources_are_newer(
-            root, output
+            root, payload
         ):
             # A long-running campaign may have imported the previous exporter
             # before the dashboard was upgraded, while context/science vetters

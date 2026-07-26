@@ -46,6 +46,11 @@ Each metrics refresh also updates the local dashboard dataset, and the browser
 polls that local file every five seconds and whenever the tab regains focus.
 If an older campaign remains `retry_pending`, the dashboard still selects the
 freshest `running` or `finalizing` campaign for its live progress HUD.
+The snapshot records a fingerprint of the newest checkpoint, summary, and
+vetting report it was built from, sampled before any of them are read. A
+checkpoint written while an export is in flight therefore still counts as newer
+and triggers one more refresh, instead of being masked by the fact that the
+snapshot file itself was written last.
 The 3D view converts ICRS positions into Sun-centered Galactic XYZ coordinates;
 its Milky Way mid-plane disk, distance rings, and vertical scale curves remain
 rigidly aligned with the stars while the camera orbits.
@@ -373,6 +378,39 @@ secondary-eclipse flags, red-noise/event-coverage checks, sensitivity probe,
 searched sectors, pipeline version, and initial NASA catalog snapshot. The
 external pass therefore augments rather than forgets the evidence already
 computed during the first scan.
+
+### Bounded science follow-up for the strongest leads
+
+Once the metadata pass is complete with zero errors, the science runner builds a
+capped queue of the highest-priority `unresolved_transit_like_signal` leads and
+measures each one with actual pixel and multi-sector photometry:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_science_followup.py --prepare-only
+.\.venv\Scripts\python.exe scripts\run_science_followup.py
+```
+
+The runner is deliberately conservative: it refuses to start unless the context
+pass finished with zero errors, admits only leads whose authoritative sources
+all reported `completed` or `not_available`, runs one EXOHUNT command at a time,
+validates durable reports before reusing them, and prunes storage and
+checkpoints after every target. Use `--repair-sectors` to replace sectors that
+failed with the target's actual public TESScut holdings before retrying.
+
+Each target produces a `sector-vet` and a `pixel-vet` report under
+`results\vetting\<scope>\science\TIC_<id>\`. Those two measurements decide the
+final classification:
+
+- an off-target difference-image centroid means the light was lost near, not at,
+  the star;
+- a single supporting sector means no independently searched sector reproduced
+  the ephemeris; and
+- passing both gates is the strongest screening state this project produces, and
+  is still not a planet candidate.
+
+The dashboard reads these reports directly, so a completed science pass replaces
+the earlier metadata disposition for every measured star. See
+[`SURVIVOR_VETTING.md`](SURVIVOR_VETTING.md) for the full lane definitions.
 
 Test the same ephemeris independently in each sector, then compare it with the
 official public MAST threshold-crossing-event tables:
