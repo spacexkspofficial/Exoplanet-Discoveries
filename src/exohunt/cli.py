@@ -2414,6 +2414,56 @@ def build_history_context_queue(
     return payload
 
 
+def _common_mode_screen(args: argparse.Namespace) -> int:
+    """Flag signals whose ephemeris is shared by many unrelated targets."""
+
+    from .commonmode import screen_campaign_root
+
+    payload = screen_campaign_root(args.campaign_root, workspace=".")
+    if not payload["verdicts"]:
+        print("No searched campaign carried a fitted ephemeris to screen.")
+        return 1
+
+    destination = Path(args.output)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    _atomic_write_json(destination, payload)
+
+    csv_path = destination.with_suffix(".csv")
+    fieldnames = [
+        "tic_id",
+        "campaign",
+        "verdict",
+        "shared_targets",
+        "expected_shared_targets",
+        "enrichment",
+        "shared_fraction",
+        "period_group_targets",
+        "cameras_spanned",
+        "detectors_spanned",
+        "sky_spread_deg",
+        "shared_epoch_btjd",
+    ]
+    temporary = csv_path.with_name(csv_path.name + ".tmp")
+    with temporary.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for tic_id, verdict in payload["verdicts"].items():
+            writer.writerow({"tic_id": tic_id, **verdict})
+    _replace_with_retry(temporary, csv_path)
+
+    counts = payload["counts"]
+    total = payload["screened_targets"]
+    print(f"Screened {total} target(s) across {len(payload['campaigns'])} campaign(s).")
+    for verdict, count in sorted(counts.items(), key=lambda item: -item[1]):
+        print(f"  {verdict}: {count} ({100 * count / total:.1f}%)")
+    print(f"Wrote {destination} and {csv_path}")
+    print(
+        "A shared ephemeris is evidence against an astrophysical origin; "
+        "surviving signals are still not planet candidates."
+    )
+    return 0
+
+
 def _build_context_queue(args: argparse.Namespace) -> int:
     payload = build_history_context_queue(
         args.campaign_root,
@@ -4109,6 +4159,23 @@ def build_parser() -> argparse.ArgumentParser:
         default=50,
     )
     history_queue.set_defaults(func=_build_context_queue)
+
+    common_mode = subparsers.add_parser(
+        "common-mode-screen",
+        help=(
+            "Flag signals whose fitted ephemeris is shared by many unrelated "
+            "targets, which indicates an observatory systematic rather than a star."
+        ),
+    )
+    common_mode.add_argument(
+        "--campaign-root",
+        default="results/campaign",
+    )
+    common_mode.add_argument(
+        "--output",
+        default="results/vetting/common_mode/common_mode_screen.json",
+    )
+    common_mode.set_defaults(func=_common_mode_screen)
 
     inject = subparsers.add_parser(
         "inject-recover",

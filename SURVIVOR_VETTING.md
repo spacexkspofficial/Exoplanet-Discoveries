@@ -120,6 +120,22 @@ steps 3 through 5 remain outstanding. A star is only reclassified when both
 gates were actually measured; a single gate on its own leaves the metadata
 disposition in place.
 
+## The shared-ephemeris screen
+
+Above every per-star lane sits one population-level question: does this
+ephemeris belong to the star, or to the observatory? `common-mode-screen`
+answers it by counting how many unrelated targets observed in the same campaign
+carry the same period *and* phase, against the uniform-phase expectation.
+
+- `common_mode_systematic`: the ephemeris is shared far beyond chance by targets
+  spanning several cameras or a wide area of sky; and
+- `localized_coincidence`: the sharing is confined to close neighbours, which
+  points at one bright contaminating source rather than the spacecraft.
+
+This verdict outranks the pixel and sector gates. A spacecraft event recurs
+identically in every sector, so step 3 below passes it by construction and
+cannot be used as a clearance. Run the screen before promoting anything.
+
 Because these verdicts are measurements rather than catalog lookups, a recorded
 human outcome (`false_positive`, `vetted_candidate`, `confirmed_planet`) still
 outranks them everywhere in the dashboard.

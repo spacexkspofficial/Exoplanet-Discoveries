@@ -412,6 +412,44 @@ The dashboard reads these reports directly, so a completed science pass replaces
 the earlier metadata disposition for every measured star. See
 [`SURVIVOR_VETTING.md`](SURVIVOR_VETTING.md) for the full lane definitions.
 
+### Rejecting the observatory instead of the star
+
+A transit belongs to one star. Scattered light, a momentum dump, and a
+detrending artifact at a downlink gap belong to the *spacecraft*, and they dim
+many unrelated stars at the same absolute time. TESS makes this failure mode
+easy to hit: its orbital period is 13.7 days, so a search capped near that value
+piles instrumental power at the top of the period grid.
+
+Measure it directly across a finished campaign:
+
+```powershell
+.\.venv\Scripts\exohunt.exe common-mode-screen
+```
+
+For every searched target the screen counts how many *other* targets in the same
+campaign carry the same fitted ephemeris: the period matching within 2 percent
+and the transits falling in the same phase. That count is compared against the
+uniform-phase expectation for the targets already sharing the period, so the
+enrichment isolates coincidence in phase, which no population of independent
+planets can produce. Requiring period agreement as well as phase agreement is
+what makes the test sharp: in a five-thousand-target campaign a signal overlaps
+*some* other signal by chance almost always, but sharing a whole ephemeris is
+rare.
+
+Campaigns are screened separately, because only stars observed together can
+share an observatory event. The screen also records how many cameras the sharing
+targets span and how far apart they lie on the sky, which separates an
+observatory-wide effect from one bright contaminating source bleeding into its
+neighbours.
+
+A flagged signal outranks the pixel and sector gates on the dashboard. This is
+deliberate: an observatory event repeats identically in every sector, so
+multi-sector coherence passes it by construction and cannot be used to clear it.
+
+The screen is conservative by design -- it requires tenfold enrichment and at
+least ten sharing targets -- so it under-flags rather than discards real
+signals. Surviving it is *not* evidence that a signal is a planet.
+
 Test the same ephemeris independently in each sector, then compare it with the
 official public MAST threshold-crossing-event tables:
 

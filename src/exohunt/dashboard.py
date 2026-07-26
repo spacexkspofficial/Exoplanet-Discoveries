@@ -111,6 +111,63 @@ SCIENCE_LABELS = {
     "science_vetted_lead": "On target and multi-sector coherent",
 }
 
+COMMON_MODE_LABELS = {
+    "common_mode_systematic": "Observatory systematic - shared ephemeris",
+    "localized_coincidence": "Shared ephemeris with close neighbours",
+}
+
+
+def _common_mode_by_tic(results_root: Path) -> dict[int, dict[str, object]]:
+    """Load the saved common-mode screen, newest file wins per TIC.
+
+    The screen asks how many unrelated targets in the same campaign carry the
+    same fitted ephemeris. A signal shared by hundreds of stars across several
+    cameras was produced by the observatory, which no later per-star check can
+    undo -- sector coherence in particular cannot, because a spacecraft event
+    recurs identically in every sector.
+    """
+
+    screens: dict[int, dict[str, object]] = {}
+    if not results_root.exists():
+        return screens
+    for path in sorted(results_root.rglob("common_mode_screen.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            verdicts = payload.get("verdicts", {})
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(verdicts, dict):
+            continue
+        for raw_tic, verdict in verdicts.items():
+            if not isinstance(verdict, dict):
+                continue
+            try:
+                tic_id = int(raw_tic)
+            except (TypeError, ValueError):
+                continue
+            screens[tic_id] = {"screen_report": str(path), **verdict}
+    return screens
+
+
+def _common_mode_notes(screen: dict[str, object]) -> str:
+    """State the shared-ephemeris evidence in plain language."""
+
+    shared = screen.get("shared_targets")
+    expected = _optional_float(screen.get("expected_shared_targets"))
+    cameras = screen.get("cameras_spanned")
+    spread = _optional_float(screen.get("sky_spread_deg"))
+    notes: list[str] = []
+    if isinstance(shared, int) and expected is not None:
+        notes.append(
+            f"{shared} unrelated targets share this ephemeris "
+            f"({expected:.1f} expected by chance)"
+        )
+    if isinstance(cameras, int) and cameras > 0:
+        notes.append(f"spanning {cameras} camera{'s' if cameras != 1 else ''}")
+    if spread is not None and spread >= 1.0:
+        notes.append(f"over {spread:.0f} degrees of sky")
+    return "; ".join(notes)
+
 
 def _read_catalog_cache(path: Path) -> dict[int, dict[str, object]]:
     if not path.exists():
@@ -471,6 +528,7 @@ def _is_survey_source(name: str) -> bool:
             "batch_summary.json",
             "_sector_vet.json",
             "_pixel.json",
+            "common_mode_screen.json",
             "_cross_mission_context.json",
         )
     )
@@ -988,6 +1046,7 @@ def export_dashboard_data(
     # who determines a lead is a false positive is more authoritative than the
     # screen that produced the lead.
     science_by_tic = _science_vetting_by_tic(results_root)
+    common_mode_by_tic = _common_mode_by_tic(results_root)
 
     priorities = {
         "searched": 0,
@@ -1006,6 +1065,12 @@ def export_dashboard_data(
         "pixel_offset_contamination": 5,
         "single_sector_unconfirmed": 5,
         "science_vetted_lead": 5,
+        # A shared ephemeris outranks the per-star science gates. Multi-sector
+        # coherence cannot rule an observatory systematic out, because such an
+        # event repeats identically in every sector and therefore passes that
+        # gate by construction.
+        "common_mode_systematic": 6,
+        "localized_coincidence": 6,
         "false_positive": 7,
         "rediscovery": 7,
         "known_tce_rediscovery": 7,
@@ -1056,6 +1121,15 @@ def export_dashboard_data(
                 status = str(disposition)
                 label = SCIENCE_LABELS[status]
                 notes = _science_notes(science)
+        screen = common_mode_by_tic.get(tic_id)
+        if screen is not None:
+            verdict = str(screen.get("verdict") or "")
+            if verdict in COMMON_MODE_LABELS and priorities.get(
+                verdict, -1
+            ) >= priorities.get(status, -1):
+                status = verdict
+                label = COMMON_MODE_LABELS[verdict]
+                notes = _common_mode_notes(screen)
         for outcome in outcomes.get(tic_id, []):
             kind = str(outcome.get("kind"))
             if priorities.get(kind, -1) >= priorities.get(status, -1):
@@ -1123,6 +1197,24 @@ def export_dashboard_data(
                 if science is not None
                 else []
             ),
+            "common_mode_verdict": (
+                screen.get("verdict") if screen is not None else None
+            ),
+            "common_mode_shared_targets": (
+                screen.get("shared_targets") if screen is not None else None
+            ),
+            "common_mode_expected_targets": (
+                screen.get("expected_shared_targets") if screen is not None else None
+            ),
+            "common_mode_enrichment": (
+                screen.get("enrichment") if screen is not None else None
+            ),
+            "common_mode_cameras_spanned": (
+                screen.get("cameras_spanned") if screen is not None else None
+            ),
+            "common_mode_sky_spread_deg": (
+                screen.get("sky_spread_deg") if screen is not None else None
+            ),
             **signal,
             **_cartesian(ra, dec, distance),
         }
@@ -1152,6 +1244,28 @@ def export_dashboard_data(
             "Passing both gates is a screening result, not a planet candidate."
         ),
     }
+    screened = [row for row in common_mode_by_tic.values() if row.get("verdict")]
+    flagged = [
+        row for row in screened if row.get("verdict") in COMMON_MODE_LABELS
+    ]
+    common_mode_summary = {
+        "screened_targets": len(screened),
+        "flagged_targets": len(flagged),
+        "observatory_systematic": sum(
+            row.get("verdict") == "common_mode_systematic" for row in screened
+        ),
+        "localized_coincidence": sum(
+            row.get("verdict") == "localized_coincidence" for row in screened
+        ),
+        "flagged_fraction": (
+            round(len(flagged) / len(screened), 4) if screened else None
+        ),
+        "scope": (
+            "Fraction of searched targets whose fitted ephemeris is shared by "
+            "many unrelated stars observed at the same time. Sharing is evidence "
+            "the observatory produced the dimming, not the star."
+        ),
+    }
     payload = {
         "schema_version": 2,
         "generated_at_utc": datetime.now(timezone.utc)
@@ -1161,6 +1275,7 @@ def export_dashboard_data(
         "stats": stats,
         "status_counts": counts,
         "science_vetting": science_summary,
+        "common_mode_screen": common_mode_summary,
         "observed_sectors": sorted(observed_sectors),
         "sector_coverage": _sector_coverage(root, coverage_artifacts),
         "campaigns": campaigns,
@@ -1175,6 +1290,8 @@ def export_dashboard_data(
             "An unresolved context-vetted signal is still not a planet candidate.",
             "Passing pixel localization and sector coherence is a screening result, not a planet candidate.",
             "An off-target difference-image centroid indicates the light was lost near, not necessarily at, the target.",
+            "An ephemeris shared by many unrelated stars was produced by the observatory, not by any of them.",
+            "Surviving the shared-ephemeris screen is not evidence that a signal is a planet.",
             "Display-fallback coordinates are labeled and should be replaced by TIC data.",
         ],
     }

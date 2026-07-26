@@ -28,6 +28,8 @@ type Status =
   | "pixel_offset_contamination"
   | "single_sector_unconfirmed"
   | "science_vetted_lead"
+  | "common_mode_systematic"
+  | "localized_coincidence"
   | "false_positive"
   | "vetted_candidate"
   | "confirmed_planet";
@@ -80,6 +82,12 @@ type Star = {
   science_supported_sector_count: number | null;
   science_sectors_tested: number | null;
   science_supporting_sectors: number[];
+  common_mode_verdict: string | null;
+  common_mode_shared_targets: number | null;
+  common_mode_expected_targets: number | null;
+  common_mode_enrichment: number | null;
+  common_mode_cameras_spanned: number | null;
+  common_mode_sky_spread_deg: number | null;
   x: number;
   y: number;
   z: number;
@@ -142,6 +150,14 @@ type SurveyData = {
   generated_at_utc: string;
   stats: Record<string, number | string | Record<string, number>>;
   status_counts: Record<string, number>;
+  common_mode_screen?: {
+    screened_targets: number;
+    flagged_targets: number;
+    observatory_systematic: number;
+    localized_coincidence: number;
+    flagged_fraction: number | null;
+    scope: string;
+  };
   science_vetting?: {
     vetted_targets: number;
     on_target: number;
@@ -315,6 +331,18 @@ const STATUS_META: Record<
     color: "#34d399",
     className: "green",
   },
+  common_mode_systematic: {
+    label: "Observatory Systematic — Shared Ephemeris",
+    short: "Instrument artifact",
+    color: "#6b7280",
+    className: "muted",
+  },
+  localized_coincidence: {
+    label: "Shared Ephemeris With Close Neighbours",
+    short: "Neighbour-shared",
+    color: "#9ca3af",
+    className: "muted",
+  },
   false_positive: {
     label: "Vetted False Positive",
     short: "False positive",
@@ -387,6 +415,10 @@ const STATUS_HELP: Record<Status, string> = {
     "Difference imaging places the lost light more than one TESS pixel from this star, so the dimming most likely belongs to a neighbouring source rather than the target. The centroid is a screening measurement; one pixel spans roughly 21 arcseconds.",
   single_sector_unconfirmed:
     "The light was lost on target, but only the discovery sector supports the fixed ephemeris. A signal absent from independently searched sectors is not yet coherent; it may still be a systematic, or the other sectors may not constrain it well.",
+  common_mode_systematic:
+    "Many unrelated stars observed at the same time carry this exact ephemeris, far more than chance allows, and they span multiple cameras and a wide area of sky. A transit belongs to one star; a signal shared this widely was produced by the observatory — scattered light, a momentum dump, or a detrending artifact at a downlink gap. Multi-sector coherence cannot clear this, because such an event repeats identically in every sector.",
+  localized_coincidence:
+    "This ephemeris is shared by an improbable number of nearby targets confined to a small area of sky. That pattern points to one bright variable or eclipsing source bleeding into the apertures of its neighbours rather than an observatory-wide effect.",
   science_vetted_lead:
     "The lost light is on target and the fixed ephemeris is supported in more than one independently searched sector. This is the strongest screening state this pipeline produces and is still not a planet candidate: independent reduction, alias checks, and human review remain outstanding.",
   false_positive:
@@ -691,6 +723,8 @@ const STATUS_SYMBOL: Record<Status, string> = {
   pixel_offset_contamination: "⊗",
   single_sector_unconfirmed: "s",
   science_vetted_lead: "◇",
+  common_mode_systematic: "≡",
+  localized_coincidence: "≈",
   false_positive: "×",
   vetted_candidate: "◆",
   confirmed_planet: "●",
@@ -2122,6 +2156,45 @@ export default function App() {
                   </p>
                 </section>
               )}
+              {selected.common_mode_verdict && (
+                <section className="mini-section followup-section">
+                  <h2>
+                    <InfoTerm description="Asks how many unrelated targets observed in the same campaign carry this same fitted ephemeris. Planets around unrelated stars do not share transit times; an observatory event makes hundreds of them share one.">
+                      SHARED-EPHEMERIS SCREEN
+                    </InfoTerm>
+                  </h2>
+                  <p>
+                    <strong>Verdict:</strong>{" "}
+                    {selected.common_mode_verdict.replaceAll("_", " ")}
+                  </p>
+                  <p>
+                    <strong>Targets sharing this ephemeris:</strong>{" "}
+                    {fmtInteger(selected.common_mode_shared_targets ?? undefined)}
+                    {selected.common_mode_expected_targets !== null
+                      ? ` (${fmt(selected.common_mode_expected_targets, 1)} expected by chance`
+                      : ""}
+                    {selected.common_mode_enrichment !== null
+                      ? `, ${fmt(selected.common_mode_enrichment, 1)}× enrichment)`
+                      : selected.common_mode_expected_targets !== null
+                        ? ")"
+                        : ""}
+                  </p>
+                  <p>
+                    <strong>Spread:</strong>{" "}
+                    {selected.common_mode_cameras_spanned !== null
+                      ? `${selected.common_mode_cameras_spanned} camera(s)`
+                      : "cameras not recorded"}
+                    {selected.common_mode_sky_spread_deg !== null
+                      ? ` over ${fmt(selected.common_mode_sky_spread_deg, 0)}° of sky`
+                      : ""}
+                  </p>
+                  <p>
+                    <strong>Rule:</strong> A transit belongs to one star. Sector
+                    coherence cannot clear a shared ephemeris, because an
+                    observatory event repeats in every sector.
+                  </p>
+                </section>
+              )}
               {selected.science_vetted && (
                 <section className="mini-section followup-section">
                   <h2>
@@ -2308,6 +2381,12 @@ export default function App() {
                 survey?.status_counts.unresolved_transit_like_signal,
               )}
               color="#77ff9f"
+            />
+            <Metric
+              label="Observatory systematics"
+              description="Signals whose fitted ephemeris is shared by many unrelated stars observed at the same time, across multiple cameras. These were produced by the spacecraft, not by any star."
+              value={fmtInteger(survey?.status_counts.common_mode_systematic)}
+              color="#9ca3af"
             />
             <Metric
               label="Off-target light"
