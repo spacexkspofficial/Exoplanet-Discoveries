@@ -178,7 +178,7 @@ already-downloaded light curves. For example:
 .\.venv\Scripts\exohunt.exe batch-hunt `
   --targets targets\sector105_overnight_5000.csv `
   --output-dir results\campaign\sector105_overnight_5000 `
-  --author TESScut --cadence-seconds 158 --allow-no-known `
+  --allow-no-known `
   --min-period 0.5 --max-period 13 `
   --workers 4 --download-workers 3 --prefetch 8 `
   --cache-max-gb 10 --workspace-max-gb 20
@@ -286,9 +286,32 @@ target-specific SPOC/QLP light curve is not yet available:
 .\.venv\Scripts\exohunt.exe batch-hunt `
   --targets targets\sector105_blank_small_batch.csv `
   --output-dir results\campaign\sector105_blank_small_batch `
-  --author TESScut --cadence-seconds 158 --allow-no-known `
-  --min-period 0.5 --max-period 13
+  --allow-no-known --min-period 0.5 --max-period 13
 ```
+
+### Which light curve a search runs on
+
+`analyze`, `hunt`, and `batch-hunt` default to `--author auto`. For each target
+that tries SPOC, then TESS-SPOC, then QLP, and only falls back to a local
+TESScut cutout extraction when no processed light curve exists at all. One
+exposure time is pinned per target -- the finest that is still at least 100
+seconds, because below roughly two minutes extra sampling adds download and
+search cost without adding transit-detection power for events this pipeline can
+fit.
+
+This ordering is not a preference for convenience. A TESScut cutout summed
+through a local aperture carries the observatory's scattered light, and the
+Savitzky-Golay pass that follows fits polynomials across every downlink gap.
+Both imprint the 13.7-day spacecraft orbit on the photometry, which is why
+`common-mode-screen` flags roughly half of the TESScut campaigns. The processed
+products already remove that.
+
+Every report records `requested_author`, the resolved `author`, and the
+`authors_considered` chain, so a campaign can be resumed idempotently and the
+reduction behind any result can be recovered later.
+
+Pass an explicit `--author` to override the chain; `--author TESScut` reproduces
+the older behaviour exactly.
 
 `--allow-no-known` changes the search mode from “mask a known planet and look
 for another” to “search this zero-catalogued-planet star.” TESScut extraction

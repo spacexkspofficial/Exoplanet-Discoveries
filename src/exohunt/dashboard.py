@@ -1325,7 +1325,12 @@ def export_dashboard_data(
     temporary = output.with_name(
         f"{output.name}.{os.getpid()}.{threading.get_ident()}.tmp"
     )
-    temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    # Written compactly: this is a derived browser payload, not a file anyone
+    # reads. Indentation roughly doubled its size, and the browser refetches it
+    # every few seconds.
+    temporary.write_text(
+        json.dumps(payload, separators=(",", ":")), encoding="utf-8"
+    )
     for attempt in range(8):
         try:
             temporary.replace(output)

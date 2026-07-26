@@ -7,6 +7,7 @@ from exohunt.dashboard_server import (
     _needs_survey_refresh,
     _phase_curve_for_tic,
     _prefer_live_campaign_last,
+    _survey_header,
     _survey_sources_are_newer,
 )
 
@@ -196,3 +197,62 @@ def test_phase_curve_endpoint_rejects_report_outside_results(tmp_path: Path):
     )
 
     assert _phase_curve_for_tic(tmp_path, 9) is None
+
+
+def test_survey_header_is_parsed_once_per_written_file(tmp_path: Path) -> None:
+    """The browser polls constantly; the snapshot is only parsed when it changes."""
+
+    from exohunt.dashboard_server import _SURVEY_HEADER_CACHE, _survey_header
+
+    snapshot = tmp_path / "survey.json"
+    snapshot.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "source_mtime_ns": 4242,
+                "sector_coverage": [{"sector": 1}],
+                "stars": [{"tic_id": 1}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    _SURVEY_HEADER_CACHE.pop(str(snapshot), None)
+
+    first = _survey_header(snapshot)
+    assert first["schema_version"] == 2
+    assert first["source_mtime_ns"] == 4242
+    assert first["sector_coverage"] == []
+    assert "stars" not in first
+
+    # A second call must reuse the cache rather than re-read the file.
+    snapshot.write_text("this is not json", encoding="utf-8")
+    os.utime(snapshot, (500, 500))
+    cached_key, cached_header = _SURVEY_HEADER_CACHE[str(snapshot)]
+    _SURVEY_HEADER_CACHE[str(snapshot)] = (
+        (snapshot.stat().st_mtime_ns, snapshot.stat().st_size),
+        cached_header,
+    )
+    assert _survey_header(snapshot) is cached_header
+
+
+def test_fresh_snapshot_does_not_trigger_another_export(tmp_path: Path) -> None:
+    """The poll path must not rewrite the snapshot when nothing changed.
+
+    Re-exporting on every poll was the expensive failure mode: it walked the
+    results tree and rewrote tens of megabytes several times a minute.
+    """
+
+    from exohunt.dashboard import export_dashboard_data
+
+    dashboard, _ = _workspace(tmp_path)
+    export_dashboard_data(tmp_path, events=[], stats={})
+    snapshot = dashboard / "public" / "data" / "survey.json"
+    assert snapshot.exists()
+
+    header = _survey_header(snapshot)
+    assert not _needs_survey_refresh(header)
+    assert not _survey_sources_are_newer(tmp_path, header)
+
+    # A new checkpoint must still invalidate it.
+    _write_checkpoint(tmp_path, 10_000_000)
+    assert _survey_sources_are_newer(tmp_path, header)

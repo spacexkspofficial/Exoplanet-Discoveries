@@ -49,6 +49,36 @@ def _needs_survey_refresh(payload: dict[str, object]) -> bool:
     )
 
 
+_SURVEY_HEADER_CACHE: dict[str, tuple[tuple[int, int], dict[str, object]]] = {}
+
+
+def _survey_header(path: Path) -> dict[str, object]:
+    """Return the snapshot's freshness metadata, parsed once per written file.
+
+    The browser polls every few seconds, but the snapshot only changes when the
+    exporter rewrites it. Caching on (mtime, size) turns a repeated pass over
+    tens of megabytes into one parse per export. Only the few fields the
+    freshness checks read are retained, so the cache stays small.
+    """
+
+    stat = path.stat()
+    key = (stat.st_mtime_ns, stat.st_size)
+    cached = _SURVEY_HEADER_CACHE.get(str(path))
+    if cached is not None and cached[0] == key:
+        return cached[1]
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    header: dict[str, object] = {
+        "schema_version": payload.get("schema_version"),
+        "source_mtime_ns": payload.get("source_mtime_ns"),
+    }
+    if isinstance(payload.get("sector_coverage"), list):
+        # Presence is all the schema check needs; the rows themselves are not
+        # worth holding in memory between requests.
+        header["sector_coverage"] = []
+    _SURVEY_HEADER_CACHE[str(path)] = (key, header)
+    return header
+
+
 def _survey_sources_are_newer(root: Path, payload: dict[str, object]) -> bool:
     """Refresh when any snapshot input changed after the snapshot was built.
 
@@ -162,34 +192,40 @@ def create_app(workspace: str | Path = WORKSPACE) -> FastAPI:
         )
 
     @app.get("/data/survey.json")
-    def survey_data() -> JSONResponse:
+    def survey_data() -> Response:
         output = dashboard_dir / "public" / "data" / "survey.json"
         if not output.exists():
             output = export_dashboard_data(root)
         if output is None or not output.exists():
             raise HTTPException(status_code=404, detail="Survey data is unavailable.")
+
         try:
-            payload = json.loads(output.read_text(encoding="utf-8"))
+            header = _survey_header(output)
         except (OSError, json.JSONDecodeError) as error:
             raise HTTPException(
                 status_code=503, detail="Survey data is temporarily unavailable."
             ) from error
-        if _needs_survey_refresh(payload) or _survey_sources_are_newer(
-            root, payload
-        ):
+
+        if _needs_survey_refresh(header) or _survey_sources_are_newer(root, header):
             # A long-running campaign may have imported the previous exporter
             # before the dashboard was upgraded, while context/science vetters
             # update their own checkpoints. Preserve those workers and upgrade
             # only the derived, replaceable browser snapshot.
             output = export_dashboard_data(root)
-            try:
-                payload = json.loads(output.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError) as error:
+            if output is None or not output.exists():
                 raise HTTPException(
                     status_code=503, detail="Survey data is temporarily unavailable."
-                ) from error
-        _prefer_live_campaign_last(payload)
-        return JSONResponse(payload, headers={"Cache-Control": "no-store"})
+                )
+
+        # The snapshot is served straight from disk. Parsing and re-encoding it
+        # would cost a full pass over tens of megabytes on every poll, and the
+        # exporter already writes active_campaigns in the order the browser
+        # expects, so there is nothing left to rewrite here.
+        return FileResponse(
+            output,
+            media_type="application/json",
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/api/targets/{tic_id}/phase-curve")
     def phase_curve(tic_id: int) -> JSONResponse:

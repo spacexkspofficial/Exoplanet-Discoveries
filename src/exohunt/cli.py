@@ -129,6 +129,101 @@ def _thread_safe_lightkurve_download(method, **kwargs):
     return method(**kwargs)
 
 
+# Mission- and community-processed light curves in descending order of trust.
+# Each applies a background and systematics treatment that a bare aperture sum
+# over a TESScut cutout does not, which is what a blind transit search needs:
+# uncorrected scattered light around perigee imprints the 13.7-day spacecraft
+# orbit on the photometry and dominates the resulting detections.
+AUTHOR_PREFERENCE = ("SPOC", "TESS-SPOC", "QLP")
+
+
+def _available_products(lk, target: str, sectors: list[int], author: str):
+    """Search one author without pinning a cadence, tolerating MAST gaps."""
+
+    kwargs: dict[str, object] = {"mission": "TESS", "author": author}
+    if sectors:
+        kwargs["sector"] = sectors
+    try:
+        return lk.search_lightcurve(target, **kwargs)
+    except Exception:
+        # A single author being unavailable must not end the search; the next
+        # one in the chain may still cover this target.
+        return None
+
+
+# Below roughly two minutes, finer sampling stops adding transit-detection
+# power: the shortest event this pipeline fits is fifteen minutes, which a
+# 120-second cadence already covers several times over. Twenty-second data
+# would multiply the download and search cost for no gain, so it is used only
+# when nothing coarser exists.
+MIN_USEFUL_CADENCE_SECONDS = 100.0
+
+
+def _preferred_exposure(search) -> float | None:
+    """Pick one exposure time: the finest that still earns its data volume.
+
+    Mixing cadences in one stitched light curve distorts the duration fit, so
+    exactly one exposure time is selected rather than downloading everything.
+    """
+
+    table = getattr(search, "table", None)
+    if table is None or "exptime" not in getattr(table, "colnames", []):
+        return None
+    values: list[float] = []
+    for raw in table["exptime"]:
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if value > 0:
+            values.append(value)
+    if not values:
+        return None
+    useful = [value for value in values if value >= MIN_USEFUL_CADENCE_SECONDS]
+    return min(useful) if useful else min(values)
+
+
+def resolve_light_curve_source(
+    lk,
+    target: str,
+    sectors: list[int],
+    *,
+    preference: tuple[str, ...] = AUTHOR_PREFERENCE,
+    allow_tesscut: bool = True,
+) -> dict[str, object]:
+    """Choose the best available reduction for one target.
+
+    Returns the first author in ``preference`` that actually has data, together
+    with the exposure time to pin. TESScut is reported only as a last resort,
+    because extracting it locally reintroduces exactly the systematics the
+    processed products already remove.
+    """
+
+    considered: list[dict[str, object]] = []
+    for author in preference:
+        search = _available_products(lk, target, sectors, author)
+        count = 0 if search is None else len(search)
+        considered.append({"author": author, "products": int(count)})
+        if count:
+            return {
+                "author": author,
+                "cadence_seconds": _preferred_exposure(search),
+                "fallback": False,
+                "considered": considered,
+            }
+    if not allow_tesscut:
+        raise RuntimeError(
+            f"No processed TESS light curve (tried {', '.join(preference)}) "
+            f"is available for {target!r}."
+        )
+    return {
+        "author": "TESScut",
+        "cadence_seconds": None,
+        "fallback": True,
+        "considered": considered,
+    }
+
+
 def _download_light_curve(
     target: str,
     sector: int | list[int] | None,
@@ -150,6 +245,28 @@ def _download_light_curve(
     )
     download_dir.mkdir(parents=True, exist_ok=True)
     sectors = _sector_values(sector)
+    # Preserved so a resumed campaign can recognise its own earlier reports:
+    # reuse must compare what was *asked for*, not what auto-selection resolved
+    # to, otherwise every resume would re-download the whole target list.
+    requested_author = author
+    requested_cadence_seconds = cadence_seconds
+    selection: dict[str, object] | None = None
+    if author == "auto":
+        # TESScut needs exactly one sector, so it can only be the fallback when
+        # the request is already scoped to one.
+        selection = resolve_light_curve_source(
+            lk, target, sectors, allow_tesscut=len(sectors) == 1
+        )
+        author = str(selection["author"])
+        resolved_cadence = selection.get("cadence_seconds")
+        if author == "TESScut":
+            # The local extraction still needs an explicit FFI cadence; keep the
+            # caller's value when it supplied one.
+            cadence_seconds = cadence_seconds or 158.0
+        else:
+            cadence_seconds = (
+                float(resolved_cadence) if resolved_cadence else cadence_seconds
+            )
     if author == "TESScut":
         if len(sectors) != 1:
             raise ValueError("TESScut searches require exactly one TESS sector.")
@@ -207,7 +324,7 @@ def _download_light_curve(
             "requested_sectors": sectors,
             "downloaded_sectors": sectors,
             "author": author,
-            "requested_cadence_seconds": cadence_seconds,
+            "requested_cadence_seconds": requested_cadence_seconds,
             "downloaded_products": 1,
             "cadence_minutes": cadence_days * 24 * 60,
             "flatten_window_cadences": window,
@@ -217,6 +334,11 @@ def _download_light_curve(
             "background_subtracted": True,
             "pre_normalization_relative_scatter": relative_scatter,
             "extraction_version": "tesscut-bgsub-v1",
+            "requested_author": requested_author,
+            "resolved_cadence_seconds": cadence_seconds,
+            "author_selection": "auto" if selection else "explicit",
+            "author_fallback_to_tesscut": bool(selection and selection["fallback"]),
+            "authors_considered": (selection or {}).get("considered", []),
         }
         return flattened.time.value, flattened.flux.value, metadata
 
@@ -263,10 +385,16 @@ def _download_light_curve(
         "requested_sectors": sectors,
         "downloaded_sectors": downloaded_sectors,
         "author": author,
-        "requested_cadence_seconds": cadence_seconds,
+        "requested_cadence_seconds": requested_cadence_seconds,
         "downloaded_products": len(collection),
         "cadence_minutes": cadence_days * 24 * 60,
         "flatten_window_cadences": window,
+        "requested_author": requested_author,
+        "resolved_cadence_seconds": cadence_seconds,
+        "author_selection": "auto" if selection else "explicit",
+        "author_fallback_to_tesscut": bool(selection and selection["fallback"]),
+        "authors_considered": (selection or {}).get("considered", []),
+
     }
     return flattened.time.value, flattened.flux.value, metadata
 
@@ -741,7 +869,8 @@ def _load_reusable_report(
         str(data.get("target")) != target
         or int(data.get("tic_id") or 0) != tic_id
         or _sector_values(data.get("requested_sectors")) != _sector_values(sectors)
-        or str(data.get("author")) != str(args.author)
+        or str(data.get("requested_author") or data.get("author"))
+        != str(args.author)
         or float(data.get("requested_cadence_seconds") or -1)
         != float(args.cadence_seconds)
     ):
@@ -3816,7 +3945,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Download one or more selected TESS sectors, e.g. --sector 1 3 4.",
     )
     analyze.add_argument(
-        "--author", default="SPOC", choices=["SPOC", "TESS-SPOC", "QLP", "TESScut"]
+        "--author",
+        default="auto",
+        choices=["auto", "SPOC", "TESS-SPOC", "QLP", "TESScut"],
+        help=(
+            "auto prefers SPOC, then TESS-SPOC, then QLP, and falls back to a "
+            "local TESScut extraction only when no processed light curve exists."
+        ),
     )
     analyze.add_argument(
         "--cadence-seconds",
@@ -3951,7 +4086,13 @@ def build_parser() -> argparse.ArgumentParser:
     hunt.add_argument("--tic", type=int, help="TIC ID if it cannot be inferred.")
     hunt.add_argument("--sector", type=int, nargs="+", required=True)
     hunt.add_argument(
-        "--author", default="SPOC", choices=["SPOC", "TESS-SPOC", "QLP", "TESScut"]
+        "--author",
+        default="auto",
+        choices=["auto", "SPOC", "TESS-SPOC", "QLP", "TESScut"],
+        help=(
+            "auto prefers SPOC, then TESS-SPOC, then QLP, and falls back to a "
+            "local TESScut extraction only when no processed light curve exists."
+        ),
     )
     hunt.add_argument("--cadence-seconds", type=float, default=120.0)
     hunt.add_argument("--min-period", type=float, default=0.5)
@@ -3978,7 +4119,13 @@ def build_parser() -> argparse.ArgumentParser:
     batch.add_argument("--max-targets", type=int)
     batch.add_argument("--force", action="store_true", help="Re-run existing target reports.")
     batch.add_argument(
-        "--author", default="SPOC", choices=["SPOC", "TESS-SPOC", "QLP", "TESScut"]
+        "--author",
+        default="auto",
+        choices=["auto", "SPOC", "TESS-SPOC", "QLP", "TESScut"],
+        help=(
+            "auto prefers SPOC, then TESS-SPOC, then QLP, and falls back to a "
+            "local TESScut extraction only when no processed light curve exists."
+        ),
     )
     batch.add_argument("--cadence-seconds", type=float, default=120.0)
     batch.add_argument("--min-period", type=float, default=0.5)
