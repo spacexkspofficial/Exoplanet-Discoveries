@@ -265,7 +265,191 @@ of 5,000 field stars should survive well under 5 percent.
 
 ---
 
-## 6. Things not to undo
+## 6. Refactor mandate — fix causes, not symptoms
+
+The project owner's instruction is explicit: **no duct-tape patching. Real
+project-wide refactors where they are warranted.** Several of the fixes in the
+commits above are correct in behaviour but were applied to structures that made
+those bugs easy to introduce and hard to see. Those structures are the actual
+defect, and they are listed below with evidence.
+
+### How to do this safely in a scientific codebase
+
+A refactor that silently changes a threshold or a classification changes
+published numbers. So, in this order, without exception:
+
+1. **Characterise before changing.** For each area below, write tests that pin
+   the *current* observable behaviour first — including behaviour you believe is
+   wrong. Wrong behaviour gets changed deliberately, in its own commit, with the
+   change stated.
+2. **Refactor behaviour-preserving.** The 97 existing tests must stay green
+   throughout, not be "updated to match" a refactor. If a test needs editing to
+   pass, that is a behaviour change and belongs in a separate commit.
+3. **Prove equivalence on real data.** Before/after, re-run a fixed subset
+   (e.g. 200 targets from `targets/sector100_expansion_5000.csv` with
+   `--author TESScut --cadence-seconds 158` to hold the input constant) and diff
+   the per-target JSON. Any difference must be explained, not accepted.
+4. One concern per commit. A refactor commit changes structure only.
+
+### 6.1 One source of truth for the classification vocabulary — highest value
+
+**Evidence.** A status is currently defined in seven places across two
+languages: `SCREENING_LABELS`, `CONTEXT_LABELS`, `SCIENCE_LABELS`,
+`COMMON_MODE_LABELS` in `src/exohunt/dashboard.py:89,98,108,114`, plus the
+`Status` union, `STATUS_META`, `STATUS_HELP`, and `STATUS_SYMBOL` in
+`dashboard/src/App.tsx:12,375,387,711`.
+
+Adding the five statuses in these commits required edits in all of them. That is
+why the frontend needed a defensive `statusMeta()` fallback at all — an exporter
+can emit a status the bundle has never heard of.
+
+**Fix.** One machine-readable registry defining each status once: slug, label,
+short label, help text, symbol, colour, evidence stage, precedence. Python
+imports it; the TypeScript tables and `Status` union are **generated** from it as
+a build step. Delete the hand-maintained duplicates.
+
+**Invariant.** Adding a classification is a one-file change, and a test fails if
+the generated frontend tables drift from the registry.
+
+### 6.2 Replace the magic-integer precedence ladder with an explicit stage model
+
+**Evidence.** `src/exohunt/dashboard.py` resolves a star's displayed status
+through one flat `dict[str, int]` mixing five unrelated kinds of evidence:
+in-light-curve screening, catalog context, measured science, population screen,
+and human outcomes. It is applied by four near-identical
+`if priorities.get(x, -1) >= priorities.get(status, -1)` blocks at
+`dashboard.py:1107-1135`.
+
+That design caused a real defect: `false_positive` sat at 2, *below*
+`unresolved_transit_like_signal` at 4, so a hand-vetted false positive on any
+lead was silently discarded. It was fixed by renumbering — which is exactly the
+patch this mandate forbids as a permanent answer. I then extended the same dict
+twice more (science verdicts at 5, common-mode at 6), making the next collision
+likelier, not less.
+
+**Fix.** Model evidence explicitly. An ordered stage enum —
+`in_light_curve < catalog_context < measured_science < population_screen <
+human_outcome` — with each verdict declaring its stage in the 6.1 registry.
+Resolution becomes one function: highest stage wins; ties resolve by declared
+precedence within the stage. The four copy-pasted comparison blocks collapse
+into one call.
+
+**Invariant.** A test asserts that no automated classification can override a
+recorded human outcome, for every pair in the registry. Correctness stops
+depending on someone choosing the right integer.
+
+### 6.3 Decompose `cli.py`
+
+**Evidence.** 4,432 lines, 85 functions. `_run_batch_hunt` is 508 lines;
+`build_parser` is 482. It holds photometry download, aperture extraction,
+detrending, BLS screening, campaign orchestration, checkpointing, storage
+policy, target-list construction, and argument parsing — in one module.
+
+Concrete consequences seen today: the Savitzky-Golay detrend block is duplicated
+at `cli.py:319` and `cli.py:372`, so the TESScut and processed paths can drift
+apart silently; and adding author selection meant editing a 172-line function
+that already did four unrelated jobs.
+
+**Fix.** Extract by concern: `photometry.py` (search, download, extraction,
+detrending — one code path parameterised by product type), `screening.py` (gates
+and classification), `campaign.py` (orchestration, checkpointing, resume),
+`targetlists.py`. `cli.py` keeps argument parsing and dispatch and contains no
+science.
+
+**Invariant.** No function longer than roughly 80 lines. Detrending exists once.
+`cli.py` imports science; it does not implement it.
+
+### 6.4 One checkpoint schema
+
+**Evidence.** Three shapes describe the same concept — a resumable worker
+checkpoint:
+
+- `batch_progress.json`: `counts`, `runtime`, `settings`
+- `context_vet_progress.json`: `counts`, `runtime`, no `settings`
+- `science_vet_progress.json`: **flat** — `error_targets`, `remaining_targets`,
+  `science_products_downloaded` at top level, no `counts`, no `runtime`
+
+The divergence caused a live dashboard bug: `science_products_downloaded` was
+read from `runtime` and therefore always displayed 0 while 359 products had been
+downloaded. The current fix reads both shapes — tolerance code that exists only
+because the producers disagree.
+
+**Fix.** One `WorkerCheckpoint` dataclass with one serialiser, used by
+`batch-hunt`, `context-vet-queue`, and the science runner. Migrate old files on
+read, then delete the compatibility branches.
+
+**Invariant.** The dashboard reads one shape and contains no per-producer
+branching.
+
+### 6.5 Fold `scripts/run_science_followup.py` into the CLI
+
+**Evidence.** 890 lines outside the package, re-implementing checkpointing,
+retention, publishing, and summary writing that `cli.py` already has. It is
+undocumented as a command and cannot be resumed through the normal interface.
+
+It also has a genuine performance defect: `publish()` calls `workspace_bytes()`
+— a full walk of the ~14 GB workspace — and `product_count()`, which re-reads
+and revalidates every report for every queue row, and `publish()` is called two
+to three times per target. That is quadratic in queue length.
+
+**Fix.** `exohunt science-vet-queue`, sharing the 6.4 checkpoint and the
+existing retention machinery. Track workspace size incrementally.
+
+### 6.6 Centralise the science thresholds
+
+**Evidence.** `7.1` (S/N floor) appears at `cli.py:2776,3508,3549,3556,3565,3578`
+as a bare literal, with arithmetic built on it. Also scattered: `0.15` duty
+cycle, 5 percent depth, 3σ odd/even and secondary, `21.0` arcsec per pixel
+(`cli.py:2681`), the `(0.25 … 6.0)` duration grid, and 13.70 d.
+
+Two of those literals mattered today: the duration grid's rails produced 4,401
+edge-pinned fits, and the 3σ secondary gate passed TIC 181014443 at 2.3σ on one
+sector when 7 sectors showed 5.9σ.
+
+**Fix.** One documented configuration object — every threshold named, with the
+reason for its value — recorded verbatim into every report so any result can be
+reproduced against the settings that produced it.
+
+**Invariant.** No bare numeric science threshold in logic. Grep for the literals
+above returns only the configuration module.
+
+### 6.7 Remove the duplicated payload builders
+
+`src/exohunt/dashboard.py:911` and `:962` build the same ~40-field star signal
+dict twice — once from campaign summaries, once from live checkpoints. Every
+field added today had to be added twice. Extract one builder.
+
+### 6.8 The survey payload is a 27 MB monolith
+
+`survey.json` carries all 12,168 stars with roughly 60 fields each, refetched by
+the browser every five seconds. Serving it as a file rather than re-encoding it
+per request cut idle server CPU from 18.4 to 6.4 percent of a core, but the
+payload size is the underlying issue.
+
+**Fix.** Separate the summary (counts, coverage, active campaigns) from per-star
+detail; page or stream the star list, or encode positions as typed arrays. Keep
+a full export for offline analysis.
+
+### 6.9 Test and validation hygiene
+
+- `pyproject.toml` sets `--basetemp=.pytest-tmp`, inside the OneDrive-synced
+  tree; OneDrive locks it and pytest fails with `WinError 5`. Move it out.
+- `VALIDATION.md` recovers five known planets, but no test exercises the
+  **campaign** path end to end. Add a known-planet recovery through
+  `batch-hunt`'s own code path so validation and production cannot diverge again
+  — that divergence is precisely what hid the TESScut systematics.
+
+### Priority order
+
+6.1 and 6.2 first: they are small, they remove whole classes of defect, and
+everything else is easier once the vocabulary is generated and precedence is
+explicit. Then 6.4 and 6.6 (schema and thresholds), then 6.3 (the large
+decomposition), then 6.5, 6.7, 6.8, 6.9.
+
+Do not start the decomposition in 6.3 before the characterisation tests in step
+1 exist. Moving 4,400 lines without them will change results silently.
+
+## 7. Things not to undo
 
 - Do not restore `--author TESScut` as a campaign default.
 - Do not remove `requested_author` from reports or from the reuse comparison.
