@@ -1215,6 +1215,22 @@ def export_dashboard_data(
             "common_mode_sky_spread_deg": (
                 screen.get("sky_spread_deg") if screen is not None else None
             ),
+            "spacecraft_harmonic": (
+                screen.get("spacecraft_harmonic") if screen is not None else None
+            ),
+            "spacecraft_harmonic_period_days": (
+                screen.get("spacecraft_harmonic_period_days")
+                if screen is not None
+                else None
+            ),
+            "duration_at_grid_rail": (
+                bool(screen.get("duration_at_grid_rail")) if screen is not None else False
+            ),
+            "period_at_search_ceiling": (
+                bool(screen.get("period_at_search_ceiling"))
+                if screen is not None
+                else False
+            ),
             **signal,
             **_cartesian(ra, dec, distance),
         }
@@ -1259,6 +1275,15 @@ def export_dashboard_data(
         ),
         "flagged_fraction": (
             round(len(flagged) / len(screened), 4) if screened else None
+        ),
+        "on_spacecraft_harmonic": sum(
+            bool(row.get("spacecraft_harmonic")) for row in screened
+        ),
+        "duration_at_grid_rail": sum(
+            bool(row.get("duration_at_grid_rail")) for row in screened
+        ),
+        "period_at_search_ceiling": sum(
+            bool(row.get("period_at_search_ceiling")) for row in screened
         ),
         "scope": (
             "Fraction of searched targets whose fitted ephemeris is shared by "

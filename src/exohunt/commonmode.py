@@ -56,6 +56,48 @@ MIN_SHARED_TARGETS = 10
 # Above this angular spread the sharers cannot be one contaminating source.
 OBSERVATORY_SPREAD_DEG = 1.0
 
+# TESS occupies a 13.7-day lunar-resonant orbit. Perigee downlink gaps and the
+# scattered-light ramps around them recur on that period, so instrumental power
+# concentrates there and at its simple ratios. A candidate sitting on one of
+# those ratios is not thereby disproved -- planets do exist at 6.85 days -- but
+# it carries a prior that the rest of the population makes very unfavourable.
+TESS_ORBIT_DAYS = 13.70
+HARMONIC_RATIOS = (
+    (1, 4),
+    (1, 3),
+    (1, 2),
+    (2, 3),
+    (3, 4),
+    (1, 1),
+    (3, 2),
+    (2, 1),
+)
+HARMONIC_TOLERANCE = 0.03
+
+# The search grids the campaigns use. A fit pinned to the first or last value of
+# a grid is a fit that wanted to leave the grid, which is characteristic of a
+# trend rather than a transit.
+DURATION_GRID_HOURS = (0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0)
+SEARCH_CEILING_TOLERANCE = 0.02
+
+
+def spacecraft_harmonic(period_days: float) -> dict[str, Any] | None:
+    """Return the TESS-orbit ratio a period sits on, if any."""
+
+    best: dict[str, Any] | None = None
+    for numerator, denominator in HARMONIC_RATIOS:
+        expected = TESS_ORBIT_DAYS * numerator / denominator
+        offset = abs(period_days - expected) / expected
+        if offset <= HARMONIC_TOLERANCE and (
+            best is None or offset < best["offset_fraction"]
+        ):
+            best = {
+                "ratio": f"{numerator}/{denominator}",
+                "period_days": round(expected, 4),
+                "offset_fraction": round(offset, 5),
+            }
+    return best
+
 
 def _finite(value: Any) -> float | None:
     try:
@@ -248,6 +290,9 @@ def screen_campaign(
     periods = [item.period for item in ordered]
     by_tic = {item.tic_id: item for item in ordered}
     population = len(ordered) - 1
+    # The longest period any target reached approximates the search ceiling,
+    # which is where a truncated instrumental peak accumulates.
+    search_ceiling = periods[-1] if periods else 0.0
 
     verdicts: dict[int, dict[str, Any]] = {}
     for index, ephemeris in enumerate(ordered):
@@ -287,8 +332,26 @@ def screen_campaign(
         else:
             verdict = "localized_coincidence"
 
+        harmonic = spacecraft_harmonic(ephemeris.period)
+        duration = ephemeris.duration_hours
         verdicts[ephemeris.tic_id] = {
             "verdict": verdict,
+            "spacecraft_harmonic": harmonic["ratio"] if harmonic else None,
+            "spacecraft_harmonic_period_days": (
+                harmonic["period_days"] if harmonic else None
+            ),
+            "spacecraft_harmonic_offset_fraction": (
+                harmonic["offset_fraction"] if harmonic else None
+            ),
+            "duration_at_grid_rail": (
+                duration is not None
+                and duration in (DURATION_GRID_HOURS[0], DURATION_GRID_HOURS[-1])
+            ),
+            "period_at_search_ceiling": (
+                search_ceiling > 0
+                and abs(ephemeris.period - search_ceiling) / search_ceiling
+                <= SEARCH_CEILING_TOLERANCE
+            ),
             "shared_targets": count,
             "shared_fraction": round(shared_fraction, 6),
             "period_group_targets": period_group,

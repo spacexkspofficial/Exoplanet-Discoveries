@@ -88,6 +88,10 @@ type Star = {
   common_mode_enrichment: number | null;
   common_mode_cameras_spanned: number | null;
   common_mode_sky_spread_deg: number | null;
+  spacecraft_harmonic: string | null;
+  spacecraft_harmonic_period_days: number | null;
+  duration_at_grid_rail: boolean;
+  period_at_search_ceiling: boolean;
   x: number;
   y: number;
   z: number;
@@ -2188,6 +2192,28 @@ export default function App() {
                       ? ` over ${fmt(selected.common_mode_sky_spread_deg, 0)}° of sky`
                       : ""}
                   </p>
+                  {(selected.spacecraft_harmonic ||
+                    selected.duration_at_grid_rail ||
+                    selected.period_at_search_ceiling) && (
+                    <p>
+                      <strong>Grid and orbit cautions:</strong>{" "}
+                      {[
+                        selected.spacecraft_harmonic
+                          ? `period sits on the ${selected.spacecraft_harmonic} TESS-orbit ratio (${fmt(selected.spacecraft_harmonic_period_days, 2)} d)`
+                          : null,
+                        selected.period_at_search_ceiling
+                          ? "period is pinned to the search ceiling"
+                          : null,
+                        selected.duration_at_grid_rail
+                          ? "duration is pinned to the edge of the duration grid"
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join("; ")}
+                      . These are cautions, not disproof: a fit that reaches the
+                      edge of its grid is a fit that wanted to leave it.
+                    </p>
+                  )}
                   <p>
                     <strong>Rule:</strong> A transit belongs to one star. Sector
                     coherence cannot clear a shared ephemeris, because an
