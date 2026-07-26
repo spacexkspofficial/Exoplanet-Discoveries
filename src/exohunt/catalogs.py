@@ -97,20 +97,32 @@ def _write_cache(path: Path, result: dict[str, object]) -> None:
 def check_tic(
     tic_id: int,
     *,
+    gaia_source_id: int | None = None,
     force_refresh: bool = False,
     cache_dir: str | Path | None = None,
 ) -> dict[str, object]:
-    """Find TOIs and confirmed planets already associated with a TIC ID."""
+    """Find TOIs and confirmed planets associated with a TIC/Gaia identity."""
 
     if tic_id <= 0:
         raise ValueError("TIC ID must be a positive integer.")
+    if gaia_source_id is not None and gaia_source_id <= 0:
+        raise ValueError("Gaia source ID must be a positive integer.")
     cache_path = _catalog_cache_root(cache_dir) / f"TIC_{tic_id}.json"
     lock = FileLock(str(cache_path.with_suffix(".lock")))
     with lock.acquire(timeout=180):
         if not force_refresh:
             cached = _read_fresh_cache(cache_path)
             if cached is not None and int(cached.get("tic_id", 0)) == tic_id:
-                return cached
+                identifiers = cached.get("query_identifiers")
+                identifiers = (
+                    identifiers if isinstance(identifiers, dict) else {}
+                )
+                cached_gaia = identifiers.get("gaia_source_id")
+                if gaia_source_id is None or (
+                    cached_gaia is not None
+                    and int(cached_gaia) == gaia_source_id
+                ):
+                    return cached
         # Limit concurrent TAP traffic across analysis threads. The previous
         # unbounded per-target queries caused hundreds of exhausted timeouts
         # during parallel campaigns even while TESScut itself was healthy.
@@ -120,13 +132,27 @@ def check_tic(
                 "pl_trandurh,pl_trandep,rowupdate "
                 f"from toi where tid={tic_id}"
             )
+            confirmed_identities = [f"tic_id='TIC {tic_id}'"]
+            if gaia_source_id is not None:
+                confirmed_identities.extend(
+                    [
+                        f"gaia_dr2_id='Gaia DR2 {gaia_source_id}'",
+                        f"gaia_dr3_id='Gaia DR3 {gaia_source_id}'",
+                    ]
+                )
             confirmed = _tap_csv(
                 "select pl_name,hostname,pl_orbper,pl_tranmid,pl_trandur,pl_rade,"
-                "tran_flag,discoverymethod,disc_year "
-                f"from ps where default_flag=1 and tic_id='TIC {tic_id}'"
+                "tran_flag,discoverymethod,disc_year,tic_id,gaia_dr2_id,"
+                "gaia_dr3_id from ps where default_flag=1 and ("
+                + " or ".join(confirmed_identities)
+                + ")"
             )
         result: dict[str, object] = {
             "tic_id": tic_id,
+            "query_identifiers": {
+                "tic_id": tic_id,
+                "gaia_source_id": gaia_source_id,
+            },
             "tois": tois,
             "confirmed_planets": confirmed,
         }

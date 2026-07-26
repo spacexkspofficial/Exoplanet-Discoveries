@@ -313,8 +313,9 @@ source context for a survivor:
   --report path\to\sector105_signal.json
 ```
 
-This metadata-only command refreshes NASA catalog rows, resolves TIC stellar
-properties and its Gaia cross-match, inventories MAST holdings from TESS,
+This metadata-only command refreshes NASA catalog rows using both TIC and
+Gaia DR2/DR3 host identifiers, resolves TIC stellar properties and its Gaia
+cross-match, inventories MAST holdings from TESS,
 Kepler/K2, Hubble, Webb, and other collections, screens TIC/Gaia-crossmatched
 neighbors, and queries the live TESS Eclipsing Binary Catalog, official TESS
 TCE statistics, SIMBAD object types, and Gaia DR3 variability/non-single-star

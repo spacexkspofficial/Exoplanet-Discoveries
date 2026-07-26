@@ -466,7 +466,10 @@ def query_cross_mission_context(
     neighbor_rows = Catalogs.query_region(
         coordinate, radius=neighbor_radius_arcsec * u.arcsec, catalog="TIC"
     )
-    catalog = check_tic(tic_id)
+    catalog = check_tic(
+        tic_id,
+        gaia_source_id=_optional_int(tic.get("gaia_source_id")),
+    )
     mast = summarize_mast_observations(observations)
     neighbors = summarize_tic_neighbors(
         neighbor_rows, target_tic_id=tic_id, target_tmag=tmag

@@ -93,3 +93,43 @@ def test_nasa_catalog_lookup_is_cached_and_rate_safe(
     assert first == second
     assert len(calls) == 2
     assert (tmp_path / "TIC_42.json").exists()
+
+
+def test_nasa_catalog_lookup_uses_gaia_aliases_and_refreshes_old_cache(
+    tmp_path: Path, monkeypatch
+) -> None:
+    calls: list[str] = []
+
+    def fake_tap(query: str):
+        calls.append(query)
+        return []
+
+    monkeypatch.setattr(catalogs, "_tap_csv", fake_tap)
+    catalogs.check_tic(42, cache_dir=tmp_path)
+    result = catalogs.check_tic(
+        42,
+        gaia_source_id=5672082455621978112,
+        cache_dir=tmp_path,
+    )
+    reused = catalogs.check_tic(
+        42,
+        gaia_source_id=5672082455621978112,
+        cache_dir=tmp_path,
+    )
+
+    assert result == reused
+    assert len(calls) == 4
+    confirmed_query = calls[-1]
+    assert "tic_id='TIC 42'" in confirmed_query
+    assert (
+        "gaia_dr2_id='Gaia DR2 5672082455621978112'"
+        in confirmed_query
+    )
+    assert (
+        "gaia_dr3_id='Gaia DR3 5672082455621978112'"
+        in confirmed_query
+    )
+    assert result["query_identifiers"] == {
+        "tic_id": 42,
+        "gaia_source_id": 5672082455621978112,
+    }
