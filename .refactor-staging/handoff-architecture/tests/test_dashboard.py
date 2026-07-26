@@ -1,0 +1,464 @@
+import csv
+import json
+from pathlib import Path
+
+import pytest
+
+from exohunt.dashboard import _cartesian, export_dashboard_data
+
+
+def test_cartesian_uses_the_galactic_plane_and_pole() -> None:
+    galactic_center = _cartesian(266.4051, -28.936175, 10.0)
+    assert galactic_center["x"] == pytest.approx(10.0, abs=0.001)
+    assert galactic_center["y"] == pytest.approx(0.0, abs=0.001)
+    assert galactic_center["z"] == pytest.approx(0.0, abs=0.001)
+
+    north_galactic_pole = _cartesian(192.85948, 27.12825, 10.0)
+    assert north_galactic_pole["x"] == pytest.approx(0.0, abs=0.001)
+    assert north_galactic_pole["y"] == pytest.approx(0.0, abs=0.001)
+    assert north_galactic_pole["z"] == pytest.approx(10.0, abs=0.001)
+
+
+def test_dashboard_includes_active_campaign_checkpoint(tmp_path: Path):
+    (tmp_path / "dashboard").mkdir()
+    (tmp_path / "targets").mkdir()
+    target_path = tmp_path / "targets" / "overnight.csv"
+    with target_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "target",
+                "tic_id",
+                "sectors",
+                "distance_pc",
+                "ra_deg",
+                "dec_deg",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "target": "TIC 42",
+                "tic_id": 42,
+                "sectors": "105",
+                "distance_pc": 12.5,
+                "ra_deg": 120,
+                "dec_deg": -30,
+            }
+        )
+
+    progress_path = tmp_path / "results" / "campaign" / "overnight" / "batch_progress.json"
+    progress_path.parent.mkdir(parents=True)
+    progress_path.write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "target_list": str(target_path),
+                "total_targets": 1000,
+                "completed_targets": 1,
+                "started_at_utc": "2026-07-23T07:00:00+00:00",
+                "updated_at_utc": "2026-07-23T07:01:00+00:00",
+                "counts": {"survivor": 0, "rejected": 1, "error": 0},
+                "results": [
+                    {
+                        "target": "TIC 42",
+                        "tic_id": 42,
+                        "sectors": "105",
+                        "status": "rejected",
+                        "period_days": 3.5,
+                        "depth_ppm": 700,
+                        "depth_snr": 9.2,
+                        "duration_hours": 2,
+                        "observed_transits": 4,
+                        "phase_curve_available": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output = export_dashboard_data(tmp_path, events=[], stats={"campaign_runs_logged": 0})
+    payload = json.loads(output.read_text(encoding="utf-8"))
+
+    assert payload["active_campaigns"][0]["completed_targets"] == 1
+    assert payload["active_campaigns"][0]["total_targets"] == 1000
+    assert payload["active_campaigns"][0]["sectors"] == [105]
+    assert payload["sector_coverage"] == [
+        {
+            "sector": 105,
+            "state": "active",
+            "targeted_stars": 1000,
+            "analyzed_stars": 1,
+            "progress_fraction": 0.001,
+            "active_campaign": "overnight",
+            "updated_at_utc": "2026-07-23T07:01:00+00:00",
+            "scope": (
+                "local campaign target plan, not every star in the TESS sector"
+            ),
+        }
+    ]
+    assert payload["stars"][0]["tic_id"] == 42
+    assert payload["stars"][0]["screening_status"] == "rejected"
+    assert payload["stars"][0]["distance_pc"] == 12.5
+    assert payload["stars"][0]["phase_curve_available"] is True
+
+
+def test_sector_coverage_distinguishes_complete_partial_and_opportunistic(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "dashboard").mkdir()
+    targets = tmp_path / "targets"
+    targets.mkdir()
+    (targets / "complete.csv").write_text(
+        "target,tic_id,sector\nTIC 1,1,42\nTIC 2,2,42\n",
+        encoding="utf-8",
+    )
+    (targets / "partial.csv").write_text(
+        "target,tic_id,sector\nTIC 3,3,43\nTIC 4,4,43\n",
+        encoding="utf-8",
+    )
+    (targets / "multi.csv").write_text(
+        "target,tic_id,sectors\nTIC 5,5,1;2\n",
+        encoding="utf-8",
+    )
+    campaign_root = tmp_path / "results" / "campaign"
+    fixtures = {
+        "complete": {
+            "state": "completed",
+            "target_list": "targets/complete.csv",
+            "total_targets": 2,
+            "completed_targets": 2,
+            "results": [
+                {"tic_id": 1, "sectors": "42", "status": "rejected"},
+                {"tic_id": 2, "sectors": "42", "status": "survivor"},
+            ],
+        },
+        "partial": {
+            "state": "retry_pending",
+            "target_list": "targets/partial.csv",
+            "total_targets": 2,
+            "completed_targets": 2,
+            "results": [
+                {"tic_id": 3, "sectors": "43", "status": "rejected"},
+                {"tic_id": 4, "sectors": "43", "status": "error"},
+            ],
+        },
+        "multi": {
+            "state": "completed",
+            "target_list": "targets/multi.csv",
+            "total_targets": 1,
+            "completed_targets": 1,
+            "results": [
+                {"tic_id": 5, "sectors": "1;2", "status": "rejected"},
+            ],
+        },
+    }
+    for name, fixture in fixtures.items():
+        directory = campaign_root / name
+        directory.mkdir(parents=True)
+        (directory / "batch_progress.json").write_text(
+            json.dumps(fixture),
+            encoding="utf-8",
+        )
+
+    output = export_dashboard_data(tmp_path, events=[], stats={})
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    coverage = {row["sector"]: row for row in payload["sector_coverage"]}
+
+    assert coverage[42]["state"] == "completed"
+    assert coverage[42]["analyzed_stars"] == 2
+    assert coverage[42]["targeted_stars"] == 2
+    assert coverage[43]["state"] == "partial"
+    assert coverage[43]["progress_fraction"] == 0.5
+    # One opportunistic multi-sector target must not imply that either entire
+    # sector has a completed sector-specific local plan.
+    assert coverage[1]["state"] == "partial"
+    assert coverage[2]["state"] == "partial"
+
+
+def test_dashboard_orders_live_campaign_after_retry_pending(tmp_path: Path) -> None:
+    (tmp_path / "dashboard").mkdir()
+    results = tmp_path / "results" / "campaign"
+    retry_dir = results / "a_retry"
+    running_dir = results / "z_running"
+    retry_dir.mkdir(parents=True)
+    running_dir.mkdir(parents=True)
+
+    (retry_dir / "batch_progress.json").write_text(
+        json.dumps(
+            {
+                "state": "retry_pending",
+                "target_list": "targets/retry.csv",
+                "total_targets": 5000,
+                "completed_targets": 5000,
+                "updated_at_utc": "2026-07-24T16:58:24+00:00",
+                "results": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (running_dir / "batch_progress.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "target_list": "targets/running.csv",
+                "total_targets": 5000,
+                "completed_targets": 42,
+                "updated_at_utc": "2026-07-24T17:20:00+00:00",
+                "results": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output = export_dashboard_data(tmp_path)
+    payload = json.loads(output.read_text(encoding="utf-8"))
+
+    assert [campaign["name"] for campaign in payload["active_campaigns"]] == [
+        "a_retry",
+        "z_running",
+    ]
+    assert payload["active_campaigns"][-1]["state"] == "running"
+
+
+def test_dashboard_promotes_live_context_vetting_over_terminal_batch(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "dashboard").mkdir()
+    batch_dir = tmp_path / "results" / "campaign" / "terminal_batch"
+    batch_dir.mkdir(parents=True)
+    (batch_dir / "batch_progress.json").write_text(
+        json.dumps(
+            {
+                "state": "retry_pending",
+                "total_targets": 5000,
+                "completed_targets": 5000,
+                "updated_at_utc": "2026-07-25T10:00:00+00:00",
+                "counts": {"survivor": 2343, "rejected": 2654, "error": 3},
+                "results": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    context_dir = tmp_path / "results" / "vetting" / "all_campaigns" / "context"
+    context_dir.mkdir(parents=True)
+    (context_dir / "context_vet_progress.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "queue": "results/vetting/all_campaigns/context_queue.json",
+                "total_targets": 3565,
+                "completed_targets": 42,
+                "started_at_utc": "2026-07-25T10:05:00+00:00",
+                "updated_at_utc": "2026-07-25T10:15:00+00:00",
+                "counts": {"completed": 42, "error": 0, "remaining": 3523},
+                "runtime": {"workers": 2, "science_products_downloaded": 0},
+                "results": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output = export_dashboard_data(tmp_path, events=[], stats={})
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    active = payload["active_campaigns"][-1]
+
+    assert active["workflow"] == "context_vet"
+    assert active["state"] == "running"
+    assert active["completed_targets"] == 42
+    assert active["total_targets"] == 3565
+    assert active["runtime"]["analysis_workers"] == 2
+    assert active["runtime"]["download_workers"] == 0
+    assert active["runtime"]["analyses_in_flight"] == 2
+    assert active["runtime"]["science_products_downloaded"] == 0
+    assert active["runtime"]["vetting_coverage"]["measured_targets"] == 42
+
+
+def test_dashboard_distinguishes_search_errors_and_handles_empty_metrics(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "dashboard").mkdir()
+    (tmp_path / "targets").mkdir()
+    progress_path = (
+        tmp_path / "results" / "campaign" / "overnight" / "batch_progress.json"
+    )
+    progress_path.parent.mkdir(parents=True)
+    progress_path.write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "target_list": "targets/overnight.csv",
+                "total_targets": 1,
+                "completed_targets": 1,
+                "results": [
+                    {
+                        "target": "TIC 99",
+                        "tic_id": 99,
+                        "sectors": "105",
+                        "status": "error",
+                        "error": "temporary download failure",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output = export_dashboard_data(tmp_path)
+    payload = json.loads(output.read_text(encoding="utf-8"))
+
+    assert payload["status_counts"] == {"search_error": 1}
+    assert payload["stars"][0]["status_label"] == "Search error - retry needed"
+    assert payload["stats"]["campaign_runs_logged"] == 0
+
+
+def test_dashboard_exports_scoped_screening_classes_and_runtime(tmp_path: Path) -> None:
+    (tmp_path / "dashboard").mkdir()
+    (tmp_path / "targets").mkdir()
+    progress_path = (
+        tmp_path / "results" / "campaign" / "triage" / "batch_progress.json"
+    )
+    progress_path.parent.mkdir(parents=True)
+    progress_path.write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "target_list": "targets/triage.csv",
+                "total_targets": 4,
+                "completed_targets": 4,
+                "runtime": {
+                    "analysis_workers": 3,
+                    "download_workers": 2,
+                    "prefetch_targets": 6,
+                },
+                "results": [
+                    {
+                        "target": "TIC 1",
+                        "tic_id": 1,
+                        "sectors": "105",
+                        "status": "rejected",
+                        "depth_snr": 4.0,
+                        "rejection_reasons": (
+                            "white-noise BLS depth S/N is below 7.1"
+                        ),
+                    },
+                    {
+                        "target": "TIC 2",
+                        "tic_id": 2,
+                        "sectors": "105",
+                        "status": "rejected",
+                        "depth_snr": 10.0,
+                        "rejection_reasons": (
+                            "fewer than two transit events are represented"
+                        ),
+                    },
+                    {
+                        "target": "TIC 3",
+                        "tic_id": 3,
+                        "sectors": "105",
+                        "status": "rejected",
+                        "depth_snr": 20.0,
+                        "rejection_reasons": (
+                            "a secondary eclipse is detected above 3 sigma"
+                        ),
+                    },
+                    {
+                        "target": "TIC 4",
+                        "tic_id": 4,
+                        "sectors": "105",
+                        "status": "survivor",
+                        "depth_snr": 12.0,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output = export_dashboard_data(tmp_path)
+    payload = json.loads(output.read_text(encoding="utf-8"))
+
+    assert payload["active_campaigns"][0]["runtime"]["analysis_workers"] == 3
+    assert payload["status_counts"] == {
+        "no_transit_detected": 1,
+        "single_event_lead": 1,
+        "screened_rejected": 1,
+        "automated_survivor": 1,
+    }
+    stars = {star["tic_id"]: star for star in payload["stars"]}
+    assert stars[1]["status"] == "no_transit_detected"
+    assert stars[2]["status"] == "single_event_lead"
+    assert stars[3]["status"] == "screened_rejected"
+    assert stars[4]["status"] == "automated_survivor"
+    assert all(star.get("planet_free") is not True for star in stars.values())
+
+
+def test_dashboard_overlays_authoritative_eb_context(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "dashboard").mkdir()
+    (tmp_path / "targets").mkdir()
+    (tmp_path / "targets" / "targets.csv").write_text(
+        "target,tic_id,sectors,ra_deg,dec_deg,distance_pc\n"
+        "TIC 303427297,303427297,100,164.19,-57.75,106.3\n",
+        encoding="utf-8",
+    )
+    campaign = tmp_path / "results" / "campaign" / "sector100"
+    campaign.mkdir(parents=True)
+    (campaign / "batch_progress.json").write_text(
+        json.dumps(
+            {
+                "state": "running",
+                "total_targets": 1,
+                "completed_targets": 1,
+                "runtime": {},
+                "results": [
+                    {
+                        "target": "TIC 303427297",
+                        "tic_id": 303427297,
+                        "sectors": "100",
+                        "status": "survivor",
+                        "screening_class": "automated_survivor",
+                        "followup_priority": 99,
+                        "period_days": 4.295591,
+                        "depth_ppm": 9100.0,
+                        "depth_snr": 103.0,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    context_dir = tmp_path / "results" / "vetting" / "context"
+    context_dir.mkdir(parents=True)
+    (context_dir / "TIC_303427297_cross_mission_context.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "generated_at_utc": "2026-07-25T00:00:00+00:00",
+                "tic": {"tic_id": 303427297},
+                "context_classification": {
+                    "disposition": "known_eb_rediscovery",
+                    "followup_lane": "stellar_eclipse_or_etv_followup",
+                    "source_states": {
+                        "tess_eclipsing_binary_catalog": "completed"
+                    },
+                    "reasons": [
+                        "The target and period match a known eclipsing binary."
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output = export_dashboard_data(tmp_path, events=[], stats={})
+    payload = json.loads(output.read_text(encoding="utf-8"))
+
+    star = payload["stars"][0]
+    assert star["status"] == "known_eb_rediscovery"
+    assert star["context_followup_lane"] == (
+        "stellar_eclipse_or_etv_followup"
+    )
+    assert payload["status_counts"]["known_eb_rediscovery"] == 1
