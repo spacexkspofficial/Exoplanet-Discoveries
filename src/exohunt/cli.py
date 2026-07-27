@@ -1119,6 +1119,12 @@ def _ledger_import(args: argparse.Namespace) -> int:
                         "exporter_total": parity["exporter_total"],
                         "ledger_total": parity["ledger_total"],
                         "differences": parity["differences"],
+                        "star_status_differences": parity[
+                            "star_status_differences"
+                        ],
+                        "star_payload_differences": parity[
+                            "star_payload_differences"
+                        ],
                     },
                     indent=2,
                 )

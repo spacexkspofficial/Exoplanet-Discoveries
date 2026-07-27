@@ -4,15 +4,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 from pathlib import Path
+from typing import Any, Callable
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .dashboard import export_dashboard_data, survey_source_mtime_ns
+from .dashboard_api import (
+    ops_payload,
+    star_detail_payload,
+    star_page_payload,
+    summary_payload,
+    systematics_payload,
+)
+from .ledger import connect_readonly
 
 
 WORKSPACE = Path(__file__).resolve().parents[2]
@@ -143,8 +153,12 @@ def _phase_curve_for_tic(root: Path, tic_id: int) -> dict[str, object] | None:
     return None
 
 
-def create_app(workspace: str | Path = WORKSPACE) -> FastAPI:
-    """Create an app that reads and serves only files in the local workspace."""
+def create_app(
+    workspace: str | Path = WORKSPACE,
+    *,
+    db_path: str | Path | None = None,
+) -> FastAPI:
+    """Create the local service over a physically read-only ledger."""
 
     root = Path(workspace).resolve()
     dashboard_dir = root / "dashboard"
@@ -159,6 +173,26 @@ def create_app(workspace: str | Path = WORKSPACE) -> FastAPI:
         TrustedHostMiddleware,
         allowed_hosts=["127.0.0.1", "localhost", "testserver"],
     )
+
+    def read_ledger(
+        builder: Callable[[sqlite3.Connection], dict[str, Any] | None],
+    ) -> dict[str, Any] | None:
+        try:
+            conn = connect_readonly(db_path)
+        except (FileNotFoundError, OSError, RuntimeError, sqlite3.Error) as error:
+            raise HTTPException(
+                status_code=503,
+                detail="The EXOHUNT evidence ledger is unavailable.",
+            ) from error
+        try:
+            return builder(conn)
+        except sqlite3.Error as error:
+            raise HTTPException(
+                status_code=503,
+                detail="The EXOHUNT evidence ledger is temporarily unavailable.",
+            ) from error
+        finally:
+            conn.close()
 
     @app.middleware("http")
     async def local_security_headers(request: Request, call_next) -> Response:
@@ -183,13 +217,63 @@ def create_app(workspace: str | Path = WORKSPACE) -> FastAPI:
 
     @app.get("/api/health")
     def health() -> JSONResponse:
+        try:
+            conn = connect_readonly(db_path)
+        except (FileNotFoundError, OSError, RuntimeError, sqlite3.Error):
+            ledger_available = False
+        else:
+            ledger_available = True
+            conn.close()
         return JSONResponse(
             {
                 "status": "ok",
                 "scope": "localhost-only",
                 "dashboard_built": (dist_dir / "index.html").exists(),
+                "ledger_available": ledger_available,
             }
         )
+
+    @app.get("/api/summary")
+    def summary() -> JSONResponse:
+        return JSONResponse(read_ledger(summary_payload))
+
+    @app.get("/api/stars")
+    def stars(
+        lane: str | None = None,
+        status: str | None = None,
+        page: int = Query(default=1, ge=1),
+        page_size: int = Query(default=250, ge=1, le=1_000),
+    ) -> JSONResponse:
+        return JSONResponse(
+            read_ledger(
+                lambda conn: star_page_payload(
+                    conn,
+                    lane=lane,
+                    status=status,
+                    page=page,
+                    page_size=page_size,
+                )
+            )
+        )
+
+    @app.get("/api/star/{tic_id}")
+    def star(tic_id: int) -> JSONResponse:
+        if tic_id <= 0:
+            raise HTTPException(status_code=400, detail="Invalid TIC identifier.")
+        payload = read_ledger(
+            lambda conn: star_detail_payload(conn, tic_id)
+        )
+        if payload is None:
+            raise HTTPException(status_code=404, detail="TIC not found.")
+        return JSONResponse(payload)
+
+    @app.get("/api/ops")
+    def operations() -> JSONResponse:
+        return JSONResponse(read_ledger(ops_payload))
+
+    @app.get("/api/systematics")
+    def systematics() -> JSONResponse:
+        return JSONResponse(read_ledger(systematics_payload))
 
     @app.get("/data/survey.json")
     def survey_data() -> Response:

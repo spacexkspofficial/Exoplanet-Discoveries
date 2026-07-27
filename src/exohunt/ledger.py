@@ -68,6 +68,12 @@ CREATE TABLE IF NOT EXISTS evidence (
 );
 CREATE INDEX IF NOT EXISTS evidence_by_tic ON evidence (tic_id, evidence_id);
 CREATE INDEX IF NOT EXISTS evidence_by_signature ON evidence (signature);
+CREATE INDEX IF NOT EXISTS evidence_by_kind_state
+ON evidence (kind, affects_state, evidence_id);
+CREATE INDEX IF NOT EXISTS evidence_by_kind_tic
+ON evidence (kind, tic_id, evidence_id);
+CREATE INDEX IF NOT EXISTS evidence_by_kind_source ON evidence (kind, source);
+CREATE INDEX IF NOT EXISTS evidence_by_verdict ON evidence (verdict);
 CREATE TABLE IF NOT EXISTS star_state (
     tic_id INTEGER PRIMARY KEY,
     status TEXT NOT NULL,
@@ -135,6 +141,37 @@ def connect(
         (str(SCHEMA_VERSION),),
     )
     conn.commit()
+    return conn
+
+
+def connect_readonly(
+    db_path: str | Path | None = None,
+    *,
+    busy_timeout_ms: int = 5_000,
+) -> sqlite3.Connection:
+    """Open an existing ledger without creating, migrating, or writing it.
+
+    Dashboard requests use this path.  Keeping it separate from
+    :func:`connect` makes the read-only control-plane boundary structural:
+    serving a page cannot create a missing database, run schema DDL, or
+    accidentally publish derived state.
+    """
+
+    path = (Path(db_path) if db_path is not None else default_db_path()).resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"EXOHUNT ledger does not exist: {path}")
+    uri = f"{path.as_uri()}?mode=ro"
+    conn = sqlite3.connect(uri, uri=True)
+    conn.row_factory = sqlite3.Row
+    conn.execute(f"PRAGMA busy_timeout={int(busy_timeout_ms)}")
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA query_only=ON")
+    version = conn.execute(
+        "SELECT value FROM schema_meta WHERE key = 'schema_version'"
+    ).fetchone()
+    if version is None:
+        conn.close()
+        raise RuntimeError("EXOHUNT ledger has no schema version.")
     return conn
 
 

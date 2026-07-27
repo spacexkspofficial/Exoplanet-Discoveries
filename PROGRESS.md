@@ -2,7 +2,7 @@
 
 Tracks execution of [MASTER_PLAN.md](MASTER_PLAN.md) against its own gates.
 Started 2026-07-27 after owner approval of all seven §10 decisions.
-Test suite at last update: **176 passed** (114 pre-existing + 62 new), bare
+Test suite at last update: **180 passed** (114 pre-existing + 66 new), bare
 `pytest` from a clean checkout.
 
 ## Phase status
@@ -21,18 +21,27 @@ Test suite at last update: **176 passed** (114 pre-existing + 62 new), bare
 **P0 exit measurement met**: a second coordinator exits 0 with the message
 (subprocess test); no checkpoint claims `running` without a live process.
 
-### P1 — Control plane: **core complete; dashboard data-path switch pending**
+### P1 — Control plane: **complete on branch; deployment waits for owner merge**
 
 | Plan item | Status | Evidence |
 |---|---|---|
 | Schema §7.3 | Done | `ledger.py`: star, evidence (append-only, idempotent on source), star_state projection, lease, event_log, snapshot; SQLite WAL outside OneDrive |
 | Scientific signatures | Done | `config.py` `scientific_signature()`; every imported row carries its legacy signature; `ledger-status` partitions by signature (8 legacy signatures now explicit, incl. 1,864 `processed-lc-v2` + 50 `v3-edge-safe`) |
-| Historical import | Done | `importer.py` + `exohunt ledger-import`: 43,787 evidence rows — 14 summaries, 7 checkpoints, 1,890 orphan mixed-version reports (non-voting history), 3,542 context winners, 104 science verdicts, 12,038 common-mode rows, 21 human outcomes |
-| **Parity gate** | **PASSED on real data** | Ledger projection == exporter counts exactly: 12,168 stars, 16 statuses (541 automated_survivor, 5,615 common_mode_systematic, …). Hermetic version in `test_importer.py` |
+| Historical import | Done | `importer.py` + `exohunt ledger-import`: 43,790 evidence rows under the corrected importer — the prior 43,787 plus 3 measured-science rows that carry display evidence but no status verdict. They remain non-voting. Existing counts otherwise remain: 14 summaries, 7 checkpoints, 1,890 orphan mixed-version reports, 3,542 context winners, 104 science verdicts, 12,038 common-mode rows, 21 human outcomes |
+| **Parity gate** | **PASSED on real data** | Ledger projection == exporter counts exactly: 12,168 stars, 16 statuses (541 automated_survivor, 5,615 common_mode_systematic, …). The extended gate also compares every shared display field for every star (only the obsolete raw `context_report` filesystem path is excluded): 0 count, per-star-status, or payload differences. Hermetic version in `test_importer.py` |
 | Two-readings model | Done | `status_counts` (current best) vs `evidence_counts` (conclusions logged) — the 541-vs-3,939 distinction is now two queries over one store. Note: raw evidence rows count summary *and* checkpoint sources, so the "conclusions logged" total depends on source granularity; filter by source prefix for the metrics-ledger-equivalent number |
 | DB lease v2 | Done | acquire/refresh/deny/takeover with TTL; takeovers audited in event_log; heartbeat-age is the liveness definition |
 | Chaos tests | Done | kill -9 mid-write → `integrity_check` ok, committed rows survive, DB writable; blocked second writer fails cleanly then succeeds; double-coordinator exits 0 |
-| Dashboard reads DB | **Pending** | The exporter still builds survey.json from files (unchanged behaviour, parity-verified). The API switch (`/api/summary` etc. per plan §8.1) is the next P1 work item |
+| Dashboard reads DB | Done on branch | `dashboard_api.py` + `dashboard_server.py`: read-only `/api/summary`, paged `/api/stars`, `/api/star/{tic}` full evidence chain, `/api/ops`, and `/api/systematics`. SQLite `mode=ro` + `query_only` rejects writes in tests. The browser polls only the 3.4 KB summary + ops payload and reloads paged stars only when the ledger revision changes; it no longer requests `survey.json`. The offline exporter remains as the parity oracle. Real-ledger measurements: summary 73.1 ms cold / 77.9 ms mean (<100 ms gate), 1,000 full-detail stars in 49.9 ms. Liveness is lease-heartbeat age only; a fake `state: running` checkpoint with no lease tests non-live |
+
+**P1 exit measurement met on the branch**: all 12,168 current states and
+shared display fields match the frozen exporter; `/api/summary` is under
+100 ms; read-only connections reject writes; the P0 double-coordinator and
+kill-mid-write chaos tests remain green. The running dashboard was deliberately
+not restarted: main still owns the installed entry point. After the owner
+merges, one idempotent `ledger-import --parity` appends the 3 non-voting rows
+and creates the new read indexes, then the frontend build/dashboard restart
+activates this path.
 
 ### P2 — Science kernel: **foundations built and tested; cli.py rewiring pending**
 
@@ -60,6 +69,13 @@ Test suite at last update: **176 passed** (114 pre-existing + 62 new), bare
    in the first implementation; both fixes are measured and tested.
 4. Dip-registry initial thresholds were noise-naive; corrected by
    measurement before first use.
+5. Count-only dashboard parity was too weak: it hid 6,423 non-flagging
+   common-mode measurements and 3 non-verdict science measurements from the
+   first DB serializer even though current-state totals matched perfectly.
+   Non-voting evidence now remains available to the display, the missing
+   science measurements import append-only, and the permanent parity gate
+   compares every shared per-star field. This changes evidence rows
+   43,787 → 43,790 and changes **zero** current-best statuses.
 
 ## Owner notes
 
@@ -77,3 +93,6 @@ Test suite at last update: **176 passed** (114 pre-existing + 62 new), bare
 - The ledger lives at `%LOCALAPPDATA%\exohunt\exohunt.db`; inspect with
   `exohunt ledger-status`, re-import any time with `exohunt ledger-import
   --workspace . --parity` (idempotent).
+- After merging this branch, rebuild `dashboard/` once before restarting the
+  installed dashboard. The live server was intentionally left on main during
+  branch development.

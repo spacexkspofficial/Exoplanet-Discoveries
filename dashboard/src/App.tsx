@@ -54,7 +54,7 @@ type Star = {
   phase_curve_available: boolean;
   context_disposition: string | null;
   context_followup_lane: string | null;
-  context_source_states: Record<string, string>;
+  context_source_states: Record<string, string> | null;
   context_report: string | null;
   science_vetted: boolean;
   science_disposition: string | null;
@@ -133,7 +133,10 @@ type ActiveCampaign = {
 };
 
 type SurveyData = {
+  schema_version: number;
   generated_at_utc: string;
+  data_revision: string;
+  stars_total: number;
   stats: Record<string, number | string | Record<string, number>>;
   status_counts: Record<string, number>;
   common_mode_screen?: {
@@ -156,6 +159,27 @@ type SurveyData = {
   sector_coverage: SectorCoverage[];
   active_campaigns: ActiveCampaign[];
   stars: Star[];
+};
+
+type StarPage = {
+  page: number;
+  page_size: number;
+  pages: number;
+  total: number;
+  items: Star[];
+};
+
+type OpsData = {
+  generated_at_utc: string;
+  liveness: "live" | "stale" | "absent";
+  live: boolean;
+  heartbeat_age_seconds: number | null;
+  heartbeat_at_utc: string | null;
+  holder: string | null;
+  live_threshold_seconds: number;
+  queue_depths: Record<string, Record<string, number>>;
+  alarms: Array<Record<string, unknown>>;
+  liveness_basis: string;
 };
 
 type SectorCoverage = {
@@ -223,7 +247,7 @@ function statusMeta(status: Status) {
 const HELP = {
   filters: "Controls that decide which analyzed stars are visible on the map.",
   statusFilters:
-    "Show or hide mapped stars based on classification. These per-star totals refresh from the live campaign checkpoint every five seconds; they do not include aggregate validation benchmarks.",
+    "Show or hide mapped stars based on their current-best ledger classification. Counts refresh from the read-only state projection; they do not include aggregate validation benchmarks.",
   distanceRange:
     "Only show stars closer than this distance. One parsec is about 3.26 light-years.",
   stellarTemperature:
@@ -461,11 +485,6 @@ function relativeUpdate(iso: string) {
 function selectActiveCampaign(campaigns: ActiveCampaign[]) {
   return campaigns.reduce<ActiveCampaign | undefined>((selected, campaign) => {
     if (!selected) return campaign;
-
-    const campaignIsLive = campaign.state === "running" || campaign.state === "finalizing";
-    const selectedIsLive = selected.state === "running" || selected.state === "finalizing";
-    if (campaignIsLive !== selectedIsLive) return campaignIsLive ? campaign : selected;
-
     return new Date(campaign.updated_at_utc).getTime() >
       new Date(selected.updated_at_utc).getTime()
       ? campaign
@@ -1343,6 +1362,7 @@ function StarMap({
 
 export default function App() {
   const [survey, setSurvey] = useState<SurveyData | null>(null);
+  const [ops, setOps] = useState<OpsData | null>(null);
   const [loadError, setLoadError] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(260708537);
   const [mode, setMode] = useState<ViewMode>("3d");
@@ -1360,17 +1380,82 @@ export default function App() {
   >("legacy");
   const loadSequence = useRef(0);
   const phaseCurveCache = useRef(new Map<number, PhaseCurve>());
+  const starCache = useRef<Star[]>([]);
+  const starRevision = useRef<string | null>(null);
 
   const loadSurvey = useCallback(async () => {
     const sequence = ++loadSequence.current;
     try {
-      const response = await fetch(`/data/survey.json?t=${Date.now()}`, {
-        cache: "no-store",
-      });
-      if (!response.ok) throw new Error(`Survey data returned ${response.status}`);
-      const next = (await response.json()) as SurveyData;
+      const [summaryResponse, opsResponse] = await Promise.all([
+        fetch(`/api/summary?t=${Date.now()}`, { cache: "no-store" }),
+        fetch(`/api/ops?t=${Date.now()}`, { cache: "no-store" }),
+      ]);
+      if (!summaryResponse.ok) {
+        throw new Error(`Survey summary returned ${summaryResponse.status}`);
+      }
+      if (!opsResponse.ok) {
+        throw new Error(`Operations status returned ${opsResponse.status}`);
+      }
+      const summary = (await summaryResponse.json()) as Omit<SurveyData, "stars">;
+      const nextOps = (await opsResponse.json()) as OpsData;
+      let stars = starCache.current;
+      if (starRevision.current !== summary.data_revision || stars.length === 0) {
+        const loadPage = async (page: number) => {
+          const response = await fetch(`/api/stars?page=${page}&page_size=1000`, {
+            cache: "no-store",
+          });
+          if (!response.ok) throw new Error(`Star page ${page} returned ${response.status}`);
+          return (await response.json()) as StarPage;
+        };
+        const first = await loadPage(1);
+        const remaining =
+          first.pages > 1
+            ? await Promise.all(
+                Array.from({ length: first.pages - 1 }, (_, index) => loadPage(index + 2)),
+              )
+            : [];
+        stars = [first, ...remaining]
+          .sort((left, right) => left.page - right.page)
+          .flatMap((page) => page.items);
+        if (stars.length !== first.total) {
+          throw new Error(`Star projection returned ${stars.length} of ${first.total} rows`);
+        }
+      }
       if (sequence !== loadSequence.current) return;
+      starCache.current = stars;
+      starRevision.current = summary.data_revision;
+      const derivedSectors = Array.from(
+        new Set(stars.flatMap((star) => star.sectors)),
+      ).sort((left, right) => left - right);
+      const observedSectors =
+        summary.observed_sectors.length > 0 ? summary.observed_sectors : derivedSectors;
+      const sectorCoverage =
+        summary.sector_coverage.length > 0
+          ? summary.sector_coverage
+          : observedSectors.map((observedSector) => {
+              const analyzed = stars.filter((star) =>
+                star.sectors.includes(observedSector),
+              ).length;
+              return {
+                sector: observedSector,
+                state: "partial" as const,
+                targeted_stars: analyzed,
+                analyzed_stars: analyzed,
+                progress_fraction: 1,
+                active_campaign: null,
+                updated_at_utc: null,
+                scope: "Derived from current ledger star projections; target-plan completeness is unavailable.",
+              };
+            });
+      const next: SurveyData = {
+        ...summary,
+        observed_sectors: observedSectors,
+        sector_coverage: sectorCoverage,
+        active_campaigns: summary.active_campaigns || [],
+        stars,
+      };
       setSurvey(next);
+      setOps(nextOps);
       setLoadError("");
       setSelectedId((current) => {
         if (current && next.stars.some((star) => star.tic_id === current)) return current;
@@ -1508,8 +1593,11 @@ export default function App() {
   };
 
   const stats = survey?.stats || {};
+  const coordinatorLive = ops?.live === true;
   const activeCampaigns = survey?.active_campaigns || [];
-  const activeCampaign = selectActiveCampaign(activeCampaigns);
+  const activeCampaign = coordinatorLive
+    ? selectActiveCampaign(activeCampaigns)
+    : undefined;
   const highlightedSector =
     sector !== "all"
       ? Number(sector)
@@ -1600,12 +1688,16 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="freshness">
+        <div className={`freshness freshness-${ops?.liveness || "connecting"}`}>
           <i />
           {survey
             ? activeCampaign
               ? `${activeCampaign.name}: ${activeCampaign.completed_targets}/${activeCampaign.total_targets} · ${activeWorkerCount}/${workerSlotCount} active · updated ${relativeUpdate(activeCampaign.updated_at_utc)}`
-              : `Data updated ${relativeUpdate(survey.generated_at_utc)}`
+              : coordinatorLive
+                ? `Coordinator live · heartbeat ${Math.round(ops?.heartbeat_age_seconds || 0)}s ago`
+                : ops?.liveness === "stale"
+                  ? `Coordinator stale · heartbeat ${Math.round(ops.heartbeat_age_seconds || 0)}s ago`
+                  : `Data updated ${relativeUpdate(survey.generated_at_utc)} · coordinator idle`
             : "Connecting…"}
         </div>
       </header>
@@ -2122,7 +2214,13 @@ export default function App() {
                 </InfoTerm>
               </div>
             ) : (
-              <b>LIVE</b>
+              <b>
+                {coordinatorLive
+                  ? "LIVE"
+                  : ops?.liveness === "stale"
+                    ? "STALE"
+                    : "IDLE"}
+              </b>
             )}
           </div>
           <div className="metric-row">

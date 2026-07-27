@@ -357,8 +357,10 @@ def import_workspace(
     # ------------------------------------------------------------------
     for tic_id, science in sorted(_science_vetting_by_tic(results_root).items()):
         disposition = science.get("science_disposition")
-        if disposition is None or str(disposition) not in SCIENCE_LABELS:
-            continue
+        in_registry = (
+            disposition is not None
+            and str(disposition) in SCIENCE_LABELS
+        )
         add(
             tic_id=tic_id,
             kind="science",
@@ -371,15 +373,19 @@ def import_workspace(
                 )
             ),
             payload={
-                "label": SCIENCE_LABELS[str(disposition)],
+                "label": (
+                    SCIENCE_LABELS[str(disposition)]
+                    if in_registry
+                    else "Measured science evidence"
+                ),
                 "notes": _science_notes(science),
                 "science": science,
             },
-            verdict=str(disposition),
-            affects_state=True,
+            verdict=str(disposition) if in_registry else None,
+            affects_state=in_registry,
             signature=None,
         )
-        report["science_winners"] += 1
+        report["science_winners"] += int(in_registry)
 
     for tic_id, screen in sorted(_common_mode_by_tic(results_root).items()):
         verdict = str(screen.get("verdict") or "")
@@ -536,7 +542,29 @@ def parity_check(
         str(key): int(value)
         for key, value in payload.get("status_counts", {}).items()
     }
+    exporter_star_statuses = {
+        int(row["tic_id"]): str(row["status"])
+        for row in payload.get("stars", [])
+        if isinstance(row, dict)
+        and row.get("tic_id") is not None
+        and row.get("status") is not None
+    }
     ledger_counts = ledger.status_counts(conn)
+    from .dashboard_api import all_star_payloads
+
+    api_star_rows = all_star_payloads(conn)
+    api_star_statuses = {
+        int(row["tic_id"]): str(row["status"])
+        for row in api_star_rows
+    }
+    api_stars = {
+        int(row["tic_id"]): row for row in api_star_rows
+    }
+    exporter_stars = {
+        int(row["tic_id"]): row
+        for row in payload.get("stars", [])
+        if isinstance(row, dict) and row.get("tic_id") is not None
+    }
     statuses = sorted(set(exporter_counts) | set(ledger_counts))
     differences = {
         status: {
@@ -546,11 +574,53 @@ def parity_check(
         for status in statuses
         if exporter_counts.get(status, 0) != ledger_counts.get(status, 0)
     }
+    star_status_differences = {
+        str(tic_id): {
+            "exporter": exporter_star_statuses.get(tic_id),
+            "ledger_api": api_star_statuses.get(tic_id),
+        }
+        for tic_id in sorted(
+            set(exporter_star_statuses) | set(api_star_statuses)
+        )
+        if exporter_star_statuses.get(tic_id)
+        != api_star_statuses.get(tic_id)
+    }
+    # context_report was a raw filesystem path in survey.json and is not
+    # consumed by the browser.  The API deliberately exposes evidence source
+    # provenance through /api/star/{tic} instead.  Every other legacy display
+    # field must remain byte-for-byte equivalent on frozen inputs.
+    ignored_star_fields = {"context_report"}
+    star_payload_differences: dict[str, dict[str, Any]] = {}
+    for tic_id in sorted(set(exporter_stars) | set(api_stars)):
+        exported = exporter_stars.get(tic_id)
+        projected = api_stars.get(tic_id)
+        if exported is None or projected is None:
+            star_payload_differences[str(tic_id)] = {
+                "exporter_present": exported is not None,
+                "ledger_api_present": projected is not None,
+            }
+            continue
+        field_differences = {
+            field: {
+                "exporter": exported.get(field),
+                "ledger_api": projected.get(field),
+            }
+            for field in sorted(set(exported) - ignored_star_fields)
+            if exported.get(field) != projected.get(field)
+        }
+        if field_differences:
+            star_payload_differences[str(tic_id)] = field_differences
     return {
-        "match": not differences,
+        "match": (
+            not differences
+            and not star_status_differences
+            and not star_payload_differences
+        ),
         "exporter_total": sum(exporter_counts.values()),
         "ledger_total": sum(ledger_counts.values()),
         "exporter_counts": exporter_counts,
         "ledger_counts": ledger_counts,
         "differences": differences,
+        "star_status_differences": star_status_differences,
+        "star_payload_differences": star_payload_differences,
     }

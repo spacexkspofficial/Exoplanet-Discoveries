@@ -174,6 +174,18 @@ def _build_workspace(root: Path) -> None:
             ],
         },
     )
+    # A measured pixel result without the second science gate is display
+    # evidence, but it must not vote on star 1's current status.
+    _write_json(
+        root / "results" / "vetting" / "science" / "TIC_1_s100_pixel.json",
+        {
+            "tic_id": 1,
+            "sector": 100,
+            "on_target_within_one_pixel": True,
+            "centroid_offset_pixels": 0.2,
+            "centroid_offset_arcsec_approx": 4.2,
+        },
+    )
     # The population screen outranks the measured science for star 5.
     _write_json(
         root / "results" / "vetting" / "common_mode_screen.json",
@@ -209,8 +221,10 @@ def test_ledger_projection_matches_exporter_counts(tmp_path: Path) -> None:
     try:
         report = import_workspace(conn, tmp_path)
         parity = parity_check(conn, tmp_path)
-        assert parity["match"], parity["differences"]
+        assert parity["match"], json.dumps(parity, indent=2)
         assert parity["exporter_total"] == parity["ledger_total"] == 6
+        assert parity["star_status_differences"] == {}
+        assert parity["star_payload_differences"] == {}
 
         states = {
             row["tic_id"]: row["status"]
@@ -231,6 +245,12 @@ def test_ledger_projection_matches_exporter_counts(tmp_path: Path) -> None:
         assert history == 1
         # Only e4 survives: e2 was invalidated and e3 carries no tic_id.
         assert report["human_outcomes"] == 1
+        non_voting_science = conn.execute(
+            "SELECT verdict, affects_state FROM evidence "
+            "WHERE tic_id = 1 AND kind = 'science'"
+        ).fetchone()
+        assert non_voting_science["verdict"] is None
+        assert non_voting_science["affects_state"] == 0
     finally:
         conn.close()
 
