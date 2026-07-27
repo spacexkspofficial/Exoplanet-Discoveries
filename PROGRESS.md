@@ -73,7 +73,8 @@ record was written; `origin/main` and the research branch are synchronized at
 | CLI decomposition: photometry acquisition | Done; equivalence passed | Historical source selection, cache/download handling, TESScut extraction, and processed-light-curve stitching moved from `cli.py` to `photometry.py` in `52aa701`. Focused tests: 31 passed. The full 150-target rerun produced the identical filename set and **150/150 byte-identical per-target JSON files** (SHA-256), with 35/115/0 counts and no temp files |
 | CLI decomposition: screening helpers | Done; equivalence passed | Historical catalog ephemeris projection, known-period coverage, screening flags, follow-up classification, and sensitivity lookup moved from `cli.py` to `screening.py` in `8ad9f70`; inline legacy thresholds were deliberately preserved for this structure-only slice. Focused tests: 31 passed. The full 150-target rerun again produced the identical filename set and **150/150 byte-identical per-target JSON files** (SHA-256), with 35/115/0 counts and no temp files |
 | CLI decomposition: campaign scheduler | Done; equivalence passed | The threaded `batch-hunt` scheduler loop, bounded prefetch, rolling retention, progress publication, checkpoint resume, and final campaign publication moved from `cli.py` to `campaign.py`; the CLI retains a thin compatibility wrapper and collaborators resolve at call time so established monkeypatch seams remain authoritative. Focused campaign/retention/lease/checkpoint tests: 29 passed. The full 150-target rerun produced the identical filename set and **150/150 byte-identical per-target JSON files** (SHA-256), with 35/115/0 counts and no temp files |
-| **Not yet done** | — | Remaining structure-only extraction (campaign support helpers and target-list construction), then separately measured rewiring onto `detrend.py`/`search.py`/`vetoes.py`/`population.py`/epoch-aware adjudication and first-class signature/evidence records; real-data artifact regression; known-planet campaign cohort; monotransit detector; TLS integration into T2; cli.py AST tripwire |
+| CLI decomposition: campaign support helpers | Done; equivalence passed | Target-CSV ingestion and per-target spec construction, campaign settings/identity and checkpoint-resume reuse, result-row and error-row construction, per-target download/analysis with transient-failure retry, and the campaign-published counts, vetting coverage, throughput snapshot, common-mode quarantine, and follow-up queue moved from `cli.py` to `campaign.py`. `cli.py` 3,607 → 2,919 lines; every non-import change is a deletion, and the scheduler `run_batch_hunt` is byte-identical (AST-diffed, 540 lines). Of 19 moved definitions, 10 moved byte-identical and 9 changed only to resolve CLI-side collaborators at call time. Generic IO (`_atomic_write_json`, `_replace_with_retry`) and search-identity helpers (`_scientific_settings`, `_artifact_stem`) deliberately stayed in `cli.py`: they have many non-campaign callers, and moving them would point the analysis kernel back at campaign orchestration. Focused campaign/retention/lease/checkpoint tests: 29 passed. The full 150-target rerun produced the identical filename set and **150/150 byte-identical per-target JSON files** (SHA-256), with 35/115/0 counts and no temp files. Because the per-target reports exercise the analysis path rather than the helpers this slice moved, the gate was extended to the campaign-published artifacts: `batch_summary.json` settings, counts, vetting coverage, common-mode screen and **all 150 result rows**, plus the 74-entry `deep_followup_queue.json`, are identical to both `golden_v0` and the prior slice's rerun |
+| **Not yet done** | — | Remaining structure-only extraction (target-list construction), then separately measured rewiring onto `detrend.py`/`search.py`/`vetoes.py`/`population.py`/epoch-aware adjudication and first-class signature/evidence records; real-data artifact regression; known-planet campaign cohort; monotransit detector; TLS integration into T2; cli.py AST tripwire |
 
 ### P3–P5: **not started** (gated behind P2 exit, per plan)
 
@@ -103,6 +104,18 @@ record was written; `origin/main` and the research branch are synchronized at
    reports and zero errors. TIC 305567403 missed Lightkurve's retained cache in
    all three refactor reruns, was re-fetched once per run, and still reproduced
    its report byte-for-byte each time.
+7. Per-target JSON identity is a necessary but insufficient equivalence gate.
+   Those reports are written by the single-target analysis path, so a slice
+   that moves *campaign publication* code can pass 150/150 while publishing a
+   different summary. Extending the gate to `batch_summary.json` and
+   `deep_followup_queue.json` closed that hole — and immediately exposed a
+   second error, this one in the gate itself: `run_state` is per-run
+   provenance, not science. `golden_v0` was published with 149 reports already
+   on disk and reads `resumed`; every refactor rerun starts from an empty
+   directory and reads `completed`. Comparing that field against the golden
+   baseline is meaningless; it is compared against the prior slice's rerun,
+   which ran under the same fresh-directory conditions. Future slices should
+   diff published artifacts against **both** baselines for this reason.
 
 ## Owner notes
 
