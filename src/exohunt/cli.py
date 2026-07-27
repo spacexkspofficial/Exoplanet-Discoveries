@@ -37,6 +37,8 @@ from .detection import (
     signal_vetting_diagnostics,
 )
 from .detrending import DEFAULT_DETRENDING, flatten_edge_safe
+from .lease import ALREADY_RUNNING_MESSAGE, acquire_machine_lock
+from .paths import path_is_within, resolve_cache_dir
 from .pixel import difference_image, target_pixel_from_sky_grid
 from .reporting import create_campaign_report, create_candidate_packet
 from .metrics import (
@@ -85,25 +87,17 @@ def _workspace_cache_dir(
 ) -> Path:
     """Resolve a cache only when it is a child of this project's data directory."""
 
-    workspace = Path(workspace_root).resolve()
-    data_root = (workspace / "data").resolve()
-    raw = Path(cache_dir)
-    resolved = (raw if raw.is_absolute() else workspace / raw).resolve()
-    try:
-        relative = resolved.relative_to(data_root)
-    except ValueError as exc:
-        raise ValueError(
-            f"Cache directory must be inside the project data directory: {data_root}"
-        ) from exc
-    if not relative.parts:
-        raise ValueError(
-            "Cache directory must be a dedicated child of the project data directory."
-        )
-    return resolved
+    from .paths import workspace_cache_dir
+
+    return workspace_cache_dir(cache_dir, workspace_root=workspace_root)
 
 
 def _configured_lightkurve():
-    cache_dir = Path(os.environ.get("EXOHUNT_CACHE_DIR", "data/lightkurve")).resolve()
+    # High-churn, re-downloadable FITS data defaults to the unsynced local
+    # state root; OneDrive locking the cache mid-write has broken campaigns.
+    cache_dir = resolve_cache_dir(
+        os.environ.get("EXOHUNT_CACHE_DIR"), workspace_root=Path.cwd()
+    )
     cache_dir.mkdir(parents=True, exist_ok=True)
     warnings.filterwarnings(
         "ignore", message="Warning: the tpfmodel submodule is not available", category=UserWarning
@@ -1077,20 +1071,54 @@ def _publish_followup_queue(
 
 
 def _batch_hunt(args: argparse.Namespace) -> int:
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    lock = FileLock(str(output_dir / ".batch-hunt.lock"))
+    # Machine-wide exclusion first: more than one actor has started
+    # coordinators on this machine (a scheduled automation restarted the
+    # Sector 100 coordinator unprompted). A second coordinator exits
+    # successfully so restart automations do nothing instead of crash-looping.
+    coordinator = acquire_machine_lock()
+    if coordinator is None:
+        print(ALREADY_RUNNING_MESSAGE)
+        return 0
     try:
-        lock.acquire(timeout=0)
-    except Timeout as exc:
-        raise RuntimeError(
-            f"Another batch worker already owns {output_dir}. "
-            "Stop it before resuming this campaign."
-        ) from exc
-    try:
-        return _run_batch_hunt(args)
+        output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        lock = FileLock(str(output_dir / ".batch-hunt.lock"))
+        try:
+            lock.acquire(timeout=0)
+        except Timeout as exc:
+            raise RuntimeError(
+                f"Another batch worker already owns {output_dir}. "
+                "Stop it before resuming this campaign."
+            ) from exc
+        try:
+            return _run_batch_hunt(args)
+        finally:
+            lock.release()
     finally:
-        lock.release()
+        coordinator.release()
+
+
+def _repair_checkpoints(args: argparse.Namespace) -> int:
+    from .checkpoints import repair_stale_checkpoints
+
+    report = repair_stale_checkpoints(
+        args.results_root,
+        stale_after_minutes=float(args.stale_minutes),
+        dry_run=bool(args.dry_run),
+    )
+    print(json.dumps(report, indent=2))
+    if report.get("refused"):
+        print(
+            "Refused: a live coordinator holds the machine lock.",
+            file=sys.stderr,
+        )
+        return 1
+    repaired = len(report.get("repaired", []))
+    print(
+        f"Repaired {repaired} stale checkpoint(s); liveness belongs to "
+        "processes, not files."
+    )
+    return 0
 
 
 def _batch_target_spec(
@@ -1132,8 +1160,8 @@ def _download_batch_target(
             if attempt >= 3 or not _is_transient_search_error(exc):
                 raise
             try:
-                cache_root = _workspace_cache_dir(
-                    os.environ.get("EXOHUNT_CACHE_DIR", "data/lightkurve"),
+                cache_root = resolve_cache_dir(
+                    os.environ.get("EXOHUNT_CACHE_DIR"),
                     workspace_root=Path.cwd(),
                 )
                 failed_namespace = (
@@ -1305,10 +1333,14 @@ def _run_batch_hunt(args: argparse.Namespace) -> int:
         if workspace_max_bytes is not None
         else 0
     )
-    cache_dir = _workspace_cache_dir(
-        os.environ.get("EXOHUNT_CACHE_DIR", "data/lightkurve"),
+    cache_dir = resolve_cache_dir(
+        os.environ.get("EXOHUNT_CACHE_DIR"),
         workspace_root=workspace_root,
     )
+    # With the cache outside the workspace (the default), cache bytes no
+    # longer appear in workspace accounting and the workspace ceiling tracks
+    # durable evidence only.
+    cache_inside_workspace = path_is_within(cache_dir, workspace_root)
     cache_retention = {
         "files_deleted": 0,
         "bytes_deleted": 0,
@@ -1374,8 +1406,10 @@ def _run_batch_hunt(args: argparse.Namespace) -> int:
                     int(workspace_before or 0)
                     - int(report["bytes_deleted"]),
                 )
-                non_cache_bytes = max(
-                    0, workspace_after_initial - int(report["bytes_after"])
+                non_cache_bytes = (
+                    max(0, workspace_after_initial - int(report["bytes_after"]))
+                    if cache_inside_workspace
+                    else workspace_after_initial
                 )
                 effective_cache_max = min(
                     cache_max_bytes,
@@ -1742,7 +1776,7 @@ def _storage_prune(args: argparse.Namespace) -> int:
 
     if not np.isfinite(float(args.cache_max_gb)) or float(args.cache_max_gb) <= 0:
         raise ValueError("--cache-max-gb must be a finite number greater than zero.")
-    cache_dir = _workspace_cache_dir(args.cache_dir, workspace_root=Path.cwd())
+    cache_dir = resolve_cache_dir(args.cache_dir, workspace_root=Path.cwd())
     cache_report = prune_fits_cache(
         cache_dir,
         max_bytes=int(float(args.cache_max_gb) * 1_000_000_000),
@@ -4194,7 +4228,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     storage_prune.add_argument(
         "--cache-dir",
-        default=os.environ.get("EXOHUNT_CACHE_DIR", "data/lightkurve"),
+        default=os.environ.get("EXOHUNT_CACHE_DIR"),
+        help=(
+            "FITS cache to bound. Defaults to the active cache location "
+            "(EXOHUNT_CACHE_DIR or the local state root outside OneDrive)."
+        ),
     )
     storage_prune.add_argument("--cache-max-gb", type=float, default=2.0)
     storage_prune.add_argument("--results-dir", default="results")
@@ -4420,6 +4458,27 @@ def build_parser() -> argparse.ArgumentParser:
     outcome.add_argument("--notes", default="")
     outcome.add_argument("--source", default="manual")
     outcome.set_defaults(func=_log_outcome)
+
+    repair = subparsers.add_parser(
+        "repair-checkpoints",
+        help=(
+            "Mark stale running/finalizing checkpoints as interrupted when no "
+            "live coordinator holds the machine lock."
+        ),
+    )
+    repair.add_argument("--results-root", default="results")
+    repair.add_argument(
+        "--stale-minutes",
+        type=float,
+        default=10.0,
+        help="Idle time after which a live-state checkpoint counts as orphaned.",
+    )
+    repair.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report what would be repaired without writing anything.",
+    )
+    repair.set_defaults(func=_repair_checkpoints)
     return parser
 
 

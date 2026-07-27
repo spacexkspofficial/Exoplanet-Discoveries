@@ -285,15 +285,30 @@ def main(argv: list[str] | None = None) -> int:
             "inside the dashboard directory first"
         )
 
-    print(f"EXOHUNT dashboard: http://127.0.0.1:{args.port}")
-    print("Network scope: loopback only (not reachable from LAN or internet)")
-    uvicorn.run(
-        "exohunt.dashboard_server:app",
-        host="127.0.0.1",
-        port=args.port,
-        access_log=False,
-    )
-    return 0
+    # Two dashboard servers have been observed running side by side (one per
+    # launching actor). One is enough; a duplicate exits successfully so
+    # whatever launched it treats the outcome as "already handled".
+    from .lease import DASHBOARD_LOCK_NAME, acquire_machine_lock
+
+    guard = acquire_machine_lock(DASHBOARD_LOCK_NAME)
+    if guard is None:
+        print(
+            "An EXOHUNT dashboard server is already running on this machine; "
+            "exiting without starting a second one."
+        )
+        return 0
+    try:
+        print(f"EXOHUNT dashboard: http://127.0.0.1:{args.port}")
+        print("Network scope: loopback only (not reachable from LAN or internet)")
+        uvicorn.run(
+            "exohunt.dashboard_server:app",
+            host="127.0.0.1",
+            port=args.port,
+            access_log=False,
+        )
+        return 0
+    finally:
+        guard.release()
 
 
 if __name__ == "__main__":

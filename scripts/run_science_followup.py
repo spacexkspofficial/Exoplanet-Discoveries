@@ -879,11 +879,24 @@ def main() -> int:
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--repair-sectors", action="store_true")
     args = parser.parse_args()
-    return run(
-        args.root.resolve(),
-        bool(args.prepare_only),
-        bool(args.repair_sectors),
-    )
+    # Shares the campaign coordinator's machine lock on purpose: survey
+    # downloads and focused science downloads must not compete for archive
+    # bandwidth or the cache, and a second concurrent runner exits cleanly so
+    # restart automations become no-ops instead of extra actors.
+    from exohunt.lease import ALREADY_RUNNING_MESSAGE, acquire_machine_lock
+
+    coordinator = acquire_machine_lock()
+    if coordinator is None:
+        print(ALREADY_RUNNING_MESSAGE)
+        return 0
+    try:
+        return run(
+            args.root.resolve(),
+            bool(args.prepare_only),
+            bool(args.repair_sectors),
+        )
+    finally:
+        coordinator.release()
 
 
 if __name__ == "__main__":
