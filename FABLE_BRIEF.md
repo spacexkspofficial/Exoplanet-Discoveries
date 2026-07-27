@@ -51,6 +51,13 @@ Current dashboard state:
     0  confirmed planet
 ```
 
+The cumulative ledger in `metrics/current_stats.json` reports 3,939 automated
+survivors against the 541 shown above. That is not an inconsistency: the ledger
+is an append-only record of what each search *concluded at the time*, while the
+dashboard shows each star's status after later tiers overrode it. Any redesign
+needs to keep both readings available and clearly distinguished — the historical
+record of what a tier decided, and the current best answer for a star.
+
 ### What has been learned the hard way — do not re-derive this
 
 1. **Roughly half of every campaign was instrumental, not astrophysical.**
@@ -129,8 +136,13 @@ visual language if it serves; redesign the data flow freely.
 - Project lives inside a **OneDrive-synced folder** — this has already caused
   file-lock failures. Anything write-heavy should account for it.
 - Hard ceilings currently enforced: 20 GB workspace, 10 GB download cache.
-  Propose different numbers if the science needs them, but the machine is also
-  someone's daily driver — CPU and disk politeness matters.
+  **Already consumed: 9.4 GB of light-curve cache and 2.0 GB of results across
+  17 campaigns**, so real headroom is roughly 8 GB, not 20. A system meant to
+  run continuously for weeks has to treat storage as a steady-state problem —
+  what is kept forever, what is regenerable from the archive, and what rolls
+  off — not as a ceiling it occasionally bumps into. Propose different numbers
+  if the science needs them, but the machine is also someone's daily driver:
+  CPU and disk politeness matter.
 - Dashboard binds 127.0.0.1 only, by deliberate design. Keep it local.
 - Runs must be **resumable and idempotent**. Power cuts, reboots, and archive
   outages are normal, not exceptional.
