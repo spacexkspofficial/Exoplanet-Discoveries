@@ -146,6 +146,18 @@ visual language if it serves; redesign the data flow freely.
 - Dashboard binds 127.0.0.1 only, by deliberate design. Keep it local.
 - Runs must be **resumable and idempotent**. Power cuts, reboots, and archive
   outages are normal, not exceptional.
+- **A scheduled automation from a previous agent may still be active.** It
+  restarts the Sector 100 coordinator whenever it finds none running, and it has
+  already done so once unprompted — which is how the mixed-version state above
+  arose. Before running anything, check for a live coordinator, and treat "the
+  campaign state changed while I was reading it" as a real possibility rather
+  than an anomaly. Any design you propose should assume more than one actor may
+  try to start work, which is itself an argument for the leases the research
+  review recommends.
+- Related: a killed coordinator leaves `state: "running"` in its checkpoint with
+  nothing running, which drives a phantom live panel on the dashboard. There is
+  no liveness or heartbeat concept in the current model. That is worth fixing
+  properly rather than by hand-editing checkpoints.
 
 ## What I want from you
 
@@ -247,8 +259,56 @@ how to prove it did not.
 - Behaviour-preserving refactors must be provable: characterisation tests first,
   existing tests stay green rather than being edited to match.
 
+## An independent research review already exists — read it, but check it
+
+`RESEARCH_REVIEW.md` is a deep literature and architecture review commissioned
+separately. It is strong work and you should treat it as a serious input: its
+survey of light-curve products, its evidence-stage taxonomy, its tiered ladder,
+and its emphasis on completeness *and* reliability as distinct measurements are
+all well-grounded and align with where this project needs to go. Its bibliography
+is the best starting reading list available here.
+
+**It was written without access to the repository.** It says so itself, and
+separates its claims into verified, reported-but-unverified, and inferred. I have
+now checked its two concrete claims about our actual data against the archive and
+the files. One is right and one is wrong, and the difference matters:
+
+**Right — mixed pipeline versions in one campaign.** `results/campaign/sector100_spoc`
+does contain exactly the split it describes: 1,864 reports at
+`processed-lc-v2` and 26 at `processed-lc-v3-edge-safe`. Its conclusion that
+summaries must be partitioned by an exact scientific signature is correct and
+should be adopted. (The immediate cause is understood: detrending is now part of
+scientific identity, so the newer run correctly refused to reuse the older
+reports and began re-searching. The mixed state is transient, but a naive
+summariser would still misread it, which is precisely the report's point.)
+
+**Wrong — the TOI-1431 catalog-resolution failure.** The report states that
+TIC 101319448 is TOI-1431 b / MASCARA-5 b, a confirmed planet, and that treating
+it as novel proves catalog resolution is inadequate. Checked against the live
+NASA Exoplanet Archive TAP service:
+
+- TOI-1431 is **TIC 375506058**, at RA 316.204°, Dec +55.588°, P = 2.650 d.
+- TIC 101319448 is at RA 148.220°, Dec −18.271° — a different star roughly 170°
+  away, with **zero** TOI rows and **zero** confirmed planets in the archive.
+
+Our pipeline's "no catalog match" for that target was correct. The identifier
+mapping in the report is fabricated.
+
+Do not carry that example forward, and do not assume the archive lookup is
+broken on the strength of it. **The recommendation it supports still stands** —
+a canonical identity graph, proper-motion-aware cross-matching, and a
+known-object regression suite are all worth building, and the absence of a
+demonstrated failure is not evidence that no failure exists. Build the regression
+suite and find out. Just do not cite a case that is not real.
+
+Treat this as calibration for the whole document: where it reasons from the
+literature it is reliable; where it asserts specifics about this repository,
+verify against the repository before acting.
+
 ## Read these first
 
+- `RESEARCH_REVIEW.md` — the independent literature/architecture review, with the
+  caveats above.
 - `HANDOFF.md` — full history, the systematics evidence, and the §6 refactor
   mandate with file:line citations.
 - `REFACTOR_REVIEW.md` — the most recent code-review checkpoint.
