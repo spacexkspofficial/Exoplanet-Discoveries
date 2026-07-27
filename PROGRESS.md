@@ -198,6 +198,30 @@ record was written; `origin/main` and the research branch are synchronized at
     the path that ships.** Fast harnesses are for ranking candidates, never for
     the number that decides a gate.
 
+12. **Period-only catalog matching discards 28 residual signals above the
+    S/N gate; whether any is a real loss is not yet established.** Scanning
+    every campaign report: 46 are rejected for a period "within 5% of a
+    catalogued transit period or simple harmonic". In all 46 the catalogued
+    signal had already been masked successfully (146-1,570 measurements
+    removed), so the rejected peak is a *residual* signal found after the known
+    one was taken out. For 28 of them the catalog match is the sole rejection
+    reason and all 28 clear S/N 7.1, topping out at 126.3.
+
+    That is the argument for epoch-aware matching stated concretely: proximity
+    in period alone cannot tell a leaked known signal from a different one
+    sharing a similar period. It is **not** evidence that 28 real signals were
+    lost, and no such claim should be carried forward from this note. A first
+    attempt to discriminate by epoch was run and discarded as invalid: most of
+    these matched a *harmonic* (found/catalogued ratios near 0.5, 2, 3), and
+    the test compared the two ephemerides directly, which is meaningless across
+    a harmonic relation. A correct test has to fold on the harmonic actually
+    matched, and must separate at least three cases -- mask leakage at the same
+    ephemeris (rejection correct), a genuine harmonic of the known signal
+    (rejection correct), and a distinct ephemeris (rejection wrong). One case
+    is worth a look by hand regardless: TIC 301248781, found P = 1.0154 d
+    against a catalogued 1.0170 d (0.16%), S/N 30.8, with the predicted
+    transits sitting ~0.33 d from the catalogued ones.
+
 ## Owner notes
 
 - The old FITS cache (`data/lightkurve`, 9.4 GB inside OneDrive) is now
