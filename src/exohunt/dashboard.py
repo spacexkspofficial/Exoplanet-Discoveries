@@ -14,6 +14,15 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from .statuses import (
+    COMMON_MODE_LABELS,
+    CONTEXT_LABELS,
+    SCIENCE_LABELS,
+    SCREENING_LABELS,
+    STATUS_REGISTRY,
+    resolve_status,
+)
+
 
 def _optional_float(value: object) -> float | None:
     try:
@@ -86,35 +95,15 @@ def _screening_class(result: dict[str, object]) -> str:
     return "searched"
 
 
-SCREENING_LABELS = {
-    "searched": "Searched - awaiting classification",
-    "automated_survivor": "Automated survivor - deeper vetting needed",
-    "single_event_lead": "Single-event lead - longer baseline needed",
-    "screened_rejected": "Strongest signal screened out",
-    "no_transit_detected": "No transit detected in searched window",
-    "search_error": "Search error - retry needed",
-}
+def _resolve_status_evidence(
+    candidates: list[tuple[str, str, str]],
+) -> tuple[str, str, str]:
+    """Select the authoritative status while retaining its label and notes."""
 
-CONTEXT_LABELS = {
-    "known_eb_rediscovery": "Known eclipsing-binary rediscovery",
-    "known_eb_host_residual_review": "Known binary host - residual review",
-    "known_variable_star_review": "Known variable star - signal review",
-    "crowding_contamination_review": "Crowding/contamination review",
-    "catalog_coverage_gap": "Public-catalog coverage gap",
-    "context_incomplete": "Context checks incomplete - retry needed",
-    "unresolved_transit_like_signal": "Unresolved transit-like signal",
-}
-
-SCIENCE_LABELS = {
-    "pixel_offset_contamination": "Lost light localized off target",
-    "single_sector_unconfirmed": "On target - single supporting sector",
-    "science_vetted_lead": "On target and multi-sector coherent",
-}
-
-COMMON_MODE_LABELS = {
-    "common_mode_systematic": "Observatory systematic - shared ephemeris",
-    "localized_coincidence": "Shared ephemeris with close neighbours",
-}
+    selected = resolve_status(status for status, _, _ in candidates)
+    return next(
+        candidate for candidate in reversed(candidates) if candidate[0] == selected
+    )
 
 
 def _common_mode_by_tic(results_root: Path) -> dict[int, dict[str, object]]:
@@ -1039,44 +1028,9 @@ def export_dashboard_data(
                     **classification,
                 }
 
-    # Later evidence outranks earlier evidence. Stage 0-1 is the in-light-curve
-    # screen, 2-4 the metadata context pass, 5 the measured pixel/sector science
-    # pass, and 7+ a human-reviewed outcome recorded in the ledger. A logged
-    # outcome must therefore outrank every automated classification: a person
-    # who determines a lead is a false positive is more authoritative than the
-    # screen that produced the lead.
     science_by_tic = _science_vetting_by_tic(results_root)
     common_mode_by_tic = _common_mode_by_tic(results_root)
 
-    priorities = {
-        "searched": 0,
-        "search_error": 0,
-        "no_transit_detected": 0,
-        "screened_rejected": 0,
-        "single_event_lead": 1,
-        "automated_survivor": 1,
-        "catalog_coverage_gap": 2,
-        "context_incomplete": 2,
-        "crowding_contamination_review": 2,
-        "known_variable_star_review": 2,
-        "known_eb_host_residual_review": 3,
-        "known_eb_rediscovery": 4,
-        "unresolved_transit_like_signal": 4,
-        "pixel_offset_contamination": 5,
-        "single_sector_unconfirmed": 5,
-        "science_vetted_lead": 5,
-        # A shared ephemeris outranks the per-star science gates. Multi-sector
-        # coherence cannot rule an observatory systematic out, because such an
-        # event repeats identically in every sector and therefore passes that
-        # gate by construction.
-        "common_mode_systematic": 6,
-        "localized_coincidence": 6,
-        "false_positive": 7,
-        "rediscovery": 7,
-        "known_tce_rediscovery": 7,
-        "vetted_candidate": 8,
-        "confirmed_planet": 9,
-    }
     stars: list[dict[str, object]] = []
     for tic_id in searched_ids:
         row = metadata[tic_id]
@@ -1101,41 +1055,58 @@ def export_dashboard_data(
         status = screening_class if screening_class in SCREENING_LABELS else "searched"
         label = SCREENING_LABELS[status]
         notes = str(signal.get("followup_reasons") or "")
+        status_evidence = [(status, label, notes)]
         context = context_by_tic.get(tic_id)
         if context is not None:
             disposition = str(context.get("disposition"))
-            if priorities.get(disposition, -1) >= priorities.get(status, -1):
-                status = disposition
-                label = CONTEXT_LABELS[disposition]
-                notes = "; ".join(
-                    str(value)
-                    for value in context.get("reasons", [])
-                    if str(value).strip()
+            if disposition in CONTEXT_LABELS:
+                status_evidence.append(
+                    (
+                        disposition,
+                        CONTEXT_LABELS[disposition],
+                        "; ".join(
+                            str(value)
+                            for value in context.get("reasons", [])
+                            if str(value).strip()
+                        ),
+                    )
                 )
         science = science_by_tic.get(tic_id)
         if science is not None:
             disposition = science.get("science_disposition")
-            if disposition is not None and priorities.get(
-                str(disposition), -1
-            ) >= priorities.get(status, -1):
-                status = str(disposition)
-                label = SCIENCE_LABELS[status]
-                notes = _science_notes(science)
+            if disposition is not None and str(disposition) in SCIENCE_LABELS:
+                science_status = str(disposition)
+                status_evidence.append(
+                    (
+                        science_status,
+                        SCIENCE_LABELS[science_status],
+                        _science_notes(science),
+                    )
+                )
         screen = common_mode_by_tic.get(tic_id)
         if screen is not None:
             verdict = str(screen.get("verdict") or "")
-            if verdict in COMMON_MODE_LABELS and priorities.get(
-                verdict, -1
-            ) >= priorities.get(status, -1):
-                status = verdict
-                label = COMMON_MODE_LABELS[verdict]
-                notes = _common_mode_notes(screen)
+            if verdict in COMMON_MODE_LABELS:
+                status_evidence.append(
+                    (
+                        verdict,
+                        COMMON_MODE_LABELS[verdict],
+                        _common_mode_notes(screen),
+                    )
+                )
         for outcome in outcomes.get(tic_id, []):
             kind = str(outcome.get("kind"))
-            if priorities.get(kind, -1) >= priorities.get(status, -1):
-                status = kind
-                label = str(outcome.get("label") or label)
-                notes = str(outcome.get("notes") or "")
+            if kind not in STATUS_REGISTRY:
+                continue
+            current_label = _resolve_status_evidence(status_evidence)[1]
+            status_evidence.append(
+                (
+                    kind,
+                    str(outcome.get("label") or current_label),
+                    str(outcome.get("notes") or ""),
+                )
+            )
+        status, label, notes = _resolve_status_evidence(status_evidence)
         sectors = signal.get("sectors") or _sectors(row.get("sectors"))
         observed_sectors.update(int(value) for value in sectors)
         star = {

@@ -32,6 +32,10 @@ exohunt-dashboard = "exohunt.dashboard_server:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+exohunt = ["status_registry.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-p no:cacheprovider --basetemp=.pytest-tmp"
+pythonpath = ["src"]
+addopts = "-p no:cacheprovider"

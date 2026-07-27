@@ -63,6 +63,7 @@ dashboard/public/data/survey.json
 # Local agent, hosting, editor, and operating-system state
 .agents/
 .codex/
+.refactor-staging/
 .openai/
 .idea/
 .vscode/

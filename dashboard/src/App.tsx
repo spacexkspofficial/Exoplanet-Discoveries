@@ -7,32 +7,14 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import {
+  ALL_STATUSES,
+  STATUS_HELP,
+  STATUS_META,
+  STATUS_SYMBOL,
+  type Status,
+} from "./generated/statusRegistry";
 import tessSectorGeometry from "./tess-sector-footprints.json";
-
-type Status =
-  | "searched"
-  | "no_transit_detected"
-  | "screened_rejected"
-  | "single_event_lead"
-  | "automated_survivor"
-  | "search_error"
-  | "rediscovery"
-  | "known_tce_rediscovery"
-  | "known_eb_rediscovery"
-  | "known_eb_host_residual_review"
-  | "known_variable_star_review"
-  | "crowding_contamination_review"
-  | "catalog_coverage_gap"
-  | "context_incomplete"
-  | "unresolved_transit_like_signal"
-  | "pixel_offset_contamination"
-  | "single_sector_unconfirmed"
-  | "science_vetted_lead"
-  | "common_mode_systematic"
-  | "localized_coincidence"
-  | "false_positive"
-  | "vetted_candidate"
-  | "confirmed_planet";
 
 type Star = {
   tic_id: number;
@@ -223,152 +205,6 @@ const TESS_SECTOR_GEOMETRY = tessSectorGeometry as unknown as {
   sectors: Record<string, TessSectorFootprint>;
 };
 
-const STATUS_META: Record<
-  Status,
-  { label: string; short: string; color: string; className: string }
-> = {
-  searched: {
-    label: "Searched — Awaiting Classification",
-    short: "Awaiting class",
-    color: "#22b8cf",
-    className: "cyan",
-  },
-  no_transit_detected: {
-    label: "No Transit Detected in Search Window",
-    short: "No transit found",
-    color: "#2493a7",
-    className: "cyan",
-  },
-  screened_rejected: {
-    label: "Strongest Signal Screened Out",
-    short: "Signal screened",
-    color: "#7d8b94",
-    className: "muted",
-  },
-  single_event_lead: {
-    label: "Single-Event Lead — Longer Baseline Needed",
-    short: "Single event",
-    color: "#e9b949",
-    className: "amber",
-  },
-  automated_survivor: {
-    label: "Automated Survivor — Deeper Vetting Needed",
-    short: "Needs vetting",
-    color: "#2fbf71",
-    className: "green",
-  },
-  search_error: {
-    label: "Search Error — Retry Needed",
-    short: "Retry needed",
-    color: "#e4572e",
-    className: "red",
-  },
-  rediscovery: {
-    label: "Mapped Planet Recovery",
-    short: "Planet recovered",
-    color: "#f59e0b",
-    className: "amber",
-  },
-  known_tce_rediscovery: {
-    label: "TCE Rediscovery",
-    short: "TCE recovered",
-    color: "#9b5de5",
-    className: "violet",
-  },
-  known_eb_rediscovery: {
-    label: "Known Eclipsing-Binary Rediscovery",
-    short: "Known EB",
-    color: "#f97316",
-    className: "amber",
-  },
-  known_eb_host_residual_review: {
-    label: "Known Binary Host — Residual Review",
-    short: "Binary residual",
-    color: "#d97706",
-    className: "amber",
-  },
-  known_variable_star_review: {
-    label: "Known Variable Star — Signal Review",
-    short: "Variable star",
-    color: "#a855f7",
-    className: "violet",
-  },
-  crowding_contamination_review: {
-    label: "Crowding / Contamination Review",
-    short: "Crowding review",
-    color: "#3b82f6",
-    className: "cyan",
-  },
-  catalog_coverage_gap: {
-    label: "Public-Catalog Coverage Gap",
-    short: "Catalog gap",
-    color: "#94a3b8",
-    className: "muted",
-  },
-  context_incomplete: {
-    label: "Context Checks Incomplete — Retry Needed",
-    short: "Context retry",
-    color: "#dc5a3a",
-    className: "red",
-  },
-  unresolved_transit_like_signal: {
-    label: "Unresolved Transit-Like Signal",
-    short: "Unresolved lead",
-    color: "#16a34a",
-    className: "green",
-  },
-  pixel_offset_contamination: {
-    label: "Lost Light Localized Off Target",
-    short: "Off-target light",
-    color: "#0ea5e9",
-    className: "cyan",
-  },
-  single_sector_unconfirmed: {
-    label: "On Target — Single Supporting Sector",
-    short: "One sector only",
-    color: "#eab308",
-    className: "amber",
-  },
-  science_vetted_lead: {
-    label: "On Target and Multi-Sector Coherent",
-    short: "Science-vetted lead",
-    color: "#34d399",
-    className: "green",
-  },
-  common_mode_systematic: {
-    label: "Observatory Systematic — Shared Ephemeris",
-    short: "Instrument artifact",
-    color: "#6b7280",
-    className: "muted",
-  },
-  localized_coincidence: {
-    label: "Shared Ephemeris With Close Neighbours",
-    short: "Neighbour-shared",
-    color: "#9ca3af",
-    className: "muted",
-  },
-  false_positive: {
-    label: "Vetted False Positive",
-    short: "False positive",
-    color: "#dc2626",
-    className: "red",
-  },
-  vetted_candidate: {
-    label: "Vetted New Candidate",
-    short: "Candidate",
-    color: "#10b981",
-    className: "green",
-  },
-  confirmed_planet: {
-    label: "Confirmed Planet",
-    short: "Confirmed",
-    color: "#c7d83d",
-    className: "green",
-  },
-};
-
-const ALL_STATUSES = Object.keys(STATUS_META) as Status[];
-
 const UNKNOWN_STATUS_HELP =
   "This classification was produced by a newer exporter than the loaded dashboard bundle. Rebuild the dashboard to see its full description.";
 
@@ -383,55 +219,6 @@ const UNKNOWN_STATUS_META = {
 function statusMeta(status: Status) {
   return STATUS_META[status] ?? UNKNOWN_STATUS_META;
 }
-
-const STATUS_HELP: Record<Status, string> = {
-  searched:
-    "The search finished under an older result format that cannot be assigned one of the newer screening classes.",
-  no_transit_detected:
-    "No repeating transit-like signal reached the automated threshold in the searched TESS window. This does not prove the star has no planet.",
-  screened_rejected:
-    "The strongest repeating signal failed one or more automated plausibility checks. The rejection applies to that signal, not to every possible planet around the star.",
-  single_event_lead:
-    "One promising dimming event was present, but the observed time span was not long enough to establish a repeating orbit. Longer-baseline data should be checked.",
-  automated_survivor:
-    "A signal survived the automated gates and has been placed in the deeper follow-up queue. It is not yet a vetted candidate or discovery.",
-  search_error:
-    "This target did not finish successfully because data retrieval or analysis failed. It needs a retry and is not counted as a no-signal result.",
-  rediscovery:
-    "The search recovered a planet that was already known. This checks the pipeline; it is not a new discovery.",
-  known_tce_rediscovery:
-    "The signal matches an existing TESS threshold-crossing event, so TESS has already flagged it.",
-  known_eb_rediscovery:
-    "The TIC host and recovered period match an authoritative eclipsing-binary record. This is useful validation and possible eclipse-timing material, but it is not a planet survivor.",
-  known_eb_host_residual_review:
-    "The star is a known binary, but the recovered period is not yet tied to its catalogued eclipse. The binary must be modeled before a separate residual or circumbinary interpretation is considered.",
-  known_variable_star_review:
-    "Gaia or SIMBAD records stellar variability that can imitate transit-like dips. This signal remains in a stellar-variability review lane.",
-  crowding_contamination_review:
-    "Nearby sources can contribute flux inside a TESS pixel. Difference imaging or target-pixel localization is required before this lead can advance.",
-  catalog_coverage_gap:
-    "One or more applicable public catalogs do not yet cover the searched sector or signal. Independent data checks are still required.",
-  context_incomplete:
-    "At least one authoritative metadata source failed. The context pass must be retried; absence from the sources that did respond is not meaningful clearance.",
-  unresolved_transit_like_signal:
-    "No checked catalog currently explains the signal. It is still only an unresolved lead and must pass pixel localization, independent reduction, repeat-epoch, and human false-positive review.",
-  pixel_offset_contamination:
-    "Difference imaging places the lost light more than one TESS pixel from this star, so the dimming most likely belongs to a neighbouring source rather than the target. The centroid is a screening measurement; one pixel spans roughly 21 arcseconds.",
-  single_sector_unconfirmed:
-    "The light was lost on target, but only the discovery sector supports the fixed ephemeris. A signal absent from independently searched sectors is not yet coherent; it may still be a systematic, or the other sectors may not constrain it well.",
-  common_mode_systematic:
-    "Many unrelated stars observed at the same time carry this exact ephemeris, far more than chance allows, and they span multiple cameras and a wide area of sky. A transit belongs to one star; a signal shared this widely was produced by the observatory — scattered light, a momentum dump, or a detrending artifact at a downlink gap. Multi-sector coherence cannot clear this, because such an event repeats identically in every sector.",
-  localized_coincidence:
-    "This ephemeris is shared by an improbable number of nearby targets confined to a small area of sky. That pattern points to one bright variable or eclipsing source bleeding into the apertures of its neighbours rather than an observatory-wide effect.",
-  science_vetted_lead:
-    "The lost light is on target and the fixed ephemeris is supported in more than one independently searched sector. This is the strongest screening state this pipeline produces and is still not a planet candidate: independent reduction, alias checks, and human review remain outstanding.",
-  false_positive:
-    "Follow-up checks indicate that the signal is probably not a transiting planet.",
-  vetted_candidate:
-    "A promising signal has passed the current checks, but it is still not a confirmed planet.",
-  confirmed_planet:
-    "Independent evidence has established this object as a planet.",
-};
 
 const HELP = {
   filters: "Controls that decide which analyzed stars are visible on the map.",
@@ -707,32 +494,6 @@ function angleScaleLabel(degrees: number) {
   if (arcminutes >= 1) return `${fmt(arcminutes, arcminutes >= 10 ? 0 : 1)}′`;
   return `${fmt(arcminutes * 60, 1)}″`;
 }
-
-const STATUS_SYMBOL: Record<Status, string> = {
-  searched: "·",
-  no_transit_detected: "○",
-  screened_rejected: "×",
-  single_event_lead: "1",
-  automated_survivor: "+",
-  search_error: "!",
-  rediscovery: "P",
-  known_tce_rediscovery: "T",
-  known_eb_rediscovery: "B",
-  known_eb_host_residual_review: "b",
-  known_variable_star_review: "V",
-  crowding_contamination_review: "C",
-  catalog_coverage_gap: "?",
-  context_incomplete: "!",
-  unresolved_transit_like_signal: "U",
-  pixel_offset_contamination: "⊗",
-  single_sector_unconfirmed: "s",
-  science_vetted_lead: "◇",
-  common_mode_systematic: "≡",
-  localized_coincidence: "≈",
-  false_positive: "×",
-  vetted_candidate: "◆",
-  confirmed_planet: "●",
-};
 
 function Marker({ status, small = false }: { status: Status; small?: boolean }) {
   return (

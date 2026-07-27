@@ -18,6 +18,7 @@ from exohunt.cli import (
     _download_batch_target,
     _is_transient_search_error,
     _load_reusable_report,
+    _scientific_settings,
     _performance_snapshot,
     _quarantine_invalid_common_mode,
     _read_target_rows,
@@ -119,14 +120,10 @@ def test_report_reuse_requires_matching_identity_and_complete_plot(
             "author": "TESScut",
             "requested_cadence_seconds": 158.0,
         },
-        "search_configuration": {
-            "author": "TESScut",
-            "cadence_seconds": 158.0,
-            "period_range_days": [0.5, 13.0],
-            "mask_width": 1.5,
-            "allow_no_known": True,
-            "data_pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
-        },
+        # Derived from the function under test rather than hand-copied, so that
+        # adding a field to scientific identity cannot silently turn this into a
+        # test of a configuration nothing produces.
+        "search_configuration": _scientific_settings(args),
         "automated_triage": {"passes": True, "rejection_reasons": []},
     }
     report_path.write_text(json.dumps(report), encoding="utf-8")

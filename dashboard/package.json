@@ -7,7 +7,8 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "build": "tsc --noEmit && vite build --configLoader runner"
+    "generate:statuses": "node ../scripts/generate_status_registry.mjs",
+    "build": "npm run generate:statuses && tsc --noEmit && vite build --configLoader runner"
   },
   "dependencies": {
     "react": "19.2.6",

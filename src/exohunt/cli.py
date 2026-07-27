@@ -10,6 +10,7 @@ import os
 import re
 import sys
 import threading
+from dataclasses import asdict
 import time
 import warnings
 from collections import deque
@@ -35,6 +36,7 @@ from .detection import (
     search_transits,
     signal_vetting_diagnostics,
 )
+from .detrending import DEFAULT_DETRENDING, flatten_edge_safe
 from .pixel import difference_image, target_pixel_from_sky_grid
 from .reporting import create_campaign_report, create_candidate_packet
 from .metrics import (
@@ -312,11 +314,9 @@ def _download_light_curve(
             .normalize()
             .remove_outliers(sigma_upper=4.0, sigma_lower=20.0)
         )
-        cadence_days = float(np.nanmedian(np.diff(normalized.time.value)))
-        window = max(101, int(round(2.0 / cadence_days)))
-        if window % 2 == 0:
-            window += 1
-        flattened = normalized.flatten(window_length=window, break_tolerance=5)
+        flattened, detrending = flatten_edge_safe(normalized)
+        cadence_days = float(detrending["cadence_days"])
+        window = int(detrending["window_cadences"])
         tic_match = re.search(r"\b(\d+)\b", target)
         metadata = {
             "target": target,
@@ -328,6 +328,7 @@ def _download_light_curve(
             "downloaded_products": 1,
             "cadence_minutes": cadence_days * 24 * 60,
             "flatten_window_cadences": window,
+            "detrending": detrending,
             "tesscut_size_pixels": 11,
             "aperture_pixels": aperture_pixels,
             "background_pixels": background_pixels,
@@ -365,11 +366,9 @@ def _download_light_curve(
             sigma_upper=4.0, sigma_lower=20.0
         )
     )
-    cadence_days = float(np.nanmedian(np.diff(normalized.time.value)))
-    window = max(101, int(round(2.0 / cadence_days)))
-    if window % 2 == 0:
-        window += 1
-    flattened = normalized.flatten(window_length=window, break_tolerance=5)
+    flattened, detrending = flatten_edge_safe(normalized)
+    cadence_days = float(detrending["cadence_days"])
+    window = int(detrending["window_cadences"])
     target_name = str(search.table["target_name"][0]).strip()
     tic_id = int(target_name) if target_name.isdigit() else None
     downloaded_sectors = sorted(
@@ -389,6 +388,7 @@ def _download_light_curve(
         "downloaded_products": len(collection),
         "cadence_minutes": cadence_days * 24 * 60,
         "flatten_window_cadences": window,
+        "detrending": detrending,
         "requested_author": requested_author,
         "resolved_cadence_seconds": cadence_seconds,
         "author_selection": "auto" if selection else "explicit",
@@ -570,10 +570,17 @@ def _scientific_settings(args: argparse.Namespace) -> dict[str, object]:
         "period_range_days": [args.min_period, args.max_period],
         "mask_width": args.mask_width,
         "allow_no_known": args.allow_no_known,
+        # Detrending decides which cadences BLS ever sees, so it belongs to a
+        # result's scientific identity. Without it here a resumed campaign would
+        # silently reuse reports produced under a different segmentation rule
+        # and mix two reductions inside one catalog -- exactly what would have
+        # happened to the 1,886 targets already searched before the edge-safe
+        # change.
+        "detrending": asdict(DEFAULT_DETRENDING),
         "data_pipeline_version": (
             "tesscut-bgsub-commonmode-quarantined-v4"
             if args.author == "TESScut"
-            else "processed-lc-v2"
+            else "processed-lc-v3-edge-safe"
         ),
     }
 
