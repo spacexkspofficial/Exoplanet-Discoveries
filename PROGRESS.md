@@ -21,7 +21,7 @@ Test suite at last update: **180 passed** (114 pre-existing + 66 new), bare
 **P0 exit measurement met**: a second coordinator exits 0 with the message
 (subprocess test); no checkpoint claims `running` without a live process.
 
-### P1 — Control plane: **complete on branch; deployment waits for owner merge**
+### P1 — Control plane: **complete and deployed**
 
 | Plan item | Status | Evidence |
 |---|---|---|
@@ -42,6 +42,20 @@ not restarted: main still owns the installed entry point. After the owner
 merges, one idempotent `ledger-import --parity` appends the 3 non-voting rows
 and creates the new read indexes, then the frontend build/dashboard restart
 activates this path.
+
+**Deployment record (2026-07-27, post-merge)**: the branch was independently
+verified (180 tests, production build, diff review), committed, and
+fast-forward merged to `main`. The idempotent `ledger-import --parity` re-ran
+from `main`'s own installed code: parity held at every level (zero count,
+star-status, and display-field differences; 43,790 rows). The frontend was
+rebuilt in `main` and the dashboard restarted on the merged code — live
+measurements: `/api/health` reports `ledger_available: true`; `/api/summary`
+137 ms first-hit over HTTP at 3.4 KB; `/api/ops` liveness `absent` (correct:
+no coordinator lease); 1,000-star full-detail page 884 ms over HTTP (the
+sub-100 ms gate applies to the summary poll; page loads are background
+fetches). The push to `origin` awaits the owner completing Git Credential
+Manager's interactive sign-in — no credential was stored for the git CLI.
+Next work: `CODEX_HANDOFF.md`.
 
 ### P2 — Science kernel: **foundations built and tested; cli.py rewiring pending**
 
