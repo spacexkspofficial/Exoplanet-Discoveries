@@ -53,11 +53,12 @@ measurements: `/api/health` reports `ledger_available: true`; `/api/summary`
 137 ms first-hit over HTTP at 3.4 KB; `/api/ops` liveness `absent` (correct:
 no coordinator lease); 1,000-star full-detail page 884 ms over HTTP (the
 sub-100 ms gate applies to the summary poll; page loads are background
-fetches). The push to `origin` awaits the owner completing Git Credential
-Manager's interactive sign-in — no credential was stored for the git CLI.
-Next work: `CODEX_HANDOFF.md`.
+fetches). The owner completed the interactive push after this deployment
+record was written; `origin/main` and the research branch are synchronized at
+`709bcc9`. Next work is the characterization-first P2 rewiring recorded in
+`CODEX_HANDOFF.md`.
 
-### P2 — Science kernel: **foundations built and tested; cli.py rewiring pending**
+### P2 — Science kernel: **foundations built; characterization and cli.py decomposition in progress**
 
 | Plan item | Status | Evidence |
 |---|---|---|
@@ -68,7 +69,9 @@ Next work: `CODEX_HANDOFF.md`.
 | T3 vetoes | Done | `vetoes.py`: duration-density (pass/flag/kill), depth physicality → EB lane, folded odd/even at 3+1 events, full-phase secondary scan (finds a phase-0.3 secondary the old screen missed), per-event support, dip-window veto |
 | Dip registry | Done | `population.py`; noise calibration measured in tests moved σ 2→3 and cohort floor 5%→10% (at σ=2, ~5% of pure-noise star-bins tripped) |
 | New dependencies | Installed + pinned | wotan, transitleastsquares (+numba), psutil core; batman/emcee/corner as `[fits]` extra; setuptools pinned for batman's distutils import on py3.12 |
-| **Not yet done** | — | Rewiring cli.py's science paths onto the kernel (characterization-first, 200-target pinned TESScut equivalence), the real-data artifact regression (the 14 curves — needs downloads), known-planet cohort through the campaign path, monotransit detector, TLS integration into T2 |
+| Pinned characterization golden | Done | First 150 ordered rows of `targets/sector100_expansion_5000.csv` frozen at commit `709bcc9` under TESScut/158 s: 150 reports, 35 diagnostic survivors, 115 rejected, 0 errors. Full provenance and target/cohort hashes are in `results/equivalence/golden_v0/golden_manifest.json`. The handoff command required one measured correction: `--allow-no-known` is necessary for this uncatalogued expansion cohort |
+| CLI decomposition: photometry acquisition | Done; equivalence passed | Historical source selection, cache/download handling, TESScut extraction, and processed-light-curve stitching moved from `cli.py` to `photometry.py` in `52aa701`. Focused tests: 31 passed. The full 150-target rerun produced the identical filename set and **150/150 byte-identical per-target JSON files** (SHA-256), with 35/115/0 counts and no temp files |
+| **Not yet done** | — | Remaining structure-only extraction (screening, campaign orchestration, target-list construction), then separately measured rewiring onto `detrend.py`/`search.py`/`vetoes.py`/`population.py`/epoch-aware adjudication and first-class signature/evidence records; real-data artifact regression; known-planet campaign cohort; monotransit detector; TLS integration into T2; cli.py AST tripwire |
 
 ### P3–P5: **not started** (gated behind P2 exit, per plan)
 
@@ -90,6 +93,13 @@ Next work: `CODEX_HANDOFF.md`.
    science measurements import append-only, and the permanent parity gate
    compares every shared per-star field. This changes evidence rows
    43,787 → 43,790 and changes **zero** current-best statuses.
+6. The committed golden-run command omitted `--allow-no-known`, but the pinned
+   expansion cohort has no catalogued ephemerides to mask. The prescribed
+   command therefore failed 17/17 attempted targets before science analysis.
+   That checkpoint is preserved, the corrected flag is frozen in the manifest,
+   and the completed golden plus photometry-extraction rerun both have 150
+   reports and zero errors. One candidate-run cache miss re-fetched a TESScut
+   product and still reproduced its report byte-for-byte.
 
 ## Owner notes
 
