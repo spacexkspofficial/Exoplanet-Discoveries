@@ -1098,6 +1098,73 @@ def _batch_hunt(args: argparse.Namespace) -> int:
         coordinator.release()
 
 
+def _ledger_import(args: argparse.Namespace) -> int:
+    from . import ledger
+    from .importer import import_workspace, parity_check
+
+    conn = ledger.connect(args.db)
+    try:
+        report = import_workspace(
+            conn,
+            args.workspace,
+            include_orphan_reports=not args.skip_orphan_reports,
+        )
+        print(json.dumps(report, indent=2))
+        if args.parity:
+            parity = parity_check(conn, args.workspace)
+            print(
+                json.dumps(
+                    {
+                        "parity_match": parity["match"],
+                        "exporter_total": parity["exporter_total"],
+                        "ledger_total": parity["ledger_total"],
+                        "differences": parity["differences"],
+                    },
+                    indent=2,
+                )
+            )
+            if not parity["match"]:
+                print(
+                    "Parity gate FAILED: ledger projection differs from the "
+                    "exporter.",
+                    file=sys.stderr,
+                )
+                return 1
+            print("Parity gate passed: ledger projection matches the exporter.")
+        return 0
+    finally:
+        conn.close()
+
+
+def _ledger_status(args: argparse.Namespace) -> int:
+    from . import ledger
+    from .paths import default_db_path
+
+    conn = ledger.connect(args.db)
+    try:
+        payload = {
+            "db_path": str(args.db or default_db_path()),
+            "stars": conn.execute("SELECT COUNT(*) FROM star").fetchone()[0],
+            "evidence_rows": conn.execute(
+                "SELECT COUNT(*) FROM evidence"
+            ).fetchone()[0],
+            "current_status_counts": ledger.status_counts(conn),
+            "conclusions_logged": ledger.evidence_counts(conn),
+            "signatures": {
+                row["signature"] or "none": row["n"]
+                for row in conn.execute(
+                    "SELECT signature, COUNT(*) AS n FROM evidence "
+                    "GROUP BY signature ORDER BY n DESC"
+                )
+            },
+            "coordinator_lease": ledger.lease_status(conn, "coordinator"),
+        }
+        print(json.dumps(payload, indent=2))
+        return 0
+    finally:
+        conn.close()
+
+
 def _repair_checkpoints(args: argparse.Namespace) -> int:
     from .checkpoints import repair_stale_checkpoints
 
@@ -4479,6 +4546,41 @@ def build_parser() -> argparse.ArgumentParser:
         help="Report what would be repaired without writing anything.",
     )
     repair.set_defaults(func=_repair_checkpoints)
+
+    ledger_import = subparsers.add_parser(
+        "ledger-import",
+        help=(
+            "Import the file-based campaign history into the evidence ledger "
+            "and optionally verify parity against the dashboard exporter."
+        ),
+    )
+    ledger_import.add_argument("--workspace", default=".")
+    ledger_import.add_argument(
+        "--db",
+        default=None,
+        help="Ledger database path (default: the local state root).",
+    )
+    ledger_import.add_argument(
+        "--skip-orphan-reports",
+        action="store_true",
+        help="Skip per-target reports of campaigns that never wrote a summary.",
+    )
+    ledger_import.add_argument(
+        "--parity",
+        action="store_true",
+        help=(
+            "After importing, compare the ledger projection against a fresh "
+            "exporter run; non-zero exit on any difference."
+        ),
+    )
+    ledger_import.set_defaults(func=_ledger_import)
+
+    ledger_status = subparsers.add_parser(
+        "ledger-status",
+        help="Show ledger contents: current states, logged conclusions, leases.",
+    )
+    ledger_status.add_argument("--db", default=None)
+    ledger_status.set_defaults(func=_ledger_status)
     return parser
 
 
