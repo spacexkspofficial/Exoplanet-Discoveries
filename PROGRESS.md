@@ -198,29 +198,43 @@ record was written; `origin/main` and the research branch are synchronized at
     the path that ships.** Fast harnesses are for ranking candidates, never for
     the number that decides a gate.
 
-12. **Period-only catalog matching discards 28 residual signals above the
-    S/N gate; whether any is a real loss is not yet established.** Scanning
-    every campaign report: 46 are rejected for a period "within 5% of a
-    catalogued transit period or simple harmonic". In all 46 the catalogued
-    signal had already been masked successfully (146-1,570 measurements
-    removed), so the rejected peak is a *residual* signal found after the known
-    one was taken out. For 28 of them the catalog match is the sole rejection
-    reason and all 28 clear S/N 7.1, topping out at 126.3.
+12. **Period-only catalog matching rejects 28 residual signals above the S/N
+    gate, and not one of them is mask leakage.** Scanning every campaign
+    report: 46 rejections cite a period "within 5% of a catalogued transit
+    period or simple harmonic". In all 46 the catalogued signal had already
+    been masked (146–1,570 measurements removed), so the rejected peak is a
+    *residual* found after the known signal was taken out. For 28 the catalog
+    match is the sole rejection reason and all 28 clear S/N 7.1.
 
-    That is the argument for epoch-aware matching stated concretely: proximity
-    in period alone cannot tell a leaked known signal from a different one
-    sharing a similar period. It is **not** evidence that 28 real signals were
-    lost, and no such claim should be carried forward from this note. A first
-    attempt to discriminate by epoch was run and discarded as invalid: most of
-    these matched a *harmonic* (found/catalogued ratios near 0.5, 2, 3), and
-    the test compared the two ephemerides directly, which is meaningless across
-    a harmonic relation. A correct test has to fold on the harmonic actually
-    matched, and must separate at least three cases -- mask leakage at the same
-    ephemeris (rejection correct), a genuine harmonic of the known signal
-    (rejection correct), and a distinct ephemeris (rejection wrong). One case
-    is worth a look by hand regardless: TIC 301248781, found P = 1.0154 d
-    against a catalogued 1.0170 d (0.16%), S/N 30.8, with the predicted
-    transits sitting ~0.33 d from the catalogued ones.
+    The mask itself is the discriminator, and it avoids comparing ephemerides
+    across a harmonic relation (which is what made a first attempt at this
+    meaningless — that test would have been reported as a result and was
+    thrown away instead). Each mask covers
+    `epoch + m × period ± mask_width/2`. Taking every transit the *found*
+    ephemeris predicts inside the observation window and asking what fraction
+    land inside a masked window:
+
+    | overlap with masked events | meaning | n |
+    |---|---|---|
+    | ≥80% | known signal leaked through the mask; rejection correct | **0** |
+    | 20–80% | ambiguous | 9 |
+    | <20% | peak sits on cadences the mask never touched | **19** |
+
+    Most of the 19 are at exactly 0%. The two cleanest: TIC 301160638 at
+    S/N 126.3 with 0 of 3 predicted transits on masked events, and
+    TIC 301248781 at S/N 30.8 with **0 of 26** — the latter matched at
+    relation `exact`, so its period is within 5% of the catalogued one while
+    none of its twenty-six transits coincide with a removed event. That is not
+    a small-number artifact.
+
+    **This does not make them planets.** They may still be systematics,
+    eclipsing binaries, or blends; what the measurement establishes is only
+    that the *stated reason* for rejecting them — that they are the catalogued
+    signal — is false for 19 of 28, and unverified for the remaining 9. Period
+    proximity cannot carry that judgement, which is the concrete case for
+    epoch-aware matching in `tce.py` and `evidence.py`. Caveats: transit counts
+    are small (2–5) for most of the set, so the overlap fraction is coarse
+    except where noted, and the reports span mixed pipeline versions.
 
 ## Owner notes
 
