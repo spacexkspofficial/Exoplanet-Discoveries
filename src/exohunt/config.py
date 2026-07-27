@@ -140,8 +140,19 @@ class DetrendConfig:
     # populated fraction of a cadence's trend window; below the floor the
     # cadence is dropped, above it the cadence's uncertainty is inflated by
     # (1/f)**alpha so edges are visible to the search but cannot drive it.
-    # Initial alpha; calibrated on the artifact regression set (target:
-    # >=85% retention with the BTJD 4074.4/4080.8 epochs still dead).
+    #
+    # NOT YET CALIBRATED, and the obvious calibration was measured and
+    # rejected. See PROGRESS.md correction 10 and
+    # results/p2_gates/ for the evidence. Summary: at window 1.0 d a clean
+    # segment edge has f = 0.5, above this 0.4 floor, so the floor never fires
+    # and the guard is effectively off. Raising the floor to 0.8 suppresses the
+    # artifact but leaves an edge transit only 2 of the 5 cadences it needs.
+    # Raising alpha to 5 keeps every cadence and looked like it worked on a
+    # fast probe harness (enrichment 1.12, p = 0.14), but through the real
+    # batch-hunt path on 371 targets it did not move enrichment at all
+    # (1.137 -> 1.140) and raised artifact-epoch survivors from 1 to 9.
+    # These values therefore stay at their provisional defaults until a
+    # mechanism exists that separates edge sensitivity from edge artifacts.
     edge_support_floor: float = 0.4
     edge_weight_alpha: float = 1.0
     # Outlier clipping mirrors the existing pipeline.

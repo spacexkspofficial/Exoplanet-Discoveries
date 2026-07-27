@@ -125,6 +125,78 @@ record was written; `origin/main` and the research branch are synchronized at
    out the parent commit, drive both trees through identical inputs with
    identical stubs, and compare canonical dumps. Where a slice touches neither
    path, both gates are needed, not either.
+9. **The §2.3 artifact-regression gate as written cannot be passed, and the
+   cohort it names no longer exists.** §2.3 asks for "0 of 14" detections at
+   BTJD 4074.4/4080.8 on "the 14 real light curves from the edge-safe work".
+   That set was never recorded — commit `7a21bf3` states a count, not the
+   targets — so it is unreconstructable. A replacement cohort is now pinned at
+   `targets/p2_artifact_regression_cohort.csv` (371 targets: ledger
+   `common_mode` evidence at the artifact epochs, intersected with cached SPOC
+   Sector 100 light curves; manifest alongside). On any statistically selected
+   cohort "0 of N" is unachievable in principle: with a median period of
+   0.98 d and the 0.02 d floor tolerance from `commonmode.py`, ~31% of targets
+   align with an artifact epoch **by chance**, so a flawless pipeline still
+   shows ~117 of 371. The gate is therefore restated as *artifact-epoch
+   alignment consistent with an empirical null* — alignments at random control
+   epochs drawn from the observation span, using the same fitted ephemerides.
+   This is §2.3 item 4's own "enrichment" statistic with the control added.
+   Two arithmetic errors were made and corrected before this number was
+   trusted: the chance rate initially counted one epoch's worth for two epochs
+   (reported 1.94×, actually 1.14×), and the first control draw came from the
+   fitted-epoch range rather than the observation span. The control now
+   returns 0.994×, which is what validates the statistic.
+10. **The detrending change does not ship, measured through the real
+    `batch-hunt` path on 371 targets.** The support-weighted biweight replaces
+    Savitzky-Golay plus a hard half-window guard. It was wired end to end
+    (photometry, BLS `dy`, scientific identity), calibrated over an 18-point
+    `(window, floor, alpha)` grid, and then reverted. Final numbers, 20,000
+    null draws:
+
+    | arm | retention | artifact enrichment | p | survivors | survivors *on* an artifact epoch |
+    |---|---|---|---|---|---|
+    | Savitzky–Golay + hard guard | 0.669 | 1.137 | 0.046 | 24 | **1** |
+    | biweight, support-weighted, α=5 | 0.993 | 1.140 | 0.039 | 51 | **9** |
+
+    Retention passes overwhelmingly. Artifact enrichment does not move at all,
+    and artifact-epoch **survivors rise from 1 to 9** — the change promotes
+    instrument systematics to survivor status nine times more often. §2.3 ships
+    the change only when all four numbers pass, so it does not ship. This is
+    the failure §2.3 item 3 exists to catch: the retention gain is re-admitting
+    the edge cadences that carry the artifact, not recovering real sensitivity.
+
+    No `(window, floor, alpha)` satisfies the three real constraints together.
+    `config.py` had labelled these values uncalibrated placeholders; the
+    calibration was run and the answer is that the mechanism cannot separate
+    edge *sensitivity* from edge *artifacts*:
+
+    - **The floor cannot carry it.** At window 1.0 d a clean edge has support
+      f = 0.5, above the 0.4 floor, so the floor never fires (99.3% retention).
+      Raising it to 0.8 passes the artifact gate but leaves an edge transit 2
+      of the 5 cadences it needs — passing by destroying the capability.
+      Geometry bounds this: a floor F drops cadences within 2h(F − 0.5) of an
+      edge, so F ≥ 0.58 always eats edge transits at this window.
+    - **Alpha cannot carry it either.** Enrichment falls monotonically with α
+      on the probe (1.46 → 1.12) and looked like a pass at α = 5, but the real
+      path shows no improvement whatsoever.
+
+    A steep α is defensible in principle — the dominant edge error is *bias*
+    from the trend extrapolating rather than interpolating, and bias neither
+    shrinks with data nor follows the f^-0.5 law variance would, so inflating
+    uncertainty to absorb an un-modelled systematic is standard. It simply does
+    not work here. The next attempt needs a mechanism that distinguishes the
+    two, not another parameter sweep.
+
+11. **A fast probe harness disagreed with the shipping path, and the probe was
+    wrong.** The α = 5 configuration was chosen on a harness that ran detrend +
+    BLS directly: enrichment 1.12 at p = 0.14 over 200 targets. Through
+    `batch-hunt` on the full 371 the same configuration gives 1.140 at
+    p = 0.039 — no improvement over baseline. The harness skipped ephemeris
+    masking and the screening cascade, and that was enough to invert the
+    conclusion. `CODEX_HANDOFF.md` already warns about exactly this ("not the
+    separate `validate` path — that divergence is what hid the TESScut
+    disaster"); it applies to measurement harnesses too. **Calibrate through
+    the path that ships.** Fast harnesses are for ranking candidates, never for
+    the number that decides a gate.
 
 ## Owner notes
 
