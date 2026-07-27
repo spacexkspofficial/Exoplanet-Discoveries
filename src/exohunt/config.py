@@ -72,6 +72,14 @@ class SearchConfig:
         2.0,
         3.0,
     )
+    # An alias only replaces the reported period when it beats it by this
+    # factor: the half-period fold of a true signal gains a sqrt(2) cadence
+    # bonus in stacked S/N, so near-ties must not flip the ephemeris.
+    alias_change_margin: float = 1.1
+    # A predicted event window counts as showing the signal only when its
+    # depth clears this many standard errors; sign alone lets empty windows
+    # vote "present" half the time by chance (measured in test_search).
+    alias_event_sigma: float = 3.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,10 +162,14 @@ class PopulationConfig:
     observatory_spread_deg: float = 1.0
     # Absolute-time dip registry: a time bin where this fraction of searched
     # stars dip together (at this per-star significance) is a systematic
-    # window, vetoed per event before it can alias into a period.
+    # window, vetoed per event before it can alias into a period. Measured
+    # during implementation: at sigma 2 a 30-minute bin holds ~3 cadences of
+    # 10-minute data and pure noise trips ~5% of star-bins, so the original
+    # 5% cohort floor registered noise. Sigma 3 puts the per-star trip rate
+    # near 0.5% and the 10% floor an order of magnitude above it.
     dip_bin_minutes: float = 30.0
-    dip_star_sigma: float = 2.0
-    dip_min_fraction: float = 0.05
+    dip_star_sigma: float = 3.0
+    dip_min_fraction: float = 0.10
     dip_min_stars: int = 20
 
 
