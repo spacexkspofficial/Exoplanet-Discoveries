@@ -118,6 +118,12 @@ class DetrendConfig:
     # long-window flux for the monotransit detector.
     short_window_days: float = 1.0
     long_window_days: float = 3.0
+    # Escalation window for active stars (measured rotation below ~3 d or
+    # variability amplitude above ~1%): a wide window cannot follow the
+    # variability curvature at extrema and biases depths both ways. Measured
+    # on synthetic 2%-amplitude rotators: window 0.4 d with the found signal
+    # masked recovers injected depth to ~10%; window 1.0 d misses by ~50%.
+    active_window_days: float = 0.4
     # A gap at least this long starts an independently detrended segment.
     # Measured on Sector 100 photometry (see detrending.py history): 0.10 d
     # makes the 3.8 h and 5.2 h interruptions real boundaries.
