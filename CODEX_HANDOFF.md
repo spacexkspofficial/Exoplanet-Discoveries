@@ -1,5 +1,10 @@
 # Codex handoff: P2 CLI rewiring and the road to first science
 
+> **Superseded for state and work queue by [CODEX_HANDOFF_2.md](CODEX_HANDOFF_2.md) (2026-07-27).** Step 2 of §1 (structure-only
+> extraction) is complete; step 3 has been attempted twice and both
+> attempts were measured and rejected. The P2 exit gates, P3 plan,
+> monotransit detector, and claim ceiling below remain current.
+
 Supersedes `NEXT_AGENT_BRIEF.md` (its item 1, the dashboard-ledger switch, is
 done, verified, merged to `main`, and deployed). Work in
 `C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries` — **`main` now
