@@ -198,43 +198,44 @@ record was written; `origin/main` and the research branch are synchronized at
     the path that ships.** Fast harnesses are for ranking candidates, never for
     the number that decides a gate.
 
-12. **Period-only catalog matching rejects 28 residual signals above the S/N
-    gate, and not one of them is mask leakage.** Scanning every campaign
-    report: 46 rejections cite a period "within 5% of a catalogued transit
-    period or simple harmonic". In all 46 the catalogued signal had already
-    been masked (146–1,570 measurements removed), so the rejected peak is a
-    *residual* found after the known signal was taken out. For 28 the catalog
-    match is the sole rejection reason and all 28 clear S/N 7.1.
+12. **Catalogued ephemerides are too stale to mask with, and that invalidates
+    two earlier attempts to judge catalog matching.** The campaign masks
+    catalogued transits, searches the residual, then rejects a peak whose
+    period lands within 5% of a catalogued period or simple harmonic. 46
+    reports carry that rejection; 28 have it as the sole reason and clear
+    S/N 7.1.
 
-    The mask itself is the discriminator, and it avoids comparing ephemerides
-    across a harmonic relation (which is what made a first attempt at this
-    meaningless — that test would have been reported as a result and was
-    thrown away instead). Each mask covers
-    `epoch + m × period ± mask_width/2`. Taking every transit the *found*
-    ephemeris predicts inside the observation window and asking what fraction
-    land inside a masked window:
+    The finding is upstream of the question. For **all 28**, the catalogued
+    epoch predates the observation window by 70 to 1,616 cycles, and the phase
+    drift accumulated over that baseline exceeds the mask half-width (0.06–0.21
+    d) in every case. The mask is therefore placed at an essentially arbitrary
+    phase: it removes 146–1,570 measurements that are mostly not the known
+    transits, while the real ones survive into the "residual" search. TIC
+    301160638 is the clean demonstration — TOI-3487.01, catalogued epoch BTJD
+    2378.99 against data at 4070–4097, ~106 cycles, drift ≈ 2.6 d versus a
+    0.14 d mask half-width. Re-running it produces a 1.3%-deep signal at
+    S/N 153.6 whose period matches the catalogue to 0.15%: the known planet,
+    unmasked.
 
-    | overlap with masked events | meaning | n |
-    |---|---|---|
-    | ≥80% | known signal leaked through the mask; rejection correct | **0** |
-    | 20–80% | ambiguous | 9 |
-    | <20% | peak sits on cadences the mask never touched | **19** |
+    **This supersedes the previous version of this entry, which was wrong.**
+    Two tests were built and both were invalid, in the same way: each looked
+    decisive and neither could distinguish the hypothesis it was testing from
+    stale-ephemeris masking.
+    - Comparing the found and catalogued ephemerides directly — meaningless
+      across the harmonic relations most of these matched.
+    - Asking what fraction of the found transits land on masked windows —
+      reads 0% for a genuinely distinct signal *and* for the true signal whose
+      mask was placed at the wrong phase. Wired as a rejection gate it promoted
+      TIC 301160638, a catalogued TOI, to `automated_survivor`. Reverted.
 
-    Most of the 19 are at exactly 0%. The two cleanest: TIC 301160638 at
-    S/N 126.3 with 0 of 3 predicted transits on masked events, and
-    TIC 301248781 at S/N 30.8 with **0 of 26** — the latter matched at
-    relation `exact`, so its period is within 5% of the catalogued one while
-    none of its twenty-six transits coincide with a removed event. That is not
-    a small-number artifact.
-
-    **This does not make them planets.** They may still be systematics,
-    eclipsing binaries, or blends; what the measurement establishes is only
-    that the *stated reason* for rejecting them — that they are the catalogued
-    signal — is false for 19 of 28, and unverified for the remaining 9. Period
-    proximity cannot carry that judgement, which is the concrete case for
-    epoch-aware matching in `tce.py` and `evidence.py`. Caveats: transit counts
-    are small (2–5) for most of the set, so the overlap fraction is coarse
-    except where noted, and the reports span mixed pipeline versions.
+    So whether period-only matching discards real signals **remains unknown**,
+    and no count from this entry's earlier versions should be carried forward.
+    Answering it requires first fixing the masking: propagate catalogued
+    ephemerides with their uncertainty, widen the mask by the accumulated phase
+    error, and refuse to claim a signal is masked when that error exceeds the
+    transit duration. Until then the residual search is not searching residuals
+    on these targets. That is a correctness bug in the shipping pipeline, not a
+    P2 design question, and it is the more valuable of the two findings.
 
 ## Owner notes
 
