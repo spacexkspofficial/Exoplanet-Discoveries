@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "state": "frozen",
+  "purpose": "MASTER_PLAN.md 2.3 acceptance measurement 1 (artifact regression) and 2 (cadence retention) for the detrending change.",
+  "warning": "Characterization cohort. Membership means a star previously detected at a known instrument-artifact epoch; it is not a planet candidate list.",
+  "created_utc": "2026-07-27T20:33:00+00:00",
+  "selection": {
+    "rule": "ledger common_mode evidence with shared_epoch_btjd rounded to 4074.4 or 4080.8, intersected with cached SPOC Sector 100 light curves under data/lightkurve/batch_targets",
+    "artifact_epochs_btjd": [
+      4074.4,
+      4080.8
+    ],
+    "sector": 100,
+    "author": "SPOC",
+    "cadence_seconds": 120.0,
+    "deterministic": true,
+    "ordering": "TIC ID ascending"
+  },
+  "counts": {
+    "ledger_artifact_epoch_targets": 965,
+    "cached_spoc_sector_targets": 1889,
+    "selected": 371,
+    "by_artifact_epoch": {
+      "4074.4": 113,
+      "4080.8": 258
+    },
+    "with_prior_report": 371,
+    "prior_reports_passing_triage": 92,
+    "plan_minimum": 14
+  },
+  "inputs": {
+    "ledger_db": "%LOCALAPPDATA%/exohunt/exohunt.db",
+    "cache_root": "data/lightkurve/batch_targets",
+    "prior_reports": "results/campaign/sector100_spoc"
+  },
+  "output_csv": "targets/p2_artifact_regression_cohort.csv",
+  "output_csv_sha256": "b9018206380a65a39dffb9878c2bfcf86fa14adc0007c71347d38dcbf5267bca",
+  "note_on_the_original_14": "MASTER_PLAN 2.3 refers to 14 light curves from the edge-safe work. That set was never recorded (commit 7a21bf3 names a count, not the targets) and cannot be reconstructed. This cohort is a recorded superset drawn from the same Sector 100 SPOC population, so the gate is reproducible."
+}
