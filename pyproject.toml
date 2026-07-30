@@ -30,7 +30,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
-geometry = ["tess-point==0.9.2"]
+geometry = ["tess-point==0.9.3"]
 fits = ["batman-package>=2.4.9", "emcee>=3.1", "corner>=2.2"]
 
 [project.scripts]
