@@ -453,6 +453,51 @@ record was written; `origin/main` and the research branch are synchronized at
     **236 passed**. See `P2_T3_VETOES.md`; raw corrected A/B:
     `results/p2_gates/t3_shipping_ab_150.json`.
 
+20. **The dip registry carried the same estimator error correction 19 fixed in
+    T3, and it survived because nothing called it.** `population.py` measures a
+    bin's depth as a **median** but divided by `sigma / sqrt(n)`, the standard
+    error of a *mean*. The asymptotic standard error of a median is
+    `sqrt(pi/2) * sigma / sqrt(n)`, so the rule understated its own uncertainty
+    by ~25% and a nominal 3-sigma per-star trip was really about 2.4 sigma.
+    This is analytic, not a tuning opinion; `vetoes.py` already defined
+    `MEDIAN_STANDARD_ERROR_FACTOR` for exactly this reason and
+    `population.py` now imports it rather than restating the constant.
+
+    Measured on 200 deterministic pure-noise cohorts (30 stars, 3-day span,
+    10-minute cadence, current config: sigma 3, 10% fraction floor, 20-star
+    floor), changing only the estimator:
+
+    | arm | pure-noise cohorts registering a window | per-star-bin trip rate |
+    |---|---:|---:|
+    | mean standard error (before) | **13/200 (6.50%)** | 0.4506% |
+    | median standard error (after) | **0/200 (0.00%)** | 0.0594% |
+
+    A correct one-sided 3-sigma gate should trip ~0.135% of star-bins. The old
+    rule tripped 0.4506%, 3.3x too often; the corrected rule trips 0.0594%,
+    mildly conservative because the asymptotic median error overestimates the
+    true median scatter at n = 3 cadences per 30-minute bin. Conservative is
+    the correct direction for a veto. A permanent regression test caps the
+    observed pure-noise registration rate at 1%.
+
+    **No scientific result changes**: the module still has no production
+    caller, so no report, triage verdict, or status moved. This corrects the
+    screen before its first use, which is the same discipline correction 4
+    applied to its thresholds. Note that correction 4 raised sigma 2 to 3 and
+    the cohort floor 5% to 10% by measurement — those floors were partly
+    compensating for this estimator, and Appendix A's "tune on sector 100/105
+    data where truth is known" remains unspent, so they should be re-derived
+    against real cohorts rather than treated as settled.
+
+    Structural work landed in the same commit because the characterization
+    tests that exposed the estimator needed it: bins are now anchored in
+    absolute time (`floor(t / bin_days)`) instead of the cohort's own minimum,
+    so a campaign can fold stars in one at a time and get a result independent
+    of completion order; a `DipRegistryAccumulator` holds two integers per
+    occupied bin rather than one array per star; and `CohortDipRegistries`
+    partitions per sector-camera-CCD as MASTER_PLAN section 3.6 requires. That
+    restructuring was verified against the four pre-existing registry tests
+    before the estimator changed. Full suite: **249 passed** (236 + 13 new).
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to
