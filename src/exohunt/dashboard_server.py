@@ -360,6 +360,23 @@ def main(argv: list[str] | None = None) -> int:
         description="Serve the EXOHUNT dashboard on this computer only."
     )
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument(
+        "--allow-sleep",
+        action="store_true",
+        help=(
+            "Let the computer sleep normally while the dashboard runs. By "
+            "default the dashboard holds the system awake so unattended "
+            "campaigns are not interrupted."
+        ),
+    )
+    parser.add_argument(
+        "--keep-display-awake",
+        action="store_true",
+        help=(
+            "Also keep the monitor on. Off by default: an unattended run "
+            "does not need a lit screen."
+        ),
+    )
     args = parser.parse_args(argv)
     if not 1 <= args.port <= 65535:
         parser.error("--port must be between 1 and 65535")
@@ -381,9 +398,21 @@ def main(argv: list[str] | None = None) -> int:
             "exiting without starting a second one."
         )
         return 0
+    from .keepawake import KeepAwake
+
+    awake = KeepAwake(keep_display_on=args.keep_display_awake)
+    if not args.allow_sleep:
+        awake.start()
     try:
         print(f"EXOHUNT dashboard: http://127.0.0.1:{args.port}")
         print("Network scope: loopback only (not reachable from LAN or internet)")
+        # Say which it is rather than implying success: a refused or
+        # unsupported request must not read as "the machine will stay up".
+        print(
+            f"Power: {awake.reason}"
+            if not args.allow_sleep
+            else "Power: normal sleep allowed (--allow-sleep)"
+        )
         uvicorn.run(
             "exohunt.dashboard_server:app",
             host="127.0.0.1",
@@ -392,6 +421,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     finally:
+        awake.stop()
         guard.release()
 
 
