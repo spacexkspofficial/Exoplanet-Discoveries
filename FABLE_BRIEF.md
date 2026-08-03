@@ -1,7 +1,6 @@
 # Brief for Fable: master overhaul plan for an autonomous exoplanet discovery system
 
-Copy everything below the line into Fable, working in
-`C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries`.
+Copy everything below the line into Fable, working from the repository root.
 
 ---
 

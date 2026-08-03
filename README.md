@@ -15,9 +15,26 @@ For a plain-English explanation of the planets this workflow favors, the ones
 it routinely misses, and why a null result is not a planet-free star, see
 [`DETECTION_LIMITS.md`](DETECTION_LIMITS.md).
 
-## Setup on Windows
+## Download or migrate
 
-Install 64-bit Python 3.11 or 3.12, open PowerShell in this directory, then run:
+Clone the public repository for a complete development checkout:
+
+```bash
+git clone https://github.com/spacexkspofficial/Exoplanet-Discoveries.git
+cd Exoplanet-Discoveries
+```
+
+Source code, tests, target lists, dashboard assets, and research notes are kept
+in Git. Large generated survey evidence is distributed separately through a
+GitHub release so a normal clone stays small. See [MIGRATION.md](MIGRATION.md)
+for the exact restore procedure and the list of intentionally excluded caches.
+
+## Setup
+
+Install 64-bit Python 3.11 or 3.12, then create a virtual environment.
+
+Windows PowerShell:
+
 
 ```powershell
 py -3.12 -m venv .venv
@@ -25,19 +42,28 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 ```
 
-Codex can also prepare the local environment using its bundled Python runtime.
+Linux or macOS:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
 
 ## Local dashboard
 
 The stellar-survey dashboard runs only on this computer. It has no cloud
 hosting manifest, external database, analytics, or remote application runtime.
 
-```powershell
-Set-Location dashboard
-npm.cmd install
-npm.cmd run build
-Set-Location ..
-.\.venv\Scripts\exohunt-dashboard.exe
+With Node.js 22 or newer:
+
+```bash
+cd dashboard
+npm ci
+npm run build
+cd ..
+exohunt-dashboard
 ```
 
 Open `http://127.0.0.1:8765`. The server deliberately binds to `127.0.0.1`,
@@ -585,3 +611,9 @@ an incident-energy estimate, not a finding that a planet is habitable.
 - Record null results and every rejection reason.
 - Never call an unvetted dip a discovery or a validated planet.
 - Cite the mission, archive, light-curve producer, and data DOI in any public work.
+
+## Open source
+
+EXOHUNT is released under the [MIT License](LICENSE). Contributions are
+welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Please use the private process
+in [SECURITY.md](SECURITY.md) for vulnerability or credential reports.

@@ -18,14 +18,15 @@ veto plus calibration gates remain open.
 ## Verified state you inherit (re-verify, don't trust)
 
 ```powershell
-cd "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries\.codex-pr-staging\p2-catalog-matching-2"
-& "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries\.venv\Scripts\python.exe" -m pytest -q
+git clone https://github.com/spacexkspofficial/Exoplanet-Discoveries.git
+cd Exoplanet-Discoveries
+python -m pytest -q
 # expect: 236 passed
 ```
 
-- Branch `codex/p2-catalog-matching` lives in
-  `.codex-pr-staging/p2-catalog-matching-2` because the primary checkout's
-  `.git` metadata is read-only to this task. **Not merged to main. Not pushed.**
+- The P2 work was developed on `codex/p2-catalog-matching`; its measured,
+  one-concern commit sequence is retained in repository history. Use the
+  default branch after the migration consolidation.
 - `main` is at `a45403a "idk"` — the owner committed the pinned cohort files
   there mid-session and pushed. That commit contains only
   `targets/p2_artifact_regression_cohort.{csv,json}`. It is merged into the
@@ -261,9 +262,8 @@ CSV SHA-256 `b9018206380a65a3…`.
 ### Running the gates
 
 ```powershell
-$env:EXOHUNT_CACHE_DIR = "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries\data\lightkurve"
-$env:PYTHONPATH = "<worktree>\src"
-.venv\Scripts\python.exe -m exohunt.cli batch-hunt `
+$env:EXOHUNT_CACHE_DIR = "<local-cache-root>"
+python -m exohunt.cli batch-hunt `
   --targets targets\p2_artifact_regression_cohort.csv `
   --output-dir results\p2_gates\<name> `
   --author SPOC --cadence-seconds 120 --cache-max-gb 12 `

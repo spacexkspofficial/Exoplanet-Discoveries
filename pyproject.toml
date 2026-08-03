@@ -7,7 +7,17 @@ name = "exohunt-starter"
 version = "0.1.0"
 description = "A small, reproducible TESS transit-search starter project"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Astronomy",
+]
 dependencies = [
   "astropy>=6.0,<8",
   "astroquery>=0.4.7,<1",

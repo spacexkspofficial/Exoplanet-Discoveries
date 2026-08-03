@@ -33,12 +33,14 @@ __pycache__/
 .coverage
 .coverage.*
 htmlcov/
+build/
 
 # Node / dashboard builds
 .npm-cache/
 node_modules/
 dashboard/node_modules/
 dashboard/dist/
+dashboard/build/
 dashboard/work/
 dashboard/CLOUD_TEARDOWN.md
 dashboard/.vinext/
@@ -52,17 +54,25 @@ pnpm-debug.log*
 data/
 results/
 output/
+logs/
 tmp/
+.migration/
 metrics/events.jsonl
 metrics/current_stats.json
 metrics/*.lock
 metrics/*.tmp
 dashboard/public/data/survey.json
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
 *.log
 
 # Local agent, hosting, editor, and operating-system state
 .agents/
+.claude/
 .codex/
+.codex-pr-staging/
 .refactor-staging/
 .openai/
 .idea/

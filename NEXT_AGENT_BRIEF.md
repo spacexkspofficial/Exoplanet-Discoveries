@@ -1,11 +1,9 @@
 # Brief for the next agent: continue the EXOHUNT overhaul
 
 Copy everything below the line into the agent. Work happens on branch
-`claude/exoplanet-discoveries-research-192dc3` of
-`C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries`
-(there is a worktree checkout at
-`.claude\worktrees\exoplanet-discoveries-research-192dc3`; use it, or ask the
-owner whether to merge to `main` first).
+`claude/exoplanet-discoveries-research-192dc3` from the repository root. This
+is a historical handoff; use the current default branch unless reproducing that
+checkpoint deliberately.
 
 ---
 
@@ -34,7 +32,7 @@ redesign it, and not to skip ahead.
 
 - **176 tests pass** with bare `pytest` from the branch checkout:
   ```powershell
-  & "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries\.venv\Scripts\python.exe" -m pytest -q
+  python -m pytest -q
   ```
 - **P0 complete**: machine-wide coordinator mutex (auto-released on process
   death) guards `batch-hunt`, `scripts/run_science_followup.py`, and the
@@ -48,11 +46,10 @@ redesign it, and not to skip ahead.
   under 8 explicit legacy signatures, and its projection reproduces the
   dashboard exporter's counts exactly (12,168 stars, 16 statuses, 541
   `automated_survivor`, 5,615 `common_mode_systematic`). Re-verify any time
-  (idempotent) from the **main** workspace with the **branch** code:
+  (idempotent) from the repository root with the **branch** code:
   ```powershell
-  cd "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries"
   $env:PYTHONPATH = ".claude\worktrees\exoplanet-discoveries-research-192dc3\src"
-  & ".venv\Scripts\python.exe" -m exohunt.cli ledger-import --workspace . --parity
+  python -m exohunt.cli ledger-import --workspace . --parity
   ```
   (The editable install still points at `main`'s older src; the PYTHONPATH
   prefix runs the branch code. This awkwardness disappears if the owner

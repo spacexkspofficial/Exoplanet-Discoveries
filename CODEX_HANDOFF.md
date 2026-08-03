@@ -6,9 +6,8 @@
 > monotransit detector, and claim ceiling below remain current.
 
 Supersedes `NEXT_AGENT_BRIEF.md` (its item 1, the dashboard-ledger switch, is
-done, verified, merged to `main`, and deployed). Work in
-`C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries` — **`main` now
-carries all overhaul code**, so the PYTHONPATH workaround is dead; the
+done, verified, merged to `main`, and deployed). Work from the repository root.
+**`main` now carries all overhaul code**, so the PYTHONPATH workaround is dead; the
 editable install serves current code directly. The worktree branch
 `claude/exoplanet-discoveries-research-192dc3` is identical to `main`; use
 either.
@@ -36,9 +35,8 @@ already decided this.
 ## Verified state you inherit (re-verify, don't trust)
 
 ```powershell
-cd "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries"
-& ".venv\Scripts\python.exe" -m pytest -q          # expect: 180 passed
-& ".venv\Scripts\python.exe" -m exohunt.cli ledger-import --workspace . --parity
+python -m pytest -q          # historical checkpoint: 180 passed
+python -m exohunt.cli ledger-import --workspace . --parity
 # expect: parity_match true, zero differences at count, star-status, and field level
 ```
 
