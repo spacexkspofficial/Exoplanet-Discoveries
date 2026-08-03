@@ -26,6 +26,13 @@
  *   the GPU stars drift away from the 2D grid, rings and selection markers.
  */
 
+/** Which projection the vertex shader should apply. */
+export const enum StarfieldMode {
+  Galactic = 0,
+  Sky = 1,
+  Earth = 2,
+}
+
 export interface StarPoint {
   /** Sun-centred galactic coordinates, parsecs. */
   x: number;
@@ -33,6 +40,10 @@ export interface StarPoint {
   z: number;
   /** Index of this star's marker in the atlas. */
   tile: number;
+  /** Equatorial position and distance, for the sky and earth projections. */
+  raDeg: number;
+  decDeg: number;
+  distancePc: number;
 }
 
 export interface StarAtlas {
@@ -44,6 +55,7 @@ export interface StarAtlas {
 }
 
 export interface StarfieldCamera {
+  mode: StarfieldMode;
   centreX: number;
   centreY: number;
   mapRadius: number;
@@ -53,6 +65,9 @@ export interface StarfieldCamera {
   pixelRatio: number;
   width: number;
   height: number;
+  /** Sky-view scales; ignored by the other projections. */
+  skyPixelsPerRaDegree: number;
+  skyPixelsPerDecDegree: number;
 }
 
 const VERTEX_SHADER = `#version 300 es
@@ -60,6 +75,7 @@ precision highp float;
 
 in vec3 aPosition;
 in float aTile;
+in vec3 aEquatorial;         // ra degrees, dec degrees, distance parsecs
 
 uniform vec2 uCentre;
 uniform vec2 uViewport;
@@ -68,10 +84,14 @@ uniform float uMaxDistance;
 uniform vec2 uRotation;      // x = pitch, y = yaw
 uniform float uPixelRatio;
 uniform float uTileSize;     // CSS pixels
+uniform int uMode;           // 0 galactic, 1 sky, 2 earth
+uniform vec2 uSkyPixelsPerDegree;
 
 out float vTile;
 
-void main() {
+const float PI = 3.141592653589793;
+
+vec2 projectGalactic() {
   float cosY = cos(uRotation.y);
   float sinY = sin(uRotation.y);
   float cosX = cos(uRotation.x);
@@ -84,10 +104,36 @@ void main() {
   float z2 = aPosition.y * sinX + z1 * cosX;
 
   float perspective = 1.0 / (1.0 + (z2 / uMaxDistance) * 0.22);
-  vec2 screen = uCentre + vec2(
+  return uCentre + vec2(
     (x1 / uMaxDistance) * uMapRadius * perspective,
     (y1 / uMaxDistance) * uMapRadius * perspective
   );
+}
+
+// Equirectangular sky atlas: RA across, Dec up.
+vec2 projectSky() {
+  return vec2(
+    uCentre.x + (aEquatorial.x - 180.0) * uSkyPixelsPerDegree.x,
+    uCentre.y - aEquatorial.y * uSkyPixelsPerDegree.y
+  );
+}
+
+// Distance against RA direction, flattened vertically to suggest a disc.
+vec2 projectEarth() {
+  float radius = (aEquatorial.z / uMaxDistance) * uMapRadius;
+  float angle = (aEquatorial.x / 180.0) * PI;
+  return uCentre + vec2(cos(angle) * radius, sin(angle) * radius * 0.74);
+}
+
+void main() {
+  vec2 screen;
+  if (uMode == 1) {
+    screen = projectSky();
+  } else if (uMode == 2) {
+    screen = projectEarth();
+  } else {
+    screen = projectGalactic();
+  }
 
   // CSS pixels -> clip space. Y is flipped because canvas Y grows downward.
   gl_Position = vec4(
@@ -196,6 +242,9 @@ export function createStarfield(canvas: HTMLCanvasElement): Starfield | null {
   const loc = {
     position: gl.getAttribLocation(program, "aPosition"),
     tile: gl.getAttribLocation(program, "aTile"),
+    equatorial: gl.getAttribLocation(program, "aEquatorial"),
+    mode: gl.getUniformLocation(program, "uMode"),
+    skyPixelsPerDegree: gl.getUniformLocation(program, "uSkyPixelsPerDegree"),
     centre: gl.getUniformLocation(program, "uCentre"),
     viewport: gl.getUniformLocation(program, "uViewport"),
     mapRadius: gl.getUniformLocation(program, "uMapRadius"),
@@ -207,8 +256,8 @@ export function createStarfield(canvas: HTMLCanvasElement): Starfield | null {
     atlasGrid: gl.getUniformLocation(program, "uAtlasGrid"),
   };
 
-  // Interleaved: x, y, z, tile.
-  const STRIDE_FLOATS = 4;
+  // Interleaved: x, y, z, tile, ra, dec, distance.
+  const STRIDE_FLOATS = 7;
   const STRIDE = STRIDE_FLOATS * 4;
   let count = 0;
   let grid = { columns: 1, rows: 1, tileCssSize: 26 };
@@ -220,6 +269,8 @@ export function createStarfield(canvas: HTMLCanvasElement): Starfield | null {
   gl.vertexAttribPointer(loc.position, 3, gl.FLOAT, false, STRIDE, 0);
   gl.enableVertexAttribArray(loc.tile);
   gl.vertexAttribPointer(loc.tile, 1, gl.FLOAT, false, STRIDE, 12);
+  gl.enableVertexAttribArray(loc.equatorial);
+  gl.vertexAttribPointer(loc.equatorial, 3, gl.FLOAT, false, STRIDE, 16);
   gl.bindVertexArray(null);
 
   gl.disable(gl.DEPTH_TEST);
@@ -283,6 +334,9 @@ export function createStarfield(canvas: HTMLCanvasElement): Starfield | null {
         data[o + 1] = s.y;
         data[o + 2] = s.z;
         data[o + 3] = s.tile;
+        data[o + 4] = s.raDeg;
+        data[o + 5] = s.decDeg;
+        data[o + 6] = s.distancePc;
       }
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
       gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
@@ -306,6 +360,12 @@ export function createStarfield(canvas: HTMLCanvasElement): Starfield | null {
       gl.uniform1i(loc.atlas, 0);
       gl.uniform2f(loc.atlasGrid, grid.columns, grid.rows);
       gl.uniform1f(loc.tileSize, grid.tileCssSize);
+      gl.uniform1i(loc.mode, camera.mode);
+      gl.uniform2f(
+        loc.skyPixelsPerDegree,
+        camera.skyPixelsPerRaDegree,
+        camera.skyPixelsPerDecDegree,
+      );
       gl.uniform2f(loc.centre, camera.centreX, camera.centreY);
       gl.uniform2f(loc.viewport, camera.width, camera.height);
       gl.uniform1f(loc.mapRadius, camera.mapRadius);

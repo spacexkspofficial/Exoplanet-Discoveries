@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { createStarfield, type Starfield } from "./starfield";
+import { createStarfield, StarfieldMode, type Starfield } from "./starfield";
 import {
   ALL_STATUSES,
   STATUS_HELP,
@@ -852,6 +852,9 @@ function StarMap({
         y: star.y,
         z: star.z,
         tile: atlas.index.get(star.status) ?? 0,
+        raDeg: star.ra_deg,
+        decDeg: star.dec_deg,
+        distancePc: star.distance_pc,
       })),
     );
   }, [stars, gpuReady]);
@@ -1244,28 +1247,31 @@ function StarMap({
       ctx.restore();
     }
 
-    // The GPU layer draws the star field only in the galactic view, whose
-    // projection the vertex shader reproduces exactly. The sky and earth
-    // views keep the 2D renderer, and so does any machine without WebGL2.
+    // The vertex shader reproduces all three projections exactly, so the GPU
+    // draws the field in every view. A machine without WebGL2 still falls
+    // back to the 2D renderer below.
     const field = starfieldRef.current;
-    const gpuStars = Boolean(field) && mode !== "sky" && mode !== "earth";
+    const gpuStars = Boolean(field);
     if (field) {
-      if (gpuStars) {
-        field.render({
-          centreX: cx,
-          centreY: cy,
-          mapRadius,
-          maxDistance,
-          rotationX: rotation.x,
-          rotationY: rotation.y,
-          pixelRatio: dpr,
-          width: w,
-          height: h,
-        });
-      } else {
-        // Leaving stale GPU stars behind the 2D view would double-draw them.
-        field.clear(w, h, dpr);
-      }
+      field.render({
+        mode:
+          mode === "sky"
+            ? StarfieldMode.Sky
+            : mode === "earth"
+              ? StarfieldMode.Earth
+              : StarfieldMode.Galactic,
+        centreX: cx,
+        centreY: cy,
+        mapRadius,
+        maxDistance,
+        rotationX: rotation.x,
+        rotationY: rotation.y,
+        pixelRatio: dpr,
+        width: w,
+        height: h,
+        skyPixelsPerRaDegree,
+        skyPixelsPerDecDegree,
+      });
     }
 
     const projectedStars = stars.map((star) => ({ star, ...project(star) }));
