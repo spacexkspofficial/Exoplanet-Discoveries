@@ -953,16 +953,20 @@ button {
   text-decoration-color: rgba(98, 230, 167, 0.55);
 }
 
+/* Tiles wrap onto another row rather than being crushed. A fixed nine
+   columns squeezed every label into roughly 200px at 1080p, which is where
+   "Unresolved after context" and "Observatory systematics" started colliding
+   with their own help markers. auto-fit keeps them legible at any width. */
 .metric-row {
-  height: 66px;
   display: grid;
-  grid-template-columns: repeat(9, minmax(0, 1fr));
-  align-items: center;
-  padding: 7px 10px 3px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  align-items: stretch;
+  padding: 4px 10px 2px;
 }
 
 .metric {
   min-width: 0;
+  padding: 6px 4px 7px;
   text-align: center;
   border-right: 1px solid var(--line);
 }
@@ -972,15 +976,16 @@ button {
 }
 
 .metric-label {
-  min-height: 22px;
+  min-height: 24px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  padding: 0 3px;
+  gap: 3px;
+  padding: 0 4px;
   color: #8da1aa;
-  font-size: 8px;
-  line-height: 1.15;
-  overflow-wrap: anywhere;
+  font-size: 9px;
+  line-height: 1.25;
+  overflow-wrap: break-word;
   text-align: center;
   white-space: normal;
 }
@@ -993,14 +998,23 @@ button {
   font-weight: 500;
 }
 
+/* These are secondary readouts, and there are more of them than fit on one
+   line. Wrapping the row (while keeping each item unbroken) is what stops
+   "Display scale 0-150 pc" from overlapping its neighbour. */
 .metric-meta {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: clamp(8px, 1vw, 18px);
-  padding: 6px 10px;
+  align-items: center;
+  gap: 6px clamp(10px, 1.2vw, 20px);
+  padding: 7px 10px;
   border-top: 1px solid var(--line);
   color: #718894;
   font-size: 9px;
+  white-space: normal;
+}
+
+.metric-meta > * {
   white-space: nowrap;
 }
 
@@ -1251,13 +1265,14 @@ button {
     min-height: 620px;
   }
 
+  /* auto-fit already reflows; only the minimum needs to shrink on narrow
+     screens so tiles do not drop to a single column. */
   .metric-row {
-    grid-template-columns: repeat(3, 1fr);
-    height: auto;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   }
 
   .metric {
-    padding: 8px 0;
+    padding: 8px 2px;
   }
 
   .metric-meta,
