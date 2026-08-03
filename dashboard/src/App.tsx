@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { createStarfield, type Starfield } from "./starfield";
 import {
   ALL_STATUSES,
   STATUS_HELP,
@@ -533,13 +534,97 @@ function drawCanvasStatusMarker(
   y: number,
   selected: boolean,
 ) {
-  const meta = statusMeta(star.status);
-  const symbol = STATUS_SYMBOL[star.status] ?? "?";
-  const size = selected ? 13 : star.status === "searched" ? 5 : 10;
+  const sprite = statusSprite(star.status, selected);
+  // One blit per star. Every marker of a given status is pixel-identical, so
+  // rasterising the shape and its glyph once and reusing the bitmap replaces
+  // a save/restore, a font assignment, a path and a `fillText` per star --
+  // the per-star text rasterisation was the dominant cost of drawing a
+  // twelve-thousand-star field at 60fps.
+  ctx.drawImage(sprite.bitmap, x - sprite.centre, y - sprite.centre,
+    sprite.cssSize, sprite.cssSize);
+  return sprite.hitRadius;
+}
+
+/**
+ * Pre-rendered marker bitmaps, keyed by status and selection.
+ *
+ * There are on the order of thirty distinct markers and twelve thousand
+ * stars, so every marker is drawn tens or hundreds of times per frame with
+ * identical parameters. Rasterising each one once and blitting it is the
+ * same picture for a fraction of the work.
+ *
+ * Sprites are rendered at device-pixel resolution so they stay crisp on
+ * high-DPI displays, and the cache is keyed on that ratio so moving the
+ * window between monitors re-renders rather than upscaling.
+ */
+const SPRITE_CACHE = new Map<
+  string,
+  { bitmap: HTMLCanvasElement; centre: number; cssSize: number; hitRadius: number }
+>();
+
+/** Status colour as 0-255 RGB, for uploading to the GPU. */
+const RGB_CACHE = new Map<string, [number, number, number]>();
+
+function statusRgb(status: Star["status"]): [number, number, number] {
+  const cached = RGB_CACHE.get(status);
+  if (cached) return cached;
+  const colour = statusMeta(status).color.trim();
+  let rgb: [number, number, number] = [200, 220, 230];
+  const hex = colour.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hex) {
+    const value = hex[1];
+    const full =
+      value.length === 3
+        ? value
+            .split("")
+            .map((c) => c + c)
+            .join("")
+        : value;
+    rgb = [
+      parseInt(full.slice(0, 2), 16),
+      parseInt(full.slice(2, 4), 16),
+      parseInt(full.slice(4, 6), 16),
+    ];
+  } else {
+    const parts = colour.match(/rgba?\(([^)]+)\)/i);
+    if (parts) {
+      const nums = parts[1].split(",").map((n) => parseFloat(n));
+      if (nums.length >= 3) rgb = [nums[0], nums[1], nums[2]];
+    }
+  }
+  RGB_CACHE.set(status, rgb);
+  return rgb;
+}
+
+function statusSprite(status: Star["status"], selected: boolean) {
+  const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+  const key = `${status}|${selected ? 1 : 0}|${dpr}`;
+  const cached = SPRITE_CACHE.get(key);
+  if (cached) return cached;
+
+  const meta = statusMeta(status);
+  const symbol = STATUS_SYMBOL[status] ?? "?";
+  const size = selected ? 13 : status === "searched" ? 5 : 10;
   const half = size / 2;
-  ctx.save();
-  ctx.globalAlpha = star.status === "searched" ? 0.72 : 0.96;
-  ctx.shadowBlur = 0;
+  const hitRadius = Math.max(8, half + 5);
+  // Enough room for the widest marker plus the dashed selection ring.
+  const cssSize = Math.ceil((half + 8) * 2);
+  const centre = cssSize / 2;
+
+  const bitmap = document.createElement("canvas");
+  bitmap.width = Math.round(cssSize * dpr);
+  bitmap.height = Math.round(cssSize * dpr);
+  const ctx = bitmap.getContext("2d");
+  if (!ctx) {
+    const fallback = { bitmap, centre, cssSize, hitRadius };
+    SPRITE_CACHE.set(key, fallback);
+    return fallback;
+  }
+  ctx.scale(dpr, dpr);
+
+  const x = centre;
+  const y = centre;
+  ctx.globalAlpha = status === "searched" ? 0.72 : 0.96;
   ctx.strokeStyle = meta.color;
   ctx.fillStyle = meta.color;
   ctx.lineWidth = selected ? 2 : 1.4;
@@ -547,24 +632,21 @@ function drawCanvasStatusMarker(
   ctx.textBaseline = "middle";
   ctx.font = `800 ${selected ? 10 : 8}px ui-monospace, monospace`;
 
-  if (star.status === "searched") {
+  if (status === "searched") {
     ctx.fillRect(x - half, y - half, size, size);
-  } else if (star.status === "no_transit_detected") {
+  } else if (status === "no_transit_detected") {
     ctx.beginPath();
     ctx.arc(x, y, half, 0, Math.PI * 2);
     ctx.stroke();
-  } else if (
-    star.status === "screened_rejected" ||
-    star.status === "false_positive"
-  ) {
+  } else if (status === "screened_rejected" || status === "false_positive") {
     ctx.font = `800 ${selected ? 15 : 12}px ui-monospace, monospace`;
     ctx.fillText(symbol, x, y + 0.5);
   } else {
     const filled =
-      star.status === "automated_survivor" ||
-      star.status === "vetted_candidate" ||
-      star.status === "confirmed_planet";
-    if (star.status === "known_variable_star_review") {
+      status === "automated_survivor" ||
+      status === "vetted_candidate" ||
+      status === "confirmed_planet";
+    if (status === "known_variable_star_review") {
       ctx.beginPath();
       ctx.arc(x, y, half + 0.5, 0, Math.PI * 2);
       if (filled) ctx.fill();
@@ -584,8 +666,10 @@ function drawCanvasStatusMarker(
     ctx.arc(x, y, half + 5, 0, Math.PI * 2);
     ctx.stroke();
   }
-  ctx.restore();
-  return Math.max(8, half + 5);
+
+  const entry = { bitmap, centre, cssSize, hitRadius };
+  SPRITE_CACHE.set(key, entry);
+  return entry;
 }
 
 function ActualPhaseCurve({ curve, color }: { curve: PhaseCurve; color: string }) {
@@ -728,13 +812,62 @@ function StarMap({
     location: "Centered on Sun / Earth",
   });
 
+  // GPU star layer. Created once; null whenever WebGL2 is unavailable or the
+  // context is lost, in which case the 2D renderer below keeps working
+  // unchanged. It only replaces the star field itself -- the grid, rings,
+  // labels, sector footprints and selection markers stay on the 2D canvas.
+  const glCanvasRef = useRef<HTMLCanvasElement>(null);
+  const starfieldRef = useRef<Starfield | null>(null);
+  const [gpuReady, setGpuReady] = useState(false);
+
+  useEffect(() => {
+    const canvas = glCanvasRef.current;
+    if (!canvas) return;
+    const field = createStarfield(canvas);
+    starfieldRef.current = field;
+    setGpuReady(Boolean(field));
+    return () => {
+      field?.dispose();
+      starfieldRef.current = null;
+    };
+  }, []);
+
+  // Upload only when the star set changes, not per frame: this is the whole
+  // point of the GPU path.
+  useEffect(() => {
+    const field = starfieldRef.current;
+    if (!field) return;
+    field.setStars(
+      stars.map((star) => {
+        const [r, g, b] = statusRgb(star.status);
+        const diameter = star.status === "searched" ? 5 : 10;
+        return {
+          x: star.x,
+          y: star.y,
+          z: star.z,
+          r,
+          g,
+          b,
+          size: diameter / 2,
+          dimmed: star.status === "searched" ? 1 : 0,
+        };
+      }),
+    );
+  }, [stars, gpuReady]);
+
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
+    // Assigning width/height reallocates and clears the backing store, so do
+    // it only when the size actually changes rather than on every frame.
+    const nextWidth = Math.round(rect.width * dpr);
+    const nextHeight = Math.round(rect.height * dpr);
+    if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+      canvas.width = nextWidth;
+      canvas.height = nextHeight;
+    }
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1110,15 +1243,61 @@ function StarMap({
       ctx.restore();
     }
 
-    const projected = stars
-      .map((star) => ({ star, ...project(star) }))
-      .sort((a, b) => a.depth - b.depth);
+    // The GPU layer draws the star field only in the galactic view, whose
+    // projection the vertex shader reproduces exactly. The sky and earth
+    // views keep the 2D renderer, and so does any machine without WebGL2.
+    const field = starfieldRef.current;
+    const gpuStars = Boolean(field) && mode !== "sky" && mode !== "earth";
+    if (field) {
+      if (gpuStars) {
+        field.resize(w, h, dpr);
+        field.render({
+          centreX: cx,
+          centreY: cy,
+          mapRadius,
+          maxDistance,
+          rotationX: rotation.x,
+          rotationY: rotation.y,
+          pixelRatio: dpr,
+          width: w,
+          height: h,
+        });
+      } else {
+        // Leaving stale GPU stars behind the 2D view would double-draw them.
+        field.resize(w, h, dpr);
+        field.render({
+          centreX: cx,
+          centreY: cy,
+          mapRadius: 0,
+          maxDistance,
+          rotationX: rotation.x,
+          rotationY: rotation.y,
+          pixelRatio: dpr,
+          width: w,
+          height: h,
+        });
+      }
+    }
+
+    const projectedStars = stars.map((star) => ({ star, ...project(star) }));
+    // Depth order only matters when the CPU paints overlapping markers; the
+    // GPU layer blends them, so the per-frame sort is skipped there.
+    const projected = gpuStars
+      ? projectedStars
+      : projectedStars.sort((a, b) => a.depth - b.depth);
     const hitPoints: Array<{ star: Star; x: number; y: number; r: number }> = [];
     for (const point of projected) {
       const { star, x, y } = point;
       const selectedPoint = selected?.tic_id === star.tic_id;
       if (x < -20 || x > w + 20 || y < -20 || y > h + 20) continue;
-      const hitRadius = drawCanvasStatusMarker(ctx, star, x, y, selectedPoint);
+      // With the GPU drawing the field, the 2D pass only needs the hit
+      // radius -- except for the selected star, whose distinct marker and
+      // ring must stay visible above the points.
+      const hitRadius = gpuStars
+        ? selectedPoint
+          ? drawCanvasStatusMarker(ctx, star, x, y, true)
+          : statusSprite(star.status, false).hitRadius
+        : drawCanvasStatusMarker(ctx, star, x, y, selectedPoint);
       if (selectedPoint) {
         ctx.save();
         ctx.setLineDash([3, 4]);
@@ -1250,6 +1429,7 @@ function StarMap({
 
   return (
     <div className="map-stage">
+      <canvas ref={glCanvasRef} className="star-canvas-gl" aria-hidden="true" />
       <canvas
         ref={canvasRef}
         className="star-canvas"

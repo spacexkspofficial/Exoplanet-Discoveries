@@ -488,17 +488,13 @@ button {
   overflow: hidden;
 }
 
+/* The decorative starfield texture moved from .star-canvas to the stage so
+   the GPU star layer can sit behind the 2D overlay. A canvas paints its own
+   background above anything stacked underneath it, so leaving it on
+   .star-canvas would have hidden the WebGL layer entirely. */
 .map-stage {
   position: absolute;
   inset: 0 0 28px;
-}
-
-.star-canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  cursor: crosshair;
-  touch-action: none;
   background-image:
     radial-gradient(circle at 12% 20%, rgba(255, 255, 255, 0.18) 0 1px, transparent 1px),
     radial-gradient(circle at 74% 31%, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px),
@@ -507,6 +503,29 @@ button {
     113px 107px,
     179px 173px,
     211px 197px;
+}
+
+/* GPU star layer: fills the stage, never receives pointer events (the 2D
+   canvas above it owns hit testing), and is simply absent when WebGL2 is
+   unavailable. */
+.star-canvas-gl {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.star-canvas {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
 }
 
 .axis-card {
