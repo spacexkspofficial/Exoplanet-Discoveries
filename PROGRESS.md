@@ -678,6 +678,71 @@ record was written; `origin/main` and the research branch are synchronized at
     p < 1e-4 out of 863 observed, both at BTJD 4092.40-4092.44. Full suite:
     **265 passed**. No production behaviour changed.
 
+24. **Paired testing confirms which section 2.3 number carries information,
+    and corrects the error term used in correction 23.** Both arms searched
+    the identical 371 stars at the identical epochs, so star-to-star variance
+    is common and cancels. Correction 23 compared them against a bootstrap
+    over targets, which is an *unpaired* error and overstates the uncertainty
+    for this comparison. Its conclusion survives; its number does not.
+
+    Correct paired comparison, McNemar over per-star artifact alignment,
+    computed from the restored historical arms:
+
+    | | baseline aligned | baseline not |
+    |---|---:|---:|
+    | **biweight aligned** | 87 | 51 |
+    | **biweight not** | 46 | 187 |
+
+    97 stars change alignment status between arms, almost symmetrically.
+    McNemar chi-square 0.165, **0.41 sigma, p = 0.685**. The arms do not
+    differ in artifact alignment. Enrichment is stable rather than noisy --
+    baseline < biweight in 12 of 12 independent null seeds, and the full
+    20,000-draw production seed reproduces correction 10 exactly (1.13766 vs
+    1.13879) -- but a stable point estimate is not a significant difference.
+    (An earlier reading in this session claimed the ordering flipped; that was
+    an artifact of a 4,000-draw null and is withdrawn.)
+
+    The survivor criterion does carry information:
+
+    | arm | survivors | on an artifact epoch |
+    |---|---:|---:|
+    | baseline e425974 | 24 | 1 |
+    | biweight alpha=5 | 51 | 9 |
+
+    A difference of +8, Poisson significance **2.53 sigma**. So of section
+    2.3's artifact numbers, *survivors sitting on artifact epochs* is the one
+    with resolving power and *enrichment* is not, which is the opposite of
+    how they have been weighted.
+
+    **The modern pipeline has removed most of that power.** Re-measuring the
+    same cohort under current code (arm A, physical search grids plus T3
+    vetoes from corrections 18 and 19) gives:
+
+    | arm | targets | survivors | on an artifact epoch | retention |
+    |---|---:|---:|---:|---:|
+    | baseline e425974 | 371 | 24 | 1 | 0.6693 |
+    | biweight alpha=5 | 371 | 51 | 9 | 0.9929 |
+    | arm A, current code | 371 | **2** | **0** | 0.6693 |
+
+    Survivor rate falls from 6.5% to 0.54%. That is the vetoes working as
+    designed, and it is good science. It also means the statistic that
+    actually discriminated now has two counts to work with instead of
+    twenty-four, so on the current pipeline **neither artifact criterion can
+    separate two detrending arms**.
+
+    **Concrete consequence for campaign planning.** Restoring the resolving
+    power the 371-target cohort had under the old code needs enough targets to
+    yield a comparable survivor count: at 0.54%, roughly **4,500 targets** for
+    ~24 survivors and ~9,400 for ~51. Any future detrending gate should be
+    sized from the survivor rate rather than the target count, and section 2.3
+    should drop enrichment from its four acceptance numbers rather than keep
+    asking a 0.41-sigma statistic to decide the question. Retention (0.669 vs
+    0.993) remains large, paired, and decisive on its own.
+
+    Reproduced with `scripts/measure_p2_artifact_gate.py` against the restored
+    arms; the historical values in correction 10 reproduce exactly. Full
+    suite: **265 passed**. No production behaviour changed.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to
