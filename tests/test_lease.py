@@ -108,3 +108,54 @@ def test_lock_excludes_other_processes_and_dies_with_holder(
         if child.poll() is None:
             child.kill()
             child.wait(timeout=30)
+
+
+# --------------------------------------------------------------------------
+# The dashboard's only definition of "a campaign is running" is the age of
+# the coordinator lease heartbeat. The kernel mutex above guarantees
+# exclusion but is invisible to other processes, so without these rows a live
+# campaign renders identically to an idle machine.
+# --------------------------------------------------------------------------
+
+
+def test_campaign_heartbeat_makes_a_running_coordinator_visible(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setenv("EXOHUNT_DB_PATH", str(tmp_path / "ops.db"))
+    from exohunt import ledger
+    from exohunt.campaign import _CoordinatorHeartbeat
+    from exohunt.dashboard_api import ops_payload
+
+    heartbeat = _CoordinatorHeartbeat()
+    conn = ledger.connect()
+    try:
+        assert ops_payload(conn)["liveness"] == "absent"
+        assert ops_payload(conn)["live"] is False
+
+        heartbeat.beat()
+        live = ops_payload(conn)
+        assert live["live"] is True
+        assert live["liveness"] == "live"
+        assert live["holder"]
+        assert live["heartbeat_age_seconds"] is not None
+
+        # Repeated beats refresh rather than duplicate or deny.
+        heartbeat.beat()
+        assert ops_payload(conn)["live"] is True
+
+        heartbeat.release()
+        assert ops_payload(conn)["liveness"] == "absent"
+    finally:
+        conn.close()
+
+
+def test_heartbeat_failure_never_breaks_a_campaign(tmp_path, monkeypatch) -> None:
+    # A campaign must survive an unavailable control plane; the honest
+    # consequence is that the dashboard reports nothing as running.
+    monkeypatch.setenv("EXOHUNT_DB_PATH", str(tmp_path / "nope" / "x" / "ops.db"))
+    from exohunt.campaign import _CoordinatorHeartbeat
+
+    heartbeat = _CoordinatorHeartbeat()
+    heartbeat.beat()
+    heartbeat.beat()
+    heartbeat.release()

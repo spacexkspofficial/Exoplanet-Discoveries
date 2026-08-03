@@ -26,9 +26,84 @@ from pathlib import Path
 import numpy as np
 from filelock import FileLock, Timeout
 
-from .lease import ALREADY_RUNNING_MESSAGE, acquire_machine_lock
+from .lease import (
+    ALREADY_RUNNING_MESSAGE,
+    acquire_machine_lock,
+    holder_description,
+)
 from .paths import path_is_within, resolve_cache_dir
 from .screening import _classify_screening_result, _sensitivity_depth_at_period
+
+# The dashboard defines "a campaign is running" as the age of this lease's
+# heartbeat and nothing else -- deliberately, because a `state` string in a
+# checkpoint file outlives the process that wrote it (the phantom `running`
+# sector100_spoc checkpoint P0 had to repair). The kernel mutex guarantees
+# exclusion but is invisible to another process, so without this row a live
+# campaign is indistinguishable from no campaign at all.
+COORDINATOR_LEASE_NAME = "coordinator"
+
+
+class _CoordinatorHeartbeat:
+    """Publish campaign liveness to the ledger, or stay silent if it cannot.
+
+    A campaign must never fail because the control plane is unavailable, so
+    every ledger error here degrades to "no heartbeat published" and is
+    latched off rather than retried per target. The dashboard then reports
+    the campaign as absent, which is the honest reading: nothing is claiming
+    liveness.
+    """
+
+    def __init__(self) -> None:
+        self._conn = None
+        self._holder: str | None = None
+        self._latched_off = False
+
+    def beat(self) -> None:
+        if self._latched_off:
+            return
+        try:
+            from . import ledger
+
+            if self._conn is None:
+                self._holder = holder_description()
+                self._conn = ledger.connect()
+            ledger.acquire_db_lease(
+                self._conn,
+                name=COORDINATOR_LEASE_NAME,
+                holder=self._holder,
+            )
+        except Exception:
+            self._latched_off = True
+            self._close()
+
+    def release(self) -> None:
+        if self._conn is None:
+            return
+        try:
+            from . import ledger
+
+            ledger.release_db_lease(
+                self._conn,
+                name=COORDINATOR_LEASE_NAME,
+                holder=self._holder,
+            )
+        except Exception:
+            # A stale row is self-correcting: the dashboard ages it out of
+            # "live" once the heartbeat passes its threshold.
+            pass
+        finally:
+            self._close()
+
+    def _close(self) -> None:
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+        self._conn = None
+
+
+_COORDINATOR_HEARTBEAT = _CoordinatorHeartbeat()
 
 
 def _batch_hunt(args: argparse.Namespace) -> int:
@@ -56,6 +131,7 @@ def _batch_hunt(args: argparse.Namespace) -> int:
         try:
             return cli_module._run_batch_hunt(args)
         finally:
+            _COORDINATOR_HEARTBEAT.release()
             lock.release()
     finally:
         coordinator.release()
@@ -332,6 +408,11 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
 
     def publish_progress(state: str = "running") -> None:
         nonlocal last_progress_publish
+        # Heartbeat before the throttle, not after: the lease update is one
+        # indexed row write, while the checkpoint rewrite is megabytes.
+        # Throttling them together would let liveness lapse on a slow target
+        # even though the coordinator is plainly alive.
+        _COORDINATOR_HEARTBEAT.beat()
         now_monotonic = time.monotonic()
         # Reports are durable per target and are rediscovered on resume, so
         # limiting large checkpoint/dashboard rewrites to the browser's polling
