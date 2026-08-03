@@ -556,6 +556,66 @@ record was written; `origin/main` and the research branch are synchronized at
     suite: **264 passed**. Raw measurement:
     `results/p2_gates/dip_registry_measurement.json`.
 
+22. **The section 2.3 artifact gate names epochs that do not exist in the
+    reduction it is run on.** The gate's gating gate: correction 9 restated
+    section 2.3 as artifact-epoch alignment against an empirical null, and
+    the 371-target cohort was built by intersecting ledger `common_mode`
+    evidence at BTJD 4074.4/4080.8 with cached **SPOC** light curves. Both
+    detrending arms (corrections 10 and 13) were then judged on that cohort.
+
+    Measured against the ledger and the arm A reports:
+
+    | measurement | value |
+    |---|---:|
+    | `common_mode` evidence rows | 12,038 |
+    | distinct shared epochs | 1,080 |
+    | shared epochs inside the SPOC observation window (4074.979-4099.479) | 496 |
+    | in-window epochs with >= 20 SPOC stars observing them | **0** |
+
+    Every in-window shared epoch clusters at BTJD 4080.13-4080.85. The most
+    shared epoch in the entire ledger, BTJD 4080.79, carries **215 targets**
+    and **zero** SPOC stars have a cadence anywhere in it. BTJD 4074.4 falls
+    before the SPOC window begins at all.
+
+    The artifact is real; it is simply not in this reduction. The historical
+    evidence came from TESScut, which applies no quality masking, so the
+    scattered-light interval survived into those light curves and produced
+    the shared ephemerides. SPOC's PDCSAP masking removes that interval
+    outright: **the SPOC data gap is the artifact, excised upstream by the
+    mission pipeline.** An earlier note in this session attributed the
+    absence to our own Savitzky-Golay edge guard; that was speculation and
+    the ledger contradicts it.
+
+    **What this does and does not invalidate.** The enrichment statistic
+    folds *fitted ephemerides* against the artifact epochs, so it still
+    computes without data there, and the empirical null still bounds chance
+    alignment correctly -- corrections 10 and 13 did discriminate between
+    arms (survivors on artifact epochs 1 vs 9 vs 3). What is undermined is
+    the statistic's physical meaning on SPOC: "aligns with an artifact epoch"
+    can only be phase coincidence when no cadence at that epoch was ever
+    searched. It cannot be contamination *by* the artifact, because the
+    artifact is not in the data. That is consistent with the measured
+    enrichment being only 1.137-1.142 and barely significant.
+
+    **The reduction the gate runs on must be the reduction the artifact is
+    in.** Two defensible repairs, neither yet made: run the artifact
+    regression under `--author TESScut --cadence-seconds 158`, where BTJD
+    4080.8 has cadences and the original evidence was produced; or derive the
+    epochs from the SPOC cohort itself. Arm A supplies the latter directly --
+    its own most-shared dip bins are BTJD 4092.396 (22 of 370 stars, 5.9%),
+    4092.438 (21), 4092.292 (19) and 4078.292 (17 of 371), all with full
+    observing coverage. Note that 5.9% sits below the registry's 10% cohort
+    floor, which is why sector-scope registration found nothing while the
+    per-CCD partition registered 45 windows.
+
+    Until this is repaired, **no detrending mechanism can be fairly judged**
+    on the artifact-regression gate, because the number that decides it is
+    measuring phase coincidence rather than artifact contamination. This is
+    upstream of the detrending question in the same way correction 12's
+    stale-mask finding was upstream of catalog matching. No production
+    behaviour was changed by this entry. Raw probes are session scratch; the
+    ledger queries and arm A reports reproduce every number above.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to
