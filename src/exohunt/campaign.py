@@ -128,9 +128,20 @@ def _batch_hunt(args: argparse.Namespace) -> int:
                 f"Another batch worker already owns {output_dir}. "
                 "Stop it before resuming this campaign."
             ) from exc
+        # A campaign is tens of minutes of unattended work; letting the
+        # machine sleep through it strands a partially finished cohort. The
+        # request is process-scoped and self-releasing, so a crash cannot
+        # leave the computer permanently awake.
+        from .keepawake import KeepAwake
+
+        awake = KeepAwake()
+        if not getattr(args, "allow_sleep", False):
+            awake.start()
+            print(f"Power: {awake.reason}")
         try:
             return cli_module._run_batch_hunt(args)
         finally:
+            awake.stop()
             _COORDINATOR_HEARTBEAT.release()
             lock.release()
     finally:

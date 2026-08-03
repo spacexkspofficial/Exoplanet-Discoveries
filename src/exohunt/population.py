@@ -301,6 +301,90 @@ def build_dip_registry(
     return accumulator.build()
 
 
+def encode_star_bins(
+    flags: dict[int, bool],
+    *,
+    config: PopulationConfig | None = None,
+) -> dict[str, Any]:
+    """Compress one star's bin flags for storage inside its report.
+
+    Reports are the project's durable truth, so carrying each star's own
+    contribution there makes the registry rebuildable from evidence alone --
+    no cached photometry, no re-download. The encoding matters because the
+    alternative is thousands of integers per report: observed bins are
+    run-length encoded (a sector is a few contiguous stretches split by
+    downlink gaps) and dipped bins are listed explicitly because at a correct
+    3-sigma gate they are rare.
+    """
+
+    cfg = config or CURRENT_CONFIG.population
+    payload: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "bin_minutes": cfg.dip_bin_minutes,
+        "observed_spans": [],
+        "dipped": sorted(index for index, dipped in flags.items() if dipped),
+    }
+    if not flags:
+        return payload
+    spans: list[list[int]] = []
+    for index in sorted(flags):
+        if spans and index == spans[-1][1] + 1:
+            spans[-1][1] = index
+        else:
+            spans.append([index, index])
+    payload["observed_spans"] = spans
+    return payload
+
+
+def decode_star_bins(payload: object) -> dict[int, bool]:
+    """Rebuild bin flags from :func:`encode_star_bins`, tolerantly."""
+
+    if not isinstance(payload, dict):
+        return {}
+    dipped = {
+        int(index)
+        for index in payload.get("dipped", [])
+        if isinstance(index, (int, float))
+    }
+    flags: dict[int, bool] = {}
+    for span in payload.get("observed_spans", []):
+        if not isinstance(span, (list, tuple)) or len(span) != 2:
+            continue
+        start, stop = span
+        if not isinstance(start, (int, float)) or not isinstance(
+            stop, (int, float)
+        ):
+            continue
+        start, stop = int(start), int(stop)
+        if stop < start:
+            continue
+        for index in range(start, stop + 1):
+            flags[index] = index in dipped
+    return flags
+
+
+def registries_from_reports(
+    reports: Iterable[tuple[str, object]],
+    *,
+    config: PopulationConfig | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Build per-cohort registries from ``(cohort_key, encoded_bins)`` pairs.
+
+    This is the T4 entry point the plan describes as pure post-processing: it
+    reads only what reports already record, so a registry can be rebuilt or
+    re-thresholded at any time without re-running a search.
+    """
+
+    cfg = config or CURRENT_CONFIG.population
+    registries = CohortDipRegistries(cfg)
+    for key, payload in reports:
+        flags = decode_star_bins(payload)
+        if not flags:
+            continue
+        registries.add_flags(key, flags)
+    return registries.build()
+
+
 def registry_windows(registry: dict[str, Any] | None) -> list[tuple[float, float]]:
     """Return ``(start, stop)`` spans from a registry payload, tolerantly.
 

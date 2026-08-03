@@ -9,6 +9,9 @@ from exohunt.population import (
     DipRegistryAccumulator,
     build_dip_registry,
     cohort_key,
+    decode_star_bins,
+    encode_star_bins,
+    registries_from_reports,
     registry_windows,
     star_bin_dips,
 )
@@ -249,3 +252,66 @@ def test_registry_windows_recovers_spans_from_windows_alone() -> None:
     # Older payloads carry `windows` without the derived `window_spans`.
     payload = {"windows": [{"start": 1.0, "stop": 2.0}]}
     assert registry_windows(payload) == [(1.0, 2.0)]
+
+
+# --------------------------------------------------------------------------
+# Characterization: reports carry their own contribution, so the registry is
+# rebuildable from evidence alone (T4 is pure post-processing).
+# --------------------------------------------------------------------------
+
+
+def test_encoded_bins_round_trip() -> None:
+    cohort = _cohort(1, span=2.0, seed=61)
+    _tic, time, flux = cohort[0]
+    flags = star_bin_dips(time, flux)
+    assert decode_star_bins(encode_star_bins(flags)) == flags
+
+
+def test_encoding_is_run_length_compact_not_one_entry_per_bin() -> None:
+    # A continuous sector is a handful of spans; storing an integer per bin
+    # would add megabytes across a campaign.
+    cohort = _cohort(1, span=3.0, seed=67)
+    _tic, time, flux = cohort[0]
+    flags = star_bin_dips(time, flux)
+    payload = encode_star_bins(flags)
+    assert len(flags) > 100
+    assert len(payload["observed_spans"]) <= 3
+
+
+def test_encoding_preserves_a_gap_as_separate_spans() -> None:
+    flags = {10: False, 11: True, 40: False, 41: False}
+    payload = encode_star_bins(flags)
+    assert payload["observed_spans"] == [[10, 11], [40, 41]]
+    assert payload["dipped"] == [11]
+    assert decode_star_bins(payload) == flags
+
+
+def test_registries_rebuilt_from_reports_match_direct_accumulation() -> None:
+    cohort = _cohort(40, shared_dip_fraction=0.5, shared_dip_at=1.0, span=2.0, seed=71)
+    direct = CohortDipRegistries()
+    encoded = []
+    for _tic, time, flux in cohort:
+        direct.add_curve(time, flux, sector=100, camera=2, ccd=3)
+        encoded.append(
+            ("s100-cam2-ccd3", encode_star_bins(star_bin_dips(time, flux)))
+        )
+    assert registries_from_reports(encoded) == direct.build()
+
+
+def test_reports_without_usable_bins_are_skipped_not_counted() -> None:
+    # A star that contributed nothing must not inflate the denominator and
+    # quietly push a real window under the fraction floor.
+    cohort = _cohort(40, shared_dip_fraction=0.5, shared_dip_at=1.0, span=2.0, seed=73)
+    encoded = [
+        ("s100-cam1-ccd1", encode_star_bins(star_bin_dips(time, flux)))
+        for _tic, time, flux in cohort
+    ]
+    padded = encoded + [("s100-cam1-ccd1", None)] * 200
+    assert registries_from_reports(padded) == registries_from_reports(encoded)
+
+
+def test_decode_star_bins_tolerates_malformed_payloads() -> None:
+    assert decode_star_bins(None) == {}
+    assert decode_star_bins({"observed_spans": [[5, 1]]}) == {}
+    assert decode_star_bins({"observed_spans": [["a", "b"]]}) == {}
+    assert decode_star_bins({"observed_spans": [[1, 2, 3]]}) == {}

@@ -92,7 +92,11 @@ class VetoConfig:
 
     # Bump when veto semantics change without changing a numeric threshold;
     # checkpoint reuse compares this complete config.
-    policy_version: str = "t3-family-wise-secondary-v1"
+    # Bumped for the absolute-time dip veto: reports now carry a
+    # `dip_window` block and per-star `population_bins`, and an event inside
+    # a registered window stops counting toward the minimum-transit rule.
+    # Reuse must not mix pre-dip and post-dip reports in one campaign.
+    policy_version: str = "t3-dip-window-veto-v1"
     # Model-fit odd/even difference; 3 sigma continues the historical gate but
     # the estimator works from a two-depth folded fit rather than medians of
     # per-event medians, so it no longer returns None at 3+1 events.

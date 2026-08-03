@@ -33,6 +33,10 @@ DURATION_DENSITY_REJECTION_REASON = (
     "the fitted transit duration is physically inconsistent with the catalog "
     "stellar density"
 )
+DIP_WINDOW_REJECTION_REASON = (
+    "too few transit events survive once events inside registered "
+    "absolute-time systematic windows are discounted"
+)
 DEPTH_EB_LANE_REASON = (
     "the implied companion radius exceeds the configured planet-lane ceiling"
 )
@@ -402,6 +406,8 @@ def evaluate_t3_vetoes(
     stellar_radius_solar: float | None,
     minimum_supported_events: int,
     config: VetoConfig | None = None,
+    dip_windows: list[tuple[float, float]] | None = None,
+    dip_registry_scope: str | None = None,
 ) -> dict[str, object]:
     """Evaluate the complete single-target T3 gate and retain every check.
 
@@ -449,6 +455,20 @@ def evaluate_t3_vetoes(
         config=cfg,
     )
 
+    # T4 feeds back into T3 here (MASTER_PLAN 3.6). An event whose centre sits
+    # in a registered absolute-time window is *discounted*, not merely noted:
+    # many unrelated stars dimmed together at that timestamp, so it is the
+    # observatory's event and cannot be one of this star's transits. Windows
+    # arrive as a published snapshot -- a first campaign over a fresh cohort
+    # has none, and the veto is then inert rather than silently permissive.
+    dip = _dip_window_evidence(
+        support,
+        windows=dip_windows,
+        scope=dip_registry_scope,
+        enabled=cfg.dip_registry_veto,
+    )
+    effective_supported = int(dip["supported_events_after_veto"])
+
     rejection_reasons: list[str] = []
     if duration["verdict"] == "kill":
         rejection_reasons.append(DURATION_DENSITY_REJECTION_REASON)
@@ -460,6 +480,11 @@ def evaluate_t3_vetoes(
         rejection_reasons.append(SECONDARY_REJECTION_REASON)
     if int(support["supported_events"]) < minimum_supported_events:
         rejection_reasons.append(EVENT_SUPPORT_REJECTION_REASON)
+    elif effective_supported < minimum_supported_events:
+        # Support was sufficient until the registry discounted events, so the
+        # reason names the registry rather than hiding behind plain
+        # insufficient sampling.
+        rejection_reasons.append(DIP_WINDOW_REJECTION_REASON)
 
     review_flags = (
         [DURATION_DENSITY_REVIEW_FLAG]
@@ -479,5 +504,65 @@ def evaluate_t3_vetoes(
             "odd_even": odd_even,
             "full_phase_secondary": secondary,
             "event_support": support,
+            "dip_window": dip,
         },
+    }
+
+
+def _dip_window_evidence(
+    support: dict[str, object],
+    *,
+    windows: list[tuple[float, float]] | None,
+    scope: str | None,
+    enabled: bool,
+) -> dict[str, object]:
+    """Discount supported events that land in registered systematic windows.
+
+    Always returns a block, so a report records *why* the screen did or did
+    not apply. "No registry was available" and "a registry was applied and
+    found nothing" are different facts and must not read the same.
+    """
+
+    events = support.get("events") or []
+    supported_centers = [
+        float(event["center"])
+        for event in events
+        if isinstance(event, dict) and event.get("supported")
+    ]
+    baseline = int(support.get("supported_events") or 0)
+    if not enabled:
+        state = "disabled_by_config"
+    elif not windows:
+        state = "no_registry_available"
+    else:
+        state = "applied"
+    if state != "applied":
+        return {
+            "state": state,
+            "cohort": scope,
+            "registered_windows": 0,
+            "events_total": len(supported_centers),
+            "events_in_systematic_windows": 0,
+            "events_clean": len(supported_centers),
+            "flagged_centers": [],
+            "supported_events_before_veto": baseline,
+            "supported_events_after_veto": baseline,
+            "note": (
+                "No absolute-time window list was applied. This is not "
+                "evidence that the events are astrophysical."
+            ),
+        }
+    veto = dip_window_veto(supported_centers, list(windows))
+    return {
+        "state": state,
+        "cohort": scope,
+        "registered_windows": len(windows),
+        **veto,
+        "supported_events_before_veto": baseline,
+        "supported_events_after_veto": int(veto["events_clean"]),
+        "note": (
+            "Events centred inside a registered window are discounted "
+            "because many unrelated stars dimmed together at that absolute "
+            "time. Surviving the screen is not evidence of a planet."
+        ),
     }

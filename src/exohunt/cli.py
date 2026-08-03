@@ -111,6 +111,12 @@ from .targets import (
     _small_planet_merit,
     _small_planet_selection_tier,
 )
+from .population import (
+    cohort_key,
+    encode_star_bins,
+    registry_windows,
+    star_bin_dips,
+)
 from .tce import check_tces
 from .vetoes import evaluate_t3_vetoes
 
@@ -119,6 +125,44 @@ from .vetoes import evaluate_t3_vetoes
 os.environ.setdefault("MPLBACKEND", "Agg")
 
 _PLOT_LOCK = threading.Lock()
+
+
+def _dip_registry_windows(
+    args: argparse.Namespace,
+    cohort: str,
+) -> list[tuple[float, float]]:
+    """Load registered systematic windows for one cohort, if a snapshot exists.
+
+    MASTER_PLAN section 3.6 versions the window list "like any catalog
+    snapshot", so it is supplied to a run rather than discovered by it: the
+    campaign that builds a registry cannot also have consumed it. A missing,
+    unreadable, or cohort-less snapshot yields no windows, which leaves the
+    veto inert -- never silently permissive, because the report records that
+    no registry was applied.
+    """
+
+    setting = getattr(args, "dip_registry", None)
+    if not setting:
+        return []
+    path = Path(setting)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        print(
+            f"warning: could not read dip registry {path}; "
+            "continuing with no absolute-time window veto",
+            file=sys.stderr,
+        )
+        return []
+    if not isinstance(payload, dict):
+        return []
+    # Accept either a single registry or a {cohort_key: registry} mapping.
+    cohorts = payload.get("cohorts")
+    if isinstance(cohorts, dict):
+        return registry_windows(cohorts.get(cohort))
+    if payload.get("cohort") in (None, cohort):
+        return registry_windows(payload)
+    return []
 
 
 def _safe_name(value: str) -> str:
@@ -1725,9 +1769,25 @@ def _hunt_from_light_curve(
         == "catalog_stellar_mass_and_radius"
         else None
     )
+    # T4 contribution and consumption (MASTER_PLAN 3.6). The star records its
+    # own absolute-time bin flags so the cohort registry stays rebuildable
+    # from durable reports alone, and consumes a published registry snapshot
+    # if one was supplied. A first pass over a fresh cohort has no snapshot,
+    # so the veto is inert and the report says so explicitly.
+    population_cohort = cohort_key(
+        _sector_values(args.sector)[0] if _sector_values(args.sector) else None,
+        metadata.get("camera"),
+        metadata.get("ccd"),
+    )
+    population_bins = encode_star_bins(
+        star_bin_dips(cleaned_time, cleaned_flux)
+    )
+    dip_windows = _dip_registry_windows(args, population_cohort)
     t3_vetoes = evaluate_t3_vetoes(
         cleaned_time,
         cleaned_flux,
+        dip_windows=dip_windows,
+        dip_registry_scope=population_cohort,
         period_days=result.period_days,
         transit_time=result.transit_time,
         duration_hours=result.duration_hours,
@@ -1897,6 +1957,15 @@ def _hunt_from_light_curve(
             "harmonic_ambiguity_over_0_8": strong_harmonic_ambiguity,
         },
         "t3_vetoes": t3_vetoes,
+        "population_bins": {
+            "cohort": population_cohort,
+            **population_bins,
+            "scope": (
+                "This star's own absolute-time dip flags. The cohort "
+                "registry is derived from these across every star observed "
+                "together; one star's flags say nothing on their own."
+            ),
+        },
         "sensitivity_probe": sensitivity,
         "deeper_vetting": deeper_vetting,
         "automated_triage": {
@@ -2224,6 +2293,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     batch.add_argument("--mask-width", type=float, default=1.5)
     batch.add_argument("--allow-no-known", action="store_true")
+    batch.add_argument(
+        "--allow-sleep",
+        action="store_true",
+        help=(
+            "Let the computer sleep during the campaign. By default an "
+            "unattended run holds the system awake so it is not stranded "
+            "part-way through the cohort."
+        ),
+    )
     batch.add_argument(
         "--workers",
         type=int,

@@ -498,6 +498,64 @@ record was written; `origin/main` and the research branch are synchronized at
     restructuring was verified against the four pre-existing registry tests
     before the estimator changed. Full suite: **249 passed** (236 + 13 new).
 
+21. **The dip registry is wired and measured, and the measurement says it
+    cannot address the two epochs it was expected to.** The T4 registry now
+    ships: every report records its own absolute-time `population_bins`, the
+    cohort registry is derived from those durable reports (so it is
+    rebuildable and re-thresholdable forever without photometry), and T3
+    discounts any event whose centre falls in a registered window. Reports
+    record `applied` / `no_registry_available` / `disabled_by_config`
+    distinctly, because "no screen ran" must never read as "a screen ran and
+    found nothing".
+
+    Measured on the 371-target Sector 100 SPOC cohort (arm A, 371 reports,
+    0 errors, 47.2 min offline from cache), across all three cohort
+    granularities built from the same reports:
+
+    | granularity | cohorts (>= 20-star floor) | windows | stars stranded | events discounted | triage passes |
+    |---|---:|---:|---:|---:|---:|
+    | per sector-camera-CCD | 16 (8) | **45** | 71 | 44 over 33 reports | 2 -> 2 |
+    | per sector-camera | 4 (3) | **1** | 14 | 1 | 2 -> 2 |
+    | sector-wide | 1 (1) | **0** | 0 | 0 | 2 -> 2 |
+
+    **Dilution is now measured rather than argued.** Windows collapse
+    45 -> 1 -> 0 as cohorts coarsen, on real photometry, confirming the
+    synthetic prediction and MASTER_PLAN section 3.6's per-detector rule. The
+    cost is equally concrete: this cohort was selected by artifact epoch, not
+    detector balance, so 8 of 16 detectors fall under the 20-star floor and
+    71 of 371 stars sit in cohorts that can never register a window.
+
+    **Neither BTJD 4074.4 nor 4080.8 is covered by any window, and the reason
+    is not the screen.** The cohort's prepared photometry spans
+    4074.979-4099.479: epoch 4074.4 lies *before the data begins*, and 0 of
+    371 stars have any cadence in the 30-minute bin containing 4080.8. There
+    is no prepared flux at either epoch to aggregate. This is consistent with
+    corrections 10 and 13: these are edge artifacts, and the production
+    Savitzky-Golay half-window guard already removes those cadences
+    (retention 0.669). The registry operates on prepared flux, so it is
+    structurally the wrong instrument for artifacts the preparation stage has
+    already excised. **A null result here is therefore not evidence the
+    screen works or fails**; it is evidence about where in the pipeline these
+    two artifacts are handled.
+
+    The screen did register a real shared event the ephemeris screen cannot
+    see, because it never aliased into a common period: 18-22 unrelated stars
+    dimming together across BTJD 4092.29-4092.44. That is the absolute-time
+    capability section 3.6 exists to add.
+
+    **Science impact is zero so far**: 44 events discounted across 33 reports,
+    and automated triage passes stay 2 -> 2. Events were discounted, no
+    verdict changed. These counts measure behaviour, not completeness or
+    reliability, and the claim ceiling is unchanged.
+
+    Appendix A's `dip_registry_bin / fraction` thresholds remain uncalibrated.
+    They were set synthetically (correction 4) partly to compensate for the
+    estimator fixed in correction 20, and this cohort is too detector-sparse
+    to settle them. Calibrating them needs a detector-balanced cohort built
+    with `make-sector-targets`, which preserves camera/CCD balance. Full
+    suite: **264 passed**. Raw measurement:
+    `results/p2_gates/dip_registry_measurement.json`.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to
