@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -26,6 +27,56 @@ from .ledger import connect_readonly
 
 
 WORKSPACE = Path(__file__).resolve().parents[2]
+
+# A checkpoint older than this is a finished or abandoned run, not progress
+# worth showing as live. Liveness itself still comes from the coordinator
+# lease heartbeat; this only decides what appears in the progress list.
+LIVE_CHECKPOINT_MAX_AGE_SECONDS = 900.0
+
+
+def _live_campaigns(root: Path) -> list[dict[str, Any]]:
+    """Summarize in-flight campaigns from their checkpoint files.
+
+    Returns counts and a completion fraction only. The checkpoint is a cache
+    -- per-target reports are the durable truth -- so nothing here is treated
+    as evidence, and a malformed or missing file simply yields no entry
+    rather than an error on the dashboard's polling path.
+    """
+
+    results_root = root / "results"
+    if not results_root.exists():
+        return []
+    now = time.time()
+    campaigns: list[dict[str, Any]] = []
+    for path in sorted(results_root.rglob("batch_progress.json")):
+        try:
+            age = now - path.stat().st_mtime
+            if age > LIVE_CHECKPOINT_MAX_AGE_SECONDS:
+                continue
+            progress = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(progress, dict):
+            continue
+        total = progress.get("total_targets")
+        done = progress.get("completed_targets")
+        if not isinstance(total, int) or not isinstance(done, int) or total <= 0:
+            continue
+        counts = progress.get("counts")
+        campaigns.append(
+            {
+                "name": path.parent.name,
+                "state": progress.get("state"),
+                "total_targets": total,
+                "completed_targets": done,
+                "fraction": round(min(max(done / total, 0.0), 1.0), 4),
+                "counts": counts if isinstance(counts, dict) else {},
+                "checkpoint_age_seconds": round(age, 1),
+                "started_at_utc": progress.get("started_at_utc"),
+            }
+        )
+    campaigns.sort(key=lambda row: row["checkpoint_age_seconds"])
+    return campaigns
 DASHBOARD_DIR = WORKSPACE / "dashboard"
 DIST_DIR = DASHBOARD_DIR / "dist"
 CURRENT_SURVEY_SCHEMA_VERSION = 2
@@ -235,7 +286,16 @@ def create_app(
 
     @app.get("/api/summary")
     def summary() -> JSONResponse:
-        return JSONResponse(read_ledger(summary_payload))
+        payload = read_ledger(summary_payload)
+        # The ledger only learns about a campaign once `ledger-import` runs,
+        # so a run in flight is invisible to the DB-backed payload. The
+        # checkpoint files know, and the frontend already renders this list,
+        # so read them here rather than in dashboard_api, which is
+        # deliberately file-free. Progress is provenance, not science: it
+        # never votes on a status.
+        if isinstance(payload, dict):
+            payload["active_campaigns"] = _live_campaigns(WORKSPACE)
+        return JSONResponse(payload)
 
     @app.get("/api/stars")
     def stars(

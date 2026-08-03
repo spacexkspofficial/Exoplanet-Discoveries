@@ -256,3 +256,79 @@ def test_fresh_snapshot_does_not_trigger_another_export(tmp_path: Path) -> None:
     # A new checkpoint must still invalidate it.
     _write_checkpoint(tmp_path, 10_000_000)
     assert _survey_sources_are_newer(tmp_path, header)
+
+
+# --------------------------------------------------------------------------
+# A campaign in flight is invisible to the ledger until `ledger-import` runs,
+# so the summary reads live progress from the checkpoint files instead.
+# --------------------------------------------------------------------------
+
+
+def test_live_campaigns_reports_progress_from_a_fresh_checkpoint(tmp_path):
+    import json as _json
+
+    from exohunt.dashboard_server import _live_campaigns
+
+    campaign = tmp_path / "results" / "campaign" / "run_a"
+    campaign.mkdir(parents=True)
+    (campaign / "batch_progress.json").write_text(
+        _json.dumps(
+            {
+                "state": "running",
+                "total_targets": 3128,
+                "completed_targets": 782,
+                "counts": {"survivor": 3, "rejected": 779, "error": 0},
+                "started_at_utc": "2026-08-03T19:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    live = _live_campaigns(tmp_path)
+    assert len(live) == 1
+    assert live[0]["name"] == "run_a"
+    assert live[0]["completed_targets"] == 782
+    assert live[0]["total_targets"] == 3128
+    assert live[0]["fraction"] == round(782 / 3128, 4)
+    assert live[0]["counts"]["survivor"] == 3
+
+
+def test_stale_and_malformed_checkpoints_are_ignored(tmp_path):
+    import json as _json
+    import os
+    import time as _time
+
+    from exohunt.dashboard_server import (
+        LIVE_CHECKPOINT_MAX_AGE_SECONDS,
+        _live_campaigns,
+    )
+
+    root = tmp_path / "results" / "campaign"
+    stale = root / "old"
+    stale.mkdir(parents=True)
+    path = stale / "batch_progress.json"
+    path.write_text(
+        _json.dumps({"state": "running", "total_targets": 10, "completed_targets": 5}),
+        encoding="utf-8",
+    )
+    old = _time.time() - LIVE_CHECKPOINT_MAX_AGE_SECONDS - 60
+    os.utime(path, (old, old))
+
+    broken = root / "broken"
+    broken.mkdir(parents=True)
+    (broken / "batch_progress.json").write_text("{not json", encoding="utf-8")
+
+    # A finished campaign that never recorded totals must not divide by zero.
+    empty = root / "empty"
+    empty.mkdir(parents=True)
+    (empty / "batch_progress.json").write_text(
+        _json.dumps({"state": "completed", "total_targets": 0}), encoding="utf-8"
+    )
+
+    assert _live_campaigns(tmp_path) == []
+
+
+def test_no_results_directory_is_not_an_error(tmp_path):
+    from exohunt.dashboard_server import _live_campaigns
+
+    assert _live_campaigns(tmp_path) == []
