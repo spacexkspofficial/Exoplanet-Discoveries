@@ -15,9 +15,10 @@ model and were not represented in this fresh 28-product output. A subsequent
 frozen historical-report diagnostic now supplies that model and its separate
 controls; see `P2_HARMONIC_MATCHING.md`.
 
-The rule is now wired into the shipping single-target path after the catalog
+The rule was wired into the shipping single-target path after the catalog
 masking behavior was isolated in commit `9f9a860`. This remains a separate
-behavior change. Harmonic production behavior is deliberately unchanged.
+behavior change. Controlled harmonic behavior landed later in its own measured
+change; see `P2_HARMONIC_MATCHING.md`.
 
 ## Locked inputs
 
@@ -110,11 +111,12 @@ Each known-period relation now records:
 - predicted and overlapping event counts; and
 - per-event center offsets.
 
-The period-only rejection is retained when any relation is harmonic,
-untrustworthy, consistent with the known mask, or partially overlapping. It is
-removed only when every applicable relation is safely masked, exact period,
-and phase-distinct. Reports also expose their exact rows through
-`catalog_epoch_agreement`.
+For an exact relation, the period-only rejection is retained when its mask is
+untrustworthy, it is consistent with the known mask, or it partially overlaps.
+It is removed only when the safely masked exact relation is phase-distinct.
+Reports expose adjudicated rows through `catalog_epoch_agreement`. Controlled
+harmonic rows now follow the separately measured event-number rules in
+`P2_HARMONIC_MATCHING.md`.
 
 ## Verification and evidence
 

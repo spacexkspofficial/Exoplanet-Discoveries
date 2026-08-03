@@ -1,8 +1,8 @@
-"""Measure event-number-aware harmonic matching on frozen reports.
+"""Replay event-number-aware harmonic matching on frozen reports.
 
 This diagnostic combines historical shipping-path detections with the
 uncertainty-aware mask records for the same product-targets. It does not run a
-campaign or alter the production matcher.
+campaign.
 """
 
 from __future__ import annotations
@@ -11,6 +11,8 @@ import argparse
 import json
 from collections import Counter
 from pathlib import Path
+
+from exohunt.screening import _adjudicate_catalog_relation
 
 try:
     from scripts.measure_p2_catalog_matching import (
@@ -248,6 +250,70 @@ def measure(
                     relation,
                     mask_report,
                 )
+                signal = historical_report["strongest_residual_signal"]
+                observation = historical_report["observation_window"]
+                mask = _matching_mask(
+                    mask_report,
+                    relation.get("known_signal"),
+                )
+                if mask is None:
+                    raise ValueError(
+                        "Frozen safely-masked relation lost its mask record: "
+                        f"{relation.get('known_signal')}"
+                    )
+                production = _adjudicate_catalog_relation(
+                    relation,
+                    mask,
+                    recovered_period_days=float(signal["period_days"]),
+                    recovered_transit_time_btjd=float(
+                        signal["transit_time"]
+                    ),
+                    recovered_duration_hours=float(
+                        signal["duration_hours"]
+                    ),
+                    start_btjd=float(observation["start_btjd"]),
+                    end_btjd=float(observation["end_btjd"]),
+                )
+                production_controlled = (
+                    relation["relation"]
+                    != "one-third-period alias"
+                )
+                production_matches = (
+                    production["epoch_verdict"]
+                    == diagnosis["epoch_verdict"]
+                    and production.get("predicted_recovered_events")
+                    == diagnosis.get("predicted_recovered_events")
+                    and production.get("overlapping_event_windows")
+                    == diagnosis.get("overlapping_event_windows")
+                    and production.get("event_number_classes", [])
+                    == diagnosis.get("event_number_classes", [])
+                )
+                diagnosis.update(
+                    {
+                        "production_controlled": production_controlled,
+                        "production_epoch_verdict": production[
+                            "epoch_verdict"
+                        ],
+                        "production_catalog_match_rejects": production[
+                            "catalog_match_rejects"
+                        ],
+                        "production_replay_matches_diagnostic": (
+                            production_matches
+                            if production_controlled
+                            else None
+                        ),
+                        "projected_triage_passes": (
+                            bool(
+                                diagnosis[
+                                    "would_pass_without_period_only_rejection"
+                                ]
+                            )
+                            and not bool(
+                                production["catalog_match_rejects"]
+                            )
+                        ),
+                    }
+                )
                 diagnosis["historical_report"] = str(
                     historical_path.resolve()
                 )
@@ -278,11 +344,22 @@ def measure(
         if row["epoch_verdict"]
         == "phase_distinct_from_catalog_harmonic"
     ]
+    controlled = [
+        row for row in diagnoses if row["production_controlled"]
+    ]
+    production_mismatches = [
+        row
+        for row in controlled
+        if not row["production_replay_matches_diagnostic"]
+    ]
+    projected_passes = [
+        row for row in diagnoses if row["projected_triage_passes"]
+    ]
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "scope": (
-            "non-shipping event-number-aware harmonic diagnostic over frozen "
-            "historical detections and uncertainty-aware mask records"
+            "production-helper replay over frozen historical detections and "
+            "uncertainty-aware mask records; no campaign was run"
         ),
         "cohort_manifest": str(manifest_path.resolve()),
         "product_targets": len(manifest["selected_products"]),
@@ -298,10 +375,20 @@ def measure(
         "undercontrolled_relation_classes": [
             "one-third-period alias",
         ],
+        "production_controlled_relations": len(controlled),
+        "production_replay_mismatches": len(production_mismatches),
         "phase_distinct_relations": len(distinct),
         "phase_distinct_would_pass_without_period_rejection": sum(
             bool(row["would_pass_without_period_only_rejection"])
             for row in distinct
+        ),
+        "original_triage_passes": sum(
+            bool(row["original_triage_passes"]) for row in diagnoses
+        ),
+        "projected_triage_passes": len(projected_passes),
+        "new_projected_passes": sum(
+            not bool(row["original_triage_passes"])
+            for row in projected_passes
         ),
         "decision": (
             "Zero event-window overlap is evidence that a harmonic-period "

@@ -1796,7 +1796,9 @@ def _hunt_from_light_curve(
         "catalog_epoch_agreement": [
             relation
             for relation in known_relations
-            if relation["relation"] == "exact"
+            if not str(relation["epoch_verdict"]).startswith(
+                "not_evaluated_"
+            )
         ],
         # Retained for backward-compatible consumers; each row now states
         # whether the corresponding catalog period was actually masked.

@@ -1,4 +1,4 @@
-"""Production exact-period catalog identity tests."""
+"""Production epoch-aware catalog identity tests."""
 
 from __future__ import annotations
 
@@ -32,6 +32,8 @@ def _adjudicate(
     recovered_period_days: float = 2.0,
     recovered_transit_time_btjd: float = 101.0,
     mask: dict[str, object] | None = None,
+    start_btjd: float = 100.0,
+    end_btjd: float = 110.0,
 ) -> dict[str, object]:
     return _adjudicate_catalog_relation(
         _relation(relation),
@@ -39,8 +41,8 @@ def _adjudicate(
         recovered_period_days=recovered_period_days,
         recovered_transit_time_btjd=recovered_transit_time_btjd,
         recovered_duration_hours=2.4,
-        start_btjd=100.0,
-        end_btjd=110.0,
+        start_btjd=start_btjd,
+        end_btjd=end_btjd,
     )
 
 
@@ -74,13 +76,79 @@ def test_partial_exact_overlap_remains_rejected_conservatively() -> None:
     assert result["catalog_match_rejects"] is True
 
 
-def test_harmonic_behavior_is_deliberately_unchanged() -> None:
+def test_half_period_alias_requires_one_complete_event_number_class() -> None:
     result = _adjudicate(
         relation="half-period alias",
         recovered_period_days=1.0,
     )
 
-    assert result["epoch_verdict"] == "not_evaluated_non_exact_relation"
+    assert result["epoch_verdict"] == "consistent_with_catalog_harmonic"
+    assert sorted(
+        row["overlapping_event_windows"]
+        for row in result["event_number_classes"]
+    ) == [0, 5]
+    assert result["catalog_match_rejects"] is True
+
+
+def test_half_period_alias_at_a_distinct_phase_loses_rejection() -> None:
+    result = _adjudicate(
+        relation="half-period alias",
+        recovered_period_days=1.0,
+        recovered_transit_time_btjd=101.5,
+    )
+
+    assert result["epoch_verdict"] == (
+        "phase_distinct_from_catalog_harmonic"
+    )
+    assert result["catalog_match_rejects"] is False
+
+
+def test_double_period_alias_at_a_distinct_phase_loses_rejection() -> None:
+    result = _adjudicate(
+        relation="double-period alias",
+        recovered_period_days=4.0,
+        recovered_transit_time_btjd=102.0,
+    )
+
+    assert result["epoch_verdict"] == (
+        "phase_distinct_from_catalog_harmonic"
+    )
+    assert result["catalog_match_rejects"] is False
+
+
+def test_triple_period_alias_needs_repeated_aligned_events() -> None:
+    result = _adjudicate(
+        relation="triple-period alias",
+        recovered_period_days=6.0,
+    )
+
+    assert result["epoch_verdict"] == "consistent_with_catalog_harmonic"
+    assert result["predicted_recovered_events"] == 2
+    assert result["catalog_match_rejects"] is True
+
+
+def test_harmonic_without_an_observed_event_stays_rejected() -> None:
+    result = _adjudicate(
+        relation="double-period alias",
+        recovered_period_days=4.0,
+        recovered_transit_time_btjd=102.0,
+        end_btjd=100.5,
+    )
+
+    assert result["epoch_verdict"] == "insufficient_event_number_support"
+    assert result["catalog_match_rejects"] is True
+
+
+def test_one_third_period_alias_deliberately_remains_period_only() -> None:
+    result = _adjudicate(
+        relation="one-third-period alias",
+        recovered_period_days=2.0 / 3.0,
+        recovered_transit_time_btjd=101.5,
+    )
+
+    assert result["epoch_verdict"] == (
+        "not_evaluated_undercontrolled_relation"
+    )
     assert result["catalog_match_rejects"] is True
 
 

@@ -17,6 +17,15 @@ CATALOG_PERIOD_REJECTION_REASON = (
     "the strongest period is within 5% of a catalogued transit period or "
     "simple harmonic"
 )
+CONTROLLED_CATALOG_RELATIONS = {
+    "exact",
+    "half-period alias",
+    "double-period alias",
+    "triple-period alias",
+}
+UNDERCONTROLLED_CATALOG_RELATIONS = {
+    "one-third-period alias",
+}
 
 
 def _optional_float(value: object) -> float | None:
@@ -173,17 +182,28 @@ def _adjudicate_catalog_relation(
     """Decide whether a catalog period relation identifies the same signal.
 
     Exact-period identity requires event-window overlap with a trustworthy
-    uncertainty-expanded mask. Harmonic behavior deliberately remains the
-    historical period-only rejection until separately calibrated.
+    uncertainty-expanded mask. Controlled harmonic relations additionally
+    require the expected event-number pattern. Under-controlled relations
+    retain the historical period-only rejection.
     """
 
-    if relation.get("relation") != "exact":
+    relation_name = str(relation.get("relation"))
+    if relation_name in UNDERCONTROLLED_CATALOG_RELATIONS:
+        return {
+            "epoch_verdict": "not_evaluated_undercontrolled_relation",
+            "catalog_match_rejects": True,
+            "note": (
+                "this harmonic class lacks sufficient frozen controls and "
+                "remains period-only"
+            ),
+        }
+    if relation_name not in CONTROLLED_CATALOG_RELATIONS:
         return {
             "epoch_verdict": "not_evaluated_non_exact_relation",
             "catalog_match_rejects": True,
             "note": (
-                "harmonic behavior remains period-only until a separately "
-                "controlled event-number rule ships"
+                "this catalog relation has no controlled epoch-adjudication "
+                "rule and remains period-only"
             ),
         }
     if mask_record.get("mask_status") != "masked":
@@ -216,7 +236,11 @@ def _adjudicate_catalog_relation(
     )
     if not recovered_centers:
         return {
-            "epoch_verdict": "not_evaluable_no_recovered_events",
+            "epoch_verdict": (
+                "not_evaluable_no_recovered_events"
+                if relation_name == "exact"
+                else "insufficient_event_number_support"
+            ),
             "catalog_match_rejects": True,
         }
     recovered_half_duration_days = float(recovered_duration_hours) / 48.0
@@ -233,17 +257,72 @@ def _adjudicate_catalog_relation(
     ]
     overlaps = [offset <= overlap_tolerance_days for offset in offsets]
     overlap_count = sum(overlaps)
-    if overlap_count == len(recovered_centers):
-        verdict = "consistent_with_masked_known_signal"
+    event_number_classes: list[dict[str, object]] = []
+    if relation_name == "exact":
+        if overlap_count == len(recovered_centers):
+            verdict = "consistent_with_masked_known_signal"
+        elif overlap_count == 0:
+            verdict = "phase_distinct_from_masked_known_signal"
+        else:
+            verdict = "ambiguous_partial_epoch_overlap"
+        catalog_match_rejects = (
+            verdict != "phase_distinct_from_masked_known_signal"
+        )
     elif overlap_count == 0:
-        verdict = "phase_distinct_from_masked_known_signal"
+        verdict = "phase_distinct_from_catalog_harmonic"
+        catalog_match_rejects = False
+    elif relation_name in {
+        "double-period alias",
+        "triple-period alias",
+    }:
+        if (
+            len(recovered_centers) >= 2
+            and overlap_count == len(recovered_centers)
+        ):
+            verdict = "consistent_with_catalog_harmonic"
+        elif len(recovered_centers) < 2:
+            verdict = "insufficient_event_number_support"
+        else:
+            verdict = "ambiguous_partial_harmonic_overlap"
+        catalog_match_rejects = True
     else:
-        verdict = "ambiguous_partial_epoch_overlap"
+        for residue in range(2):
+            indices = [
+                index
+                for index in range(len(recovered_centers))
+                if index % 2 == residue
+            ]
+            class_overlaps = sum(overlaps[index] for index in indices)
+            event_number_classes.append(
+                {
+                    "residue": residue,
+                    "predicted_events": len(indices),
+                    "overlapping_event_windows": class_overlaps,
+                    "all_events_overlap": bool(indices)
+                    and class_overlaps == len(indices),
+                }
+            )
+        qualifying_classes = [
+            row
+            for row in event_number_classes
+            if row["predicted_events"] >= 2 and row["all_events_overlap"]
+        ]
+        overlaps_outside_best_class = overlap_count - max(
+            (
+                int(row["overlapping_event_windows"])
+                for row in event_number_classes
+            ),
+            default=0,
+        )
+        if qualifying_classes and overlaps_outside_best_class == 0:
+            verdict = "consistent_with_catalog_harmonic"
+        else:
+            verdict = "ambiguous_partial_harmonic_overlap"
+        catalog_match_rejects = True
 
     return {
         "epoch_verdict": verdict,
-        "catalog_match_rejects": verdict
-        != "phase_distinct_from_masked_known_signal",
+        "catalog_match_rejects": catalog_match_rejects,
         "known_period_days": known_period,
         "known_propagated_epoch_btjd": known_epoch,
         "known_mask_half_width_hours": (
@@ -256,6 +335,7 @@ def _adjudicate_catalog_relation(
         "predicted_recovered_events": len(recovered_centers),
         "overlapping_event_windows": overlap_count,
         "overlap_fraction": overlap_count / len(recovered_centers),
+        "event_number_classes": event_number_classes,
         "minimum_center_offset_hours": min(offsets) * 24.0,
         "maximum_center_offset_hours": max(offsets) * 24.0,
         "event_center_offsets_hours": [

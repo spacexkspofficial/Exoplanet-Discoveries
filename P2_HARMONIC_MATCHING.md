@@ -1,8 +1,8 @@
-# P2 event-number-aware harmonic-matching diagnostic
+# P2 event-number-aware harmonic matching
 
-Measured 2026-07-28 PDT without changing production behavior or executing a
-new campaign. This extends the exact-period result in
-`P2_CATALOG_MATCHING.md`; it does not make any planet or novelty claim.
+Measured and implemented 2026-07-28 PDT without executing a new campaign.
+This extends the exact-period result in `P2_CATALOG_MATCHING.md`; it does not
+make any planet or novelty claim.
 
 ## Decision
 
@@ -16,22 +16,24 @@ The conservative rule measured here is:
    recovered events are a subset of catalog events. Call the relation
    consistent only when every recovered event window overlaps the catalog
    mask, with at least two events.
-2. For a recovered period that is one-half or one-third of the catalog period,
-   partition recovered events by event number modulo two or three. Call the
-   relation consistent only when one complete event-number class overlaps the
-   catalog mask at least twice and no overlaps occur outside that class.
+2. For a recovered period that is one-half of the catalog period, partition
+   recovered events by event number modulo two. Call the relation consistent
+   only when one complete event-number class overlaps the catalog mask at
+   least twice and no overlaps occur outside that class.
 3. Zero overlaps means phase-distinct. Any partial pattern remains ambiguous
    and stays rejected.
 4. Event windows, not just their centers, are compared. The tolerance is the
    known mask half-width plus the recovered transit half-duration, matching the
    conservative exact-period diagnostic.
+5. One-third period remains period-only. Its single frozen example cannot
+   control an event-number rule.
 
 The real-data cohort supports this rule for half-, double-, and triple-period
 relations because each has phase-distinct examples and at least one consistent
 control; double and triple also have partial-overlap controls. One-third period
 has only one real example, and it is ambiguous rather than a positive or
-phase-distinct control. Its production behavior should remain unchanged until
-that gap is filled, even though the generic arithmetic has a synthetic test.
+phase-distinct control. Its production behavior remains unchanged until that
+gap is filled.
 
 ## Locked cohort
 
@@ -101,13 +103,19 @@ survivors under this rule. That is a regression result, not an estimated yield:
 the cohort was selected because it already contained harmonic rejections and
 is not a population sample.
 
+The production helper replay matched the independent diagnostic on all
+**19/19 controlled relations**. The historical reports project from **0 to 12
+automated triage passes**, exactly the 12 zero-overlap cases. The one-third
+case returns `not_evaluated_undercontrolled_relation`, keeps
+`catalog_match_rejects: true`, and does not pass.
+
 The three positive controls are:
 
 - TIC 23434737 SPOC, double period relative to TOI-1203 b: 3/3 recovered
   event windows overlap.
 - TIC 301160638 SPOC, half period relative to TOI-3487.01: one event-number
   class overlaps at 2/2 events and the other class has zero overlap.
-- TIC 313675203 SPOC, triple period relative to TOI-4367.01: 3/3 recovered
+- TIC 313675203 SPOC, triple period relative to TOI-4367.01: 4/4 recovered
   event windows overlap.
 
 The five partial cases remain rejected: TIC 260647166 at one-third period;
@@ -116,17 +124,19 @@ double period.
 
 ## Verification and evidence
 
-Five synthetic tests cover:
+The permanent tests cover:
 
 - complete longer-period alignment;
 - one complete shorter-period event-number class;
 - zero-overlap phase distinction;
 - partial longer-period ambiguity; and
-- refusal to infer identity from one overlapping event.
+- refusal to infer identity from one overlapping event;
+- shipping-path rejection and release behavior;
+- the explicit one-third hold; and
+- independent diagnostic-to-production agreement.
 
-The cohort builder has four additional tests, and the existing exact-period
-diagnostic has four. Focused suite: **13 passed**. Complete worktree suite:
-**199 passed**.
+Focused epoch/masking/harmonic suite: **24 passed**. Complete worktree suite:
+**216 passed**.
 
 Reproducible commands:
 
@@ -146,27 +156,24 @@ python scripts/build_p2_harmonic_cohort.py `
 python scripts/measure_p2_harmonic_matching.py `
   --manifest targets\p2_harmonic_matching_manifest.json `
   --results-root <workspace>\results `
-  --output results\p2_gates\harmonic_epoch_diagnostic\p2_harmonic_matching_measurement.json
+  --output results\p2_gates\harmonic_epoch_production_replay\p2_harmonic_matching.json
 ```
 
-Raw, gitignored measurement:
+Raw, gitignored production replay:
 
-`results/p2_gates/harmonic_epoch_diagnostic/p2_harmonic_matching_measurement.json`
+`results/p2_gates/harmonic_epoch_production_replay/p2_harmonic_matching.json`
 
-## Implementation boundary
+## Implemented boundary
 
-The uncertainty-aware masking patch must still land alone. After that:
+The uncertainty-aware mask fix and exact-period rule landed first in separate
+commits. This behavior change then:
 
-1. Implement and measure exact-period epoch matching as its own behavior
-   change using the locked five-relation exact cohort.
-2. Extract the harmonic adjudicator as a pure function and replay this frozen
-   20-relation set against it.
-3. In a separate behavior change, allow only zero-overlap half-, double-, and
-   triple-period relations to continue to the remaining gates. Keep consistent
-   and partial cases rejected.
-4. Leave one-third-period production behavior unchanged until a real
-   consistent control and preferably a partial-overlap control are locked.
+1. extended the pure adjudicator only to half-, double-, and triple-period
+   relations;
+2. allowed only their zero-overlap cases to continue to the remaining gates;
+3. retained consistent, partial, insufficient-support, and untrustworthy cases
+   as catalog rejections; and
+4. left one-third-period behavior unchanged until real controls are locked.
 
-No new download or campaign-scale run is required for the frozen replay.
-A future live cohort run still requires the owner's explicit approval under
-the standing campaign constraint.
+No download or campaign-scale run was used. A future live cohort run still
+requires the owner's explicit approval under the standing campaign constraint.

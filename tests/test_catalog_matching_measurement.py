@@ -86,7 +86,7 @@ def test_transit_window_overlap_conservatively_counts_mask_edge_leakage() -> Non
     assert diagnosis["epoch_verdict"] == "consistent_with_masked_known_signal"
 
 
-def test_untrustworthy_and_harmonic_relations_are_not_overinterpreted() -> None:
+def test_untrustworthy_and_undercontrolled_relations_stay_rejected() -> None:
     untrustworthy = _report()
     untrustworthy["known_signal_masks"][0]["mask_status"] = (
         "unmaskable_ephemeris_drift"
@@ -102,10 +102,13 @@ def test_untrustworthy_and_harmonic_relations_are_not_overinterpreted() -> None:
     harmonic = deepcopy(_report())
     harmonic_diagnosis = diagnose_relation(
         harmonic,
-        _relation(status="harmonic_alias", relation="half-period alias"),
+        _relation(
+            status="harmonic_alias",
+            relation="one-third-period alias",
+        ),
     )
     assert harmonic_diagnosis["epoch_verdict"] == (
-        "not_evaluated_non_exact_relation"
+        "not_evaluated_undercontrolled_relation"
     )
 
 

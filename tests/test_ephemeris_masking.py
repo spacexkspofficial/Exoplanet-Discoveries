@@ -218,11 +218,13 @@ def _safe_catalog() -> dict[str, object]:
     }
 
 
-def _shipping_exact_report(
+def _shipping_catalog_report(
     tmp_path: Path,
     monkeypatch,
     *,
     recovered_transit_time: float,
+    recovered_period: float = 2.0,
+    recovered_duration_hours: float = 2.4,
 ) -> dict[str, object]:
     monkeypatch.setattr(
         cli_module,
@@ -230,9 +232,9 @@ def _shipping_exact_report(
         lambda *_args, **_kwargs: _safe_catalog(),
     )
     result = DetectionResult(
-        period_days=2.0,
+        period_days=recovered_period,
         transit_time=recovered_transit_time,
-        duration_hours=2.4,
+        duration_hours=recovered_duration_hours,
         depth_ppm=10_000.0,
         depth_snr=20.0,
         radius_ratio=0.1,
@@ -242,7 +244,13 @@ def _shipping_exact_report(
         secondary_snr=0.0,
     )
     arrays = {
-        "period_grid": np.array([1.5, 2.0, 2.5]),
+        "period_grid": np.array(
+            [
+                max(0.1, recovered_period * 0.75),
+                recovered_period,
+                recovered_period * 1.25,
+            ]
+        ),
         "power": np.array([0.1, 1.0, 0.2]),
         "effective_frequency_factor": 1.0,
         "period_grid_was_capped": False,
@@ -294,7 +302,7 @@ def test_shipping_hunt_keeps_exact_mask_overlap_rejected(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    report = _shipping_exact_report(
+    report = _shipping_catalog_report(
         tmp_path,
         monkeypatch,
         recovered_transit_time=101.0,
@@ -316,7 +324,7 @@ def test_shipping_hunt_allows_exact_phase_distinct_signal_to_other_gates(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    report = _shipping_exact_report(
+    report = _shipping_catalog_report(
         tmp_path,
         monkeypatch,
         recovered_transit_time=101.5,
@@ -329,3 +337,66 @@ def test_shipping_hunt_allows_exact_phase_distinct_signal_to_other_gates(
     assert relation["catalog_match_rejects"] is False
     assert report["automated_triage"]["passes"] is True
     assert report["automated_triage"]["rejection_reasons"] == []
+
+
+def test_shipping_hunt_keeps_aligned_half_period_alias_rejected(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    report = _shipping_catalog_report(
+        tmp_path,
+        monkeypatch,
+        recovered_period=1.0,
+        recovered_transit_time=101.0,
+        recovered_duration_hours=1.0,
+    )
+
+    relation = report["relations_to_known_periods"][0]
+    assert relation["relation"] == "half-period alias"
+    assert relation["epoch_verdict"] == (
+        "consistent_with_catalog_harmonic"
+    )
+    assert relation["catalog_match_rejects"] is True
+    assert report["automated_triage"]["passes"] is False
+
+
+def test_shipping_hunt_allows_phase_distinct_half_period_alias(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    report = _shipping_catalog_report(
+        tmp_path,
+        monkeypatch,
+        recovered_period=1.0,
+        recovered_transit_time=101.5,
+        recovered_duration_hours=1.0,
+    )
+
+    relation = report["relations_to_known_periods"][0]
+    assert relation["relation"] == "half-period alias"
+    assert relation["epoch_verdict"] == (
+        "phase_distinct_from_catalog_harmonic"
+    )
+    assert relation["catalog_match_rejects"] is False
+    assert report["automated_triage"]["passes"] is True
+
+
+def test_shipping_hunt_keeps_one_third_period_alias_rejected(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    report = _shipping_catalog_report(
+        tmp_path,
+        monkeypatch,
+        recovered_period=2.0 / 3.0,
+        recovered_transit_time=101.5,
+        recovered_duration_hours=1.0,
+    )
+
+    relation = report["relations_to_known_periods"][0]
+    assert relation["relation"] == "one-third-period alias"
+    assert relation["epoch_verdict"] == (
+        "not_evaluated_undercontrolled_relation"
+    )
+    assert relation["catalog_match_rejects"] is True
+    assert report["automated_triage"]["passes"] is False

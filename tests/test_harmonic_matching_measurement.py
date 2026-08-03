@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from exohunt.screening import _adjudicate_catalog_relation
 from scripts.measure_p2_catalog_matching import PERIOD_ONLY_REJECTION
 from scripts.measure_p2_harmonic_matching import (
     diagnose_harmonic_relation,
@@ -135,3 +136,43 @@ def test_single_overlap_cannot_establish_harmonic_identity() -> None:
     assert diagnosis["epoch_verdict"] == (
         "insufficient_event_number_support"
     )
+
+
+def test_controlled_diagnostic_matches_production_adjudicator() -> None:
+    cases = [
+        ("half-period alias", 1.0, 0.0),
+        ("double-period alias", 4.0, 0.5),
+        ("triple-period alias", 6.0, 0.0),
+    ]
+    for relation_name, period_days, transit_time in cases:
+        historical = _historical_report(
+            period_days=period_days,
+            transit_time=transit_time,
+        )
+        relation = _relation(relation_name)
+        mask_report = _mask_report()
+        diagnosis = diagnose_harmonic_relation(
+            historical,
+            relation,
+            mask_report,
+        )
+        production = _adjudicate_catalog_relation(
+            relation,
+            mask_report["known_signal_masks"][0],
+            recovered_period_days=period_days,
+            recovered_transit_time_btjd=transit_time,
+            recovered_duration_hours=0.1,
+            start_btjd=0.0,
+            end_btjd=8.0,
+        )
+
+        assert production["epoch_verdict"] == diagnosis["epoch_verdict"]
+        assert production["predicted_recovered_events"] == diagnosis[
+            "predicted_recovered_events"
+        ]
+        assert production["overlapping_event_windows"] == diagnosis[
+            "overlapping_event_windows"
+        ]
+        assert production["event_number_classes"] == diagnosis[
+            "event_number_classes"
+        ]
