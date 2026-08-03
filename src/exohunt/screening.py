@@ -19,6 +19,24 @@ def _optional_float(value: object) -> float | None:
     return result if np.isfinite(result) else None
 
 
+def _asymmetric_uncertainty(
+    row: dict[str, object],
+    positive_key: str,
+    negative_key: str,
+) -> float | None:
+    """Conservatively collapse asymmetric catalog errors to one magnitude."""
+
+    values = [
+        abs(value)
+        for value in (
+            _optional_float(row.get(positive_key)),
+            _optional_float(row.get(negative_key)),
+        )
+        if value is not None
+    ]
+    return max(values) if values else None
+
+
 def _catalog_ephemerides(catalog: dict[str, object]) -> list[dict[str, object]]:
     events: list[dict[str, object]] = []
     for row in catalog["tois"]:
@@ -34,6 +52,15 @@ def _catalog_ephemerides(catalog: dict[str, object]) -> list[dict[str, object]]:
                     "period_days": period,
                     "epoch_bjd": epoch,
                     "duration_hours": duration,
+                    "period_uncertainty_days": _asymmetric_uncertainty(
+                        row, "pl_orbpererr1", "pl_orbpererr2"
+                    ),
+                    "epoch_uncertainty_days": _asymmetric_uncertainty(
+                        row, "pl_tranmiderr1", "pl_tranmiderr2"
+                    ),
+                    "duration_uncertainty_hours": _asymmetric_uncertainty(
+                        row, "pl_trandurherr1", "pl_trandurherr2"
+                    ),
                 }
             )
     for row in catalog["confirmed_planets"]:
@@ -59,6 +86,15 @@ def _catalog_ephemerides(catalog: dict[str, object]) -> list[dict[str, object]]:
                     "period_days": period,
                     "epoch_bjd": epoch,
                     "duration_hours": duration,
+                    "period_uncertainty_days": _asymmetric_uncertainty(
+                        row, "pl_orbpererr1", "pl_orbpererr2"
+                    ),
+                    "epoch_uncertainty_days": _asymmetric_uncertainty(
+                        row, "pl_tranmiderr1", "pl_tranmiderr2"
+                    ),
+                    "duration_uncertainty_hours": _asymmetric_uncertainty(
+                        row, "pl_trandurerr1", "pl_trandurerr2"
+                    ),
                 }
             )
     return events

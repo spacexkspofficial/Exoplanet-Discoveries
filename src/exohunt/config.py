@@ -151,6 +151,11 @@ class DetrendConfig:
     # fast probe harness (enrichment 1.12, p = 0.14), but through the real
     # batch-hunt path on 371 targets it did not move enrichment at all
     # (1.137 -> 1.140) and raised artifact-epoch survivors from 1 to 9.
+    # The owner's next choice -- a quarter-window hard guard plus a requirement
+    # for two events with two-sided local baselines -- was also measured and
+    # reverted. It retained 83.584% (below the 85% gate), left enrichment at
+    # 1.142 (p=0.048), and produced 3 artifact-epoch survivors versus 1 under
+    # the production guard. Local sample support cannot detect trend bias.
     # These values therefore stay at their provisional defaults until a
     # mechanism exists that separates edge sensitivity from edge artifacts.
     edge_support_floor: float = 0.4
@@ -158,6 +163,20 @@ class DetrendConfig:
     # Outlier clipping mirrors the existing pipeline.
     outlier_sigma_upper: float = 4.0
     outlier_sigma_lower: float = 20.0
+
+
+@dataclass(frozen=True, slots=True)
+class CatalogMaskConfig:
+    """Rules for deciding whether a catalogued ephemeris is safe to mask."""
+
+    # Period and epoch errors accumulate across the cycles separating a
+    # catalog measurement from the searched light curve. A mask is permitted
+    # only while that propagated phase error is no larger than one transit
+    # duration; beyond that point the catalog prediction cannot demonstrate
+    # which cadences contain the known transit. The mask half-width is widened
+    # by the propagated error when the event remains maskable.
+    max_phase_uncertainty_durations: float = 1.0
+    uncertainty_propagation: str = "linear_worst_case"
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,6 +218,7 @@ class ScienceConfig:
     search: SearchConfig = field(default_factory=SearchConfig)
     vetoes: VetoConfig = field(default_factory=VetoConfig)
     detrend: DetrendConfig = field(default_factory=DetrendConfig)
+    catalog_masking: CatalogMaskConfig = field(default_factory=CatalogMaskConfig)
     population: PopulationConfig = field(default_factory=PopulationConfig)
     instrument: InstrumentConfig = field(default_factory=InstrumentConfig)
 

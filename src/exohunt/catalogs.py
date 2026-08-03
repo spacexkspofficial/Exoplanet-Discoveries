@@ -64,6 +64,28 @@ def _catalog_cache_root(cache_dir: str | Path | None = None) -> Path:
     return root
 
 
+def _has_complete_transit_ephemeris(result: dict[str, object]) -> bool:
+    """Return whether a cached catalog contains any potentially maskable row."""
+
+    for row in result.get("tois", []):
+        if isinstance(row, dict) and all(
+            row.get(key) not in (None, "")
+            for key in ("pl_orbper", "pl_tranmid", "pl_trandurh")
+        ):
+            return True
+    for row in result.get("confirmed_planets", []):
+        if (
+            isinstance(row, dict)
+            and str(row.get("tran_flag")) == "1"
+            and all(
+                row.get(key) not in (None, "")
+                for key in ("pl_orbper", "pl_tranmid", "pl_trandur")
+            )
+        ):
+            return True
+    return False
+
+
 def _read_fresh_cache(path: Path) -> dict[str, object] | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -75,7 +97,17 @@ def _read_fresh_cache(path: Path) -> dict[str, object] | None:
     if datetime.now(timezone.utc) - generated > CATALOG_CACHE_MAX_AGE:
         return None
     result = payload.get("result")
-    return result if isinstance(result, dict) else None
+    if not isinstance(result, dict):
+        return None
+    # Older cache rows did not request period/epoch uncertainties. Refresh
+    # only known hosts that could otherwise be silently masked; zero-known
+    # targets retain their existing rate-safe cache entries.
+    if (
+        _has_complete_transit_ephemeris(result)
+        and result.get("ephemeris_uncertainty_columns_queried") is not True
+    ):
+        return None
+    return result
 
 
 def _write_cache(path: Path, result: dict[str, object]) -> None:
@@ -129,7 +161,9 @@ def check_tic(
         with _CATALOG_QUERY_LIMIT:
             tois = _tap_csv(
                 "select toi,tid,ctoi_alias,tfopwg_disp,pl_orbper,pl_tranmid,"
-                "pl_trandurh,pl_trandep,rowupdate "
+                "pl_trandurh,pl_trandep,pl_orbpererr1,pl_orbpererr2,"
+                "pl_tranmiderr1,pl_tranmiderr2,pl_trandurherr1,"
+                "pl_trandurherr2,rowupdate "
                 f"from toi where tid={tic_id}"
             )
             confirmed_identities = [f"tic_id='TIC {tic_id}'"]
@@ -142,8 +176,10 @@ def check_tic(
                 )
             confirmed = _tap_csv(
                 "select pl_name,hostname,pl_orbper,pl_tranmid,pl_trandur,pl_rade,"
-                "tran_flag,discoverymethod,disc_year,tic_id,gaia_dr2_id,"
-                "gaia_dr3_id from ps where default_flag=1 and ("
+                "pl_orbpererr1,pl_orbpererr2,pl_tranmiderr1,pl_tranmiderr2,"
+                "pl_trandurerr1,pl_trandurerr2,tran_flag,discoverymethod,"
+                "disc_year,tic_id,gaia_dr2_id,gaia_dr3_id "
+                "from ps where default_flag=1 and ("
                 + " or ".join(confirmed_identities)
                 + ")"
             )
@@ -153,6 +189,7 @@ def check_tic(
                 "tic_id": tic_id,
                 "gaia_source_id": gaia_source_id,
             },
+            "ephemeris_uncertainty_columns_queried": True,
             "tois": tois,
             "confirmed_planets": confirmed,
         }

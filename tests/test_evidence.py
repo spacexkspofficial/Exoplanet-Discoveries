@@ -1,3 +1,5 @@
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import exohunt.catalogs as catalogs
@@ -93,6 +95,64 @@ def test_nasa_catalog_lookup_is_cached_and_rate_safe(
     assert first == second
     assert len(calls) == 2
     assert (tmp_path / "TIC_42.json").exists()
+
+
+def test_known_host_cache_without_uncertainties_refreshes_once(
+    tmp_path: Path, monkeypatch
+) -> None:
+    cache_path = tmp_path / "TIC_42.json"
+    cache_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+                "result": {
+                    "tic_id": 42,
+                    "query_identifiers": {
+                        "tic_id": 42,
+                        "gaia_source_id": None,
+                    },
+                    "tois": [
+                        {
+                            "toi": "42.01",
+                            "pl_orbper": "2.0",
+                            "pl_tranmid": "2459000.0",
+                            "pl_trandurh": "2.0",
+                        }
+                    ],
+                    "confirmed_planets": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    calls: list[str] = []
+
+    def fake_tap(query: str):
+        calls.append(query)
+        if " from toi " in query:
+            return [
+                {
+                    "toi": "42.01",
+                    "pl_orbper": "2.0",
+                    "pl_orbpererr1": "0.001",
+                    "pl_orbpererr2": "-0.001",
+                    "pl_tranmid": "2459000.0",
+                    "pl_tranmiderr1": "0.002",
+                    "pl_tranmiderr2": "-0.002",
+                    "pl_trandurh": "2.0",
+                }
+            ]
+        return []
+
+    monkeypatch.setattr(catalogs, "_tap_csv", fake_tap)
+    refreshed = catalogs.check_tic(42, cache_dir=tmp_path)
+    reused = catalogs.check_tic(42, cache_dir=tmp_path)
+
+    assert refreshed == reused
+    assert len(calls) == 2
+    assert refreshed["ephemeris_uncertainty_columns_queried"] is True
+    assert refreshed["tois"][0]["pl_orbpererr1"] == "0.001"
 
 
 def test_nasa_catalog_lookup_uses_gaia_aliases_and_refreshes_old_cache(

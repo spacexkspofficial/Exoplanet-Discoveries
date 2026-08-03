@@ -12,6 +12,8 @@ from dataclasses import asdict, dataclass
 import numpy as np
 from astropy.timeseries import BoxLeastSquares
 
+from .config import CURRENT_CONFIG, CatalogMaskConfig
+
 
 @dataclass(frozen=True)
 class DetectionResult:
@@ -538,19 +540,25 @@ def mask_periodic_events(
     events: list[dict[str, object]],
     *,
     width_factor: float = 1.5,
+    config: CatalogMaskConfig | None = None,
 ) -> tuple[np.ndarray, np.ndarray, list[dict[str, object]]]:
     """Remove catalogued transit windows from a light curve.
 
     Each event requires ``period_days``, ``epoch_bjd``, and ``duration_hours``.
-    ``width_factor`` expands the catalog duration to allow for ephemeris drift,
-    imperfect durations, and transit-timing variations.
+    Period and epoch uncertainties are propagated to the light-curve epoch.
+    ``width_factor`` expands the catalog duration, then the propagated phase
+    error widens each side of the mask. Events whose uncertainty is missing or
+    exceeds the configured duration limit are recorded as unmaskable and do
+    not remove cadences.
     """
 
     if width_factor <= 0:
         raise ValueError("Mask width factor must be positive.")
+    cfg = config or CURRENT_CONFIG.catalog_masking
     t, y = _clean_arrays(time, flux)
     keep = np.ones(t.size, dtype=bool)
     records: list[dict[str, object]] = []
+    reference_time = float(np.nanmedian(t))
     for event in events:
         try:
             period = float(event["period_days"])
@@ -562,15 +570,117 @@ def mask_periodic_events(
             continue
         if not np.isfinite(duration_days) or duration_days <= 0:
             continue
-        phase_time = ((t - epoch + period / 2) % period) - period / 2
-        in_window = np.abs(phase_time) <= (duration_days * width_factor / 2)
+        cycles = int(np.rint((reference_time - epoch) / period))
+        maximum_abs_cycles = max(
+            abs(int(np.rint((float(np.nanmin(t)) - epoch) / period))),
+            abs(int(np.rint((float(np.nanmax(t)) - epoch) / period))),
+        )
+        propagated_epoch = epoch + cycles * period
+        try:
+            period_uncertainty = float(event["period_uncertainty_days"])
+            epoch_uncertainty = float(event["epoch_uncertainty_days"])
+        except (KeyError, TypeError, ValueError):
+            period_uncertainty = float("nan")
+            epoch_uncertainty = float("nan")
+        uncertainty_is_valid = bool(
+            np.isfinite(period_uncertainty)
+            and period_uncertainty >= 0
+            and np.isfinite(epoch_uncertainty)
+            and epoch_uncertainty >= 0
+        )
+        phase_uncertainty = (
+            epoch_uncertainty + maximum_abs_cycles * period_uncertainty
+            if uncertainty_is_valid
+            else None
+        )
+        maximum_phase_uncertainty = (
+            duration_days * cfg.max_phase_uncertainty_durations
+        )
+        common_record = {
+            **event,
+            "epoch_in_light_curve_time": epoch,
+            "propagated_epoch_in_light_curve_time": propagated_epoch,
+            "cycles_from_catalog_epoch": cycles,
+            "maximum_abs_cycles_in_observation": maximum_abs_cycles,
+            "phase_uncertainty_days": phase_uncertainty,
+            "phase_uncertainty_hours": (
+                phase_uncertainty * 24.0
+                if phase_uncertainty is not None
+                else None
+            ),
+            "maximum_maskable_phase_uncertainty_days": maximum_phase_uncertainty,
+            "base_mask_width_hours": duration_days * 24.0 * width_factor,
+        }
+        if not uncertainty_is_valid:
+            records.append(
+                {
+                    **common_record,
+                    "mask_status": "unmasked_ephemeris_uncertainty",
+                    "mask_reason": (
+                        "catalog ephemeris does not report finite period and "
+                        "epoch uncertainties"
+                    ),
+                    "mask_width_hours": None,
+                    "covered_measurements": 0,
+                    "removed_measurements": 0,
+                }
+            )
+            continue
+        if phase_uncertainty > maximum_phase_uncertainty:
+            records.append(
+                {
+                    **common_record,
+                    "mask_status": "unmasked_ephemeris_uncertainty",
+                    "mask_reason": (
+                        "propagated phase uncertainty exceeds the configured "
+                        "transit-duration limit"
+                    ),
+                    "phase_uncertainty_duration_ratio": (
+                        phase_uncertainty / duration_days
+                    ),
+                    "mask_width_hours": None,
+                    "covered_measurements": 0,
+                    "removed_measurements": 0,
+                }
+            )
+            continue
+        mask_half_width = duration_days * width_factor / 2 + phase_uncertainty
+        phase_time = (
+            (t - propagated_epoch + period / 2) % period
+        ) - period / 2
+        in_window = np.abs(phase_time) <= mask_half_width
+        covered_measurements = int(np.count_nonzero(in_window))
+        if covered_measurements == 0:
+            records.append(
+                {
+                    **common_record,
+                    "mask_status": "unmasked_no_observed_catalog_event",
+                    "mask_reason": (
+                        "no finite measurements fall inside the "
+                        "uncertainty-bounded catalog transit windows"
+                    ),
+                    "phase_uncertainty_duration_ratio": (
+                        phase_uncertainty / duration_days
+                    ),
+                    "proposed_mask_width_hours": mask_half_width * 48.0,
+                    "mask_width_hours": None,
+                    "covered_measurements": 0,
+                    "removed_measurements": 0,
+                }
+            )
+            continue
         newly_removed = keep & in_window
         keep &= ~in_window
         records.append(
             {
-                **event,
-                "epoch_in_light_curve_time": epoch,
-                "mask_width_hours": duration_days * 24.0 * width_factor,
+                **common_record,
+                "mask_status": "masked",
+                "mask_reason": None,
+                "phase_uncertainty_duration_ratio": (
+                    phase_uncertainty / duration_days
+                ),
+                "mask_width_hours": mask_half_width * 48.0,
+                "covered_measurements": covered_measurements,
                 "removed_measurements": int(np.count_nonzero(newly_removed)),
             }
         )

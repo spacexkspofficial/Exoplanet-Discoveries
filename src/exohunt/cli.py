@@ -47,6 +47,7 @@ from .campaign import (
     _vetting_coverage,
 )
 from .context import query_cross_mission_context
+from .config import CURRENT_CONFIG
 from .detection import (
     binned_phase_curve,
     evaluate_ephemeris,
@@ -249,6 +250,7 @@ def _scientific_settings(args: argparse.Namespace) -> dict[str, object]:
         "period_range_days": [args.min_period, args.max_period],
         "mask_width": args.mask_width,
         "allow_no_known": args.allow_no_known,
+        "catalog_masking": asdict(CURRENT_CONFIG.catalog_masking),
         # Detrending decides which cadences BLS ever sees, so it belongs to a
         # result's scientific identity. Without it here a resumed campaign would
         # silently reuse reports produced under a different segmentation rule
@@ -516,6 +518,20 @@ def _sector_vet(args: argparse.Namespace) -> int:
         cleaned_time, cleaned_flux, masks = mask_periodic_events(
             time, flux, ephemerides, width_factor=args.mask_width
         )
+        unmaskable_masks = [
+            record
+            for record in masks
+            if record.get("mask_status") != "masked"
+        ]
+        if unmaskable_masks:
+            labels = ", ".join(
+                str(record.get("label") or record.get("period_days"))
+                for record in unmaskable_masks
+            )
+            raise RuntimeError(
+                "Sector coherence cannot be measured after an untrustworthy "
+                f"catalog mask; unmaskable: {labels}"
+            )
         measured = evaluate_ephemeris(
             cleaned_time,
             cleaned_flux,
@@ -1374,6 +1390,20 @@ def _inject_recover(args: argparse.Namespace) -> int:
     cleaned_time, cleaned_flux, mask_records = mask_periodic_events(
         time, flux, ephemerides, width_factor=args.mask_width
     )
+    unmaskable_records = [
+        record
+        for record in mask_records
+        if record.get("mask_status") != "masked"
+    ]
+    if unmaskable_records:
+        labels = ", ".join(
+            str(record.get("label") or record.get("period_days"))
+            for record in unmaskable_records
+        )
+        raise RuntimeError(
+            "Cannot run residual injection recovery because catalogued signals "
+            f"could not be masked safely: {labels}"
+        )
     periods = sorted(set(float(value) for value in args.periods))
     depths = sorted(set(float(value) for value in args.depths))
     rng = np.random.default_rng(args.seed)
@@ -1561,24 +1591,36 @@ def _hunt_from_light_curve(
         raise RuntimeError(
             "No catalogued TOI/confirmed transit ephemerides were available to mask."
         )
-    known_periods = _known_transiting_periods(catalog)
-    maskable_periods = [float(event["period_days"]) for event in ephemerides]
-    unmaskable_periods = [
-        period
-        for period in known_periods
-        if not any(abs(period - maskable) / period < 0.01 for maskable in maskable_periods)
-    ]
-    if unmaskable_periods and not allow_no_known:
-        values = ", ".join(f"{period:.8g}" for period in unmaskable_periods)
-        raise RuntimeError(
-            "Known transiting signals lack a complete period/epoch/duration mask: " + values
-        )
     if ephemerides:
         cleaned_time, cleaned_flux, mask_records = mask_periodic_events(
             time, flux, ephemerides, width_factor=args.mask_width
         )
     else:
         cleaned_time, cleaned_flux, mask_records = time, flux, []
+    known_periods = _known_transiting_periods(catalog)
+    masked_records = [
+        record
+        for record in mask_records
+        if record.get("mask_status") == "masked"
+    ]
+    maskable_periods = [
+        float(record["period_days"]) for record in masked_records
+    ]
+    unmaskable_periods = [
+        period
+        for period in known_periods
+        if not any(
+            abs(period - maskable) / period < 0.01
+            for maskable in maskable_periods
+        )
+    ]
+    if unmaskable_periods and not allow_no_known:
+        values = ", ".join(f"{period:.8g}" for period in unmaskable_periods)
+        raise RuntimeError(
+            "Known transiting signals lack a complete or sufficiently precise "
+            "catalog ephemeris and could not be demonstrably masked from the "
+            f"observed cadences: {values}"
+        )
     result, arrays = search_transits(
         cleaned_time,
         cleaned_flux,
@@ -1590,11 +1632,14 @@ def _hunt_from_light_curve(
     )
     known_period_records = [
         {
-            "label": event["label"],
-            "period_days": float(event["period_days"]),
-            "mask_status": "masked",
+            "label": record["label"],
+            "period_days": float(record["period_days"]),
+            "mask_status": record["mask_status"],
         }
-        for event in ephemerides
+        for record in mask_records
+    ]
+    represented_periods = [
+        float(record["period_days"]) for record in mask_records
     ]
     known_period_records.extend(
         {
@@ -1603,6 +1648,10 @@ def _hunt_from_light_curve(
             "mask_status": "unmasked_incomplete_ephemeris",
         }
         for period in unmaskable_periods
+        if not any(
+            abs(period - represented) / period < 0.01
+            for represented in represented_periods
+        )
     )
     known_relations = []
     for event in known_period_records:
@@ -1641,8 +1690,10 @@ def _hunt_from_light_curve(
         rejection_reasons.append("a simple harmonic retains at least 80% of the peak power")
     if unmaskable_periods:
         rejection_reasons.append(
-            "one or more known transiting signals lacked a complete ephemeris and "
-            "could not be masked; this is an unmasked recovery-only scan"
+            "one or more known transiting signals lacked a complete or "
+            "sufficiently precise catalog ephemeris and could not be "
+            "demonstrably masked from the observed cadences; this is an "
+            "unmasked recovery-only scan"
         )
     if known_relations:
         rejection_reasons.append(
@@ -1680,9 +1731,9 @@ def _hunt_from_light_curve(
         },
         "search_mode": (
             "partially masked known-signal recovery"
-            if ephemerides and unmaskable_periods
+            if masked_records and unmaskable_periods
             else "catalog-masked residual"
-            if ephemerides
+            if masked_records
             else "unmasked known-signal recovery"
             if unmaskable_periods
             else "zero-known-planet star"
@@ -1691,8 +1742,25 @@ def _hunt_from_light_curve(
         "known_signal_masks": mask_records,
         "known_signal_mask_limitations": {
             "unmaskable_periods_days": unmaskable_periods,
+            "unmaskable_events": [
+                {
+                    "label": record.get("label"),
+                    "period_days": record.get("period_days"),
+                    "mask_status": record.get("mask_status"),
+                    "mask_reason": record.get("mask_reason"),
+                    "phase_uncertainty_days": record.get(
+                        "phase_uncertainty_days"
+                    ),
+                    "maximum_maskable_phase_uncertainty_days": record.get(
+                        "maximum_maskable_phase_uncertainty_days"
+                    ),
+                }
+                for record in mask_records
+                if record.get("mask_status") != "masked"
+            ],
             "reason": (
-                "catalog rows lacked a complete period/epoch/duration ephemeris"
+                "catalog signals could not be demonstrably masked from the "
+                "available ephemeris and observed cadences"
                 if unmaskable_periods
                 else None
             ),

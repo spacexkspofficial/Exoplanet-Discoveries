@@ -83,6 +83,8 @@ def test_masking_known_planet_reveals_second_planet():
                 # Full BJD checks conversion to the BTJD time base.
                 "epoch_bjd": known_epoch_btjd + 2_457_000.0,
                 "duration_hours": 3.0,
+                "period_uncertainty_days": 0.0,
+                "epoch_uncertainty_days": 0.0,
             }
         ],
         width_factor=1.5,
@@ -92,6 +94,62 @@ def test_masking_known_planet_reveals_second_planet():
     )
     assert records[0]["removed_measurements"] > 0
     assert abs(second.period_days - second_period) < 0.05
+
+
+def test_catalog_mask_widens_by_propagated_phase_uncertainty():
+    time = np.linspace(99.7, 100.3, 601)
+    flux = np.ones_like(time)
+
+    cleaned_time, _, records = mask_periodic_events(
+        time,
+        flux,
+        [
+            {
+                "label": "known",
+                "period_days": 10.0,
+                "epoch_bjd": 2_457_000.0,
+                "duration_hours": 2.4,
+                "period_uncertainty_days": 0.001,
+                "epoch_uncertainty_days": 0.01,
+            }
+        ],
+        width_factor=1.5,
+    )
+
+    record = records[0]
+    assert record["mask_status"] == "masked"
+    assert record["cycles_from_catalog_epoch"] == 10
+    assert np.isclose(record["phase_uncertainty_days"], 0.02)
+    assert np.isclose(record["mask_width_hours"], 4.56)
+    # The base half-width was 0.075 d. This cadence is removed only because
+    # the propagated phase error widened the half-width to 0.095 d.
+    assert not np.any(np.isclose(cleaned_time, 100.085))
+
+
+def test_catalog_mask_refuses_ephemeris_more_uncertain_than_one_duration():
+    time = np.linspace(99.7, 100.3, 601)
+    flux = np.ones_like(time)
+
+    cleaned_time, cleaned_flux, records = mask_periodic_events(
+        time,
+        flux,
+        [
+            {
+                "label": "stale",
+                "period_days": 10.0,
+                "epoch_bjd": 2_457_000.0,
+                "duration_hours": 2.4,
+                "period_uncertainty_days": 0.02,
+                "epoch_uncertainty_days": 0.01,
+            }
+        ],
+    )
+
+    assert np.array_equal(cleaned_time, time)
+    assert np.array_equal(cleaned_flux, flux)
+    assert records[0]["mask_status"] == "unmasked_ephemeris_uncertainty"
+    assert records[0]["removed_measurements"] == 0
+    assert records[0]["phase_uncertainty_duration_ratio"] > 2
 
 
 def test_harmonic_diagnostics_finds_double_period_peak():
