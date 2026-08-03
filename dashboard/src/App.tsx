@@ -562,38 +562,43 @@ const SPRITE_CACHE = new Map<
   { bitmap: HTMLCanvasElement; centre: number; cssSize: number; hitRadius: number }
 >();
 
-/** Status colour as 0-255 RGB, for uploading to the GPU. */
-const RGB_CACHE = new Map<string, [number, number, number]>();
+/**
+ * Pack every status marker into one texture atlas for the GPU layer.
+ *
+ * The tiles are produced by `statusSprite`, the same function the 2D
+ * renderer uses, so a marker on the map is pixel-identical to the one in the
+ * status key. Generating simplified shapes for the GPU instead would let the
+ * map and its legend drift apart, which is worse than being slow: the reader
+ * would be looking at symbols that no longer mean what the key says.
+ */
+const ATLAS_TILE_CSS = 26;
 
-function statusRgb(status: Star["status"]): [number, number, number] {
-  const cached = RGB_CACHE.get(status);
-  if (cached) return cached;
-  const colour = statusMeta(status).color.trim();
-  let rgb: [number, number, number] = [200, 220, 230];
-  const hex = colour.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-  if (hex) {
-    const value = hex[1];
-    const full =
-      value.length === 3
-        ? value
-            .split("")
-            .map((c) => c + c)
-            .join("")
-        : value;
-    rgb = [
-      parseInt(full.slice(0, 2), 16),
-      parseInt(full.slice(2, 4), 16),
-      parseInt(full.slice(4, 6), 16),
-    ];
-  } else {
-    const parts = colour.match(/rgba?\(([^)]+)\)/i);
-    if (parts) {
-      const nums = parts[1].split(",").map((n) => parseFloat(n));
-      if (nums.length >= 3) rgb = [nums[0], nums[1], nums[2]];
-    }
-  }
-  RGB_CACHE.set(status, rgb);
-  return rgb;
+function buildStatusAtlas(dpr: number) {
+  const statuses = ALL_STATUSES as ReadonlyArray<Star["status"]>;
+  const columns = Math.ceil(Math.sqrt(statuses.length));
+  const rows = Math.ceil(statuses.length / columns);
+  const image = document.createElement("canvas");
+  image.width = Math.round(columns * ATLAS_TILE_CSS * dpr);
+  image.height = Math.round(rows * ATLAS_TILE_CSS * dpr);
+  const ctx = image.getContext("2d");
+  if (!ctx) return null;
+  ctx.scale(dpr, dpr);
+  const index = new Map<string, number>();
+  statuses.forEach((status, i) => {
+    index.set(status, i);
+    const sprite = statusSprite(status, false);
+    const centreX = (i % columns) * ATLAS_TILE_CSS + ATLAS_TILE_CSS / 2;
+    const centreY =
+      Math.floor(i / columns) * ATLAS_TILE_CSS + ATLAS_TILE_CSS / 2;
+    ctx.drawImage(
+      sprite.bitmap,
+      centreX - sprite.centre,
+      centreY - sprite.centre,
+      sprite.cssSize,
+      sprite.cssSize,
+    );
+  });
+  return { image, columns, rows, tileCssSize: ATLAS_TILE_CSS, index };
 }
 
 function statusSprite(status: Star["status"], selected: boolean) {
@@ -833,25 +838,21 @@ function StarMap({
   }, []);
 
   // Upload only when the star set changes, not per frame: this is the whole
-  // point of the GPU path.
+  // point of the GPU path. The atlas is uploaded in the same effect so a
+  // star can never reference a tile that has not been sent yet.
   useEffect(() => {
     const field = starfieldRef.current;
     if (!field) return;
+    const atlas = buildStatusAtlas(window.devicePixelRatio || 1);
+    if (!atlas) return;
+    field.setAtlas(atlas);
     field.setStars(
-      stars.map((star) => {
-        const [r, g, b] = statusRgb(star.status);
-        const diameter = star.status === "searched" ? 5 : 10;
-        return {
-          x: star.x,
-          y: star.y,
-          z: star.z,
-          r,
-          g,
-          b,
-          size: diameter / 2,
-          dimmed: star.status === "searched" ? 1 : 0,
-        };
-      }),
+      stars.map((star) => ({
+        x: star.x,
+        y: star.y,
+        z: star.z,
+        tile: atlas.index.get(star.status) ?? 0,
+      })),
     );
   }, [stars, gpuReady]);
 
@@ -1250,7 +1251,6 @@ function StarMap({
     const gpuStars = Boolean(field) && mode !== "sky" && mode !== "earth";
     if (field) {
       if (gpuStars) {
-        field.resize(w, h, dpr);
         field.render({
           centreX: cx,
           centreY: cy,
@@ -1264,18 +1264,7 @@ function StarMap({
         });
       } else {
         // Leaving stale GPU stars behind the 2D view would double-draw them.
-        field.resize(w, h, dpr);
-        field.render({
-          centreX: cx,
-          centreY: cy,
-          mapRadius: 0,
-          maxDistance,
-          rotationX: rotation.x,
-          rotationY: rotation.y,
-          pixelRatio: dpr,
-          width: w,
-          height: h,
-        });
+        field.clear(w, h, dpr);
       }
     }
 
