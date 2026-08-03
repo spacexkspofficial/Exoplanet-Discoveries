@@ -2,7 +2,7 @@
 
 Tracks execution of [MASTER_PLAN.md](MASTER_PLAN.md) against its own gates.
 Started 2026-07-27 after owner approval of all seven §10 decisions.
-Test suite at last update: **180 passed** (114 pre-existing + 66 new), bare
+Test suite at last update: **199 passed** (114 pre-existing + 85 new), bare
 `pytest` from a clean checkout.
 
 ## Phase status
@@ -63,7 +63,7 @@ record was written; `origin/main` and the research branch are synchronized at
 | Plan item | Status | Evidence |
 |---|---|---|
 | Config module (HANDOFF 6.6) | Done | Every Appendix-A threshold named with rationale in `config.py`; AST tripwire test proves the drift literals (7.1, 13.7, 21.0, 0.15) exist only there (kernel modules; cli.py joins at rewiring) |
-| Detrending v2 | Done (synthetic gates) | `detrend.py`: biweight, two prepared fluxes, support-weighted edges (floor 0.4, α=1), transit-masked second pass. Measured in tests: retention ≥85% on the Sector-100 gap anatomy vs 67% under the hard guard; edge transits recoverable with honest uncertainty inflation; quiet-star depth to 10% in one pass; under 2% variability blind erosion 30–50% and masked recovery to ~10% at the 0.4 d active-star window — the residual P3 will measure at scale |
+| Detrending v2 | Built synthetically; two real-data edge mechanisms rejected | `detrend.py` still provides biweight, two prepared fluxes, support weighting, and a transit-masked second pass, but it is not wired into production. Support weighting failed the locked artifact gate (correction 10). The owner-selected quarter-window guard plus two-sided event-support lane also failed (correction 13): 83.584% retention, 1.142× artifact enrichment, and 3 artifact-aligned survivors versus production's 1. Both experiments were reverted; the production half-window guard remains. |
 | Search grids | Done | `search.py`: density-derived duration grids (M dwarf max <3 h — the 6 h rail cannot exist), period overscan so the reporting ceiling is not a grid boundary |
 | Alias adjudication | Done | Ratio-ladder scoring with significance-gated event fractions and a 1.1× change margin; TOI-700 c half-period case recovered in tests; measured corrections documented in the commit |
 | T3 vetoes | Done | `vetoes.py`: duration-density (pass/flag/kill), depth physicality → EB lane, folded odd/even at 3+1 events, full-phase secondary scan (finds a phase-0.3 secondary the old screen missed), per-event support, dip-window veto |
@@ -75,6 +75,8 @@ record was written; `origin/main` and the research branch are synchronized at
 | CLI decomposition: campaign scheduler | Done; equivalence passed | The threaded `batch-hunt` scheduler loop, bounded prefetch, rolling retention, progress publication, checkpoint resume, and final campaign publication moved from `cli.py` to `campaign.py`; the CLI retains a thin compatibility wrapper and collaborators resolve at call time so established monkeypatch seams remain authoritative. Focused campaign/retention/lease/checkpoint tests: 29 passed. The full 150-target rerun produced the identical filename set and **150/150 byte-identical per-target JSON files** (SHA-256), with 35/115/0 counts and no temp files |
 | CLI decomposition: campaign support helpers | Done; equivalence passed | Target-CSV ingestion and per-target spec construction, campaign settings/identity and checkpoint-resume reuse, result-row and error-row construction, per-target download/analysis with transient-failure retry, and the campaign-published counts, vetting coverage, throughput snapshot, common-mode quarantine, and follow-up queue moved from `cli.py` to `campaign.py`. `cli.py` 3,607 → 2,919 lines; every non-import change is a deletion, and the scheduler `run_batch_hunt` is byte-identical (AST-diffed, 540 lines). Of 19 moved definitions, 10 moved byte-identical and 9 changed only to resolve CLI-side collaborators at call time. Generic IO (`_atomic_write_json`, `_replace_with_retry`) and search-identity helpers (`_scientific_settings`, `_artifact_stem`) deliberately stayed in `cli.py`: they have many non-campaign callers, and moving them would point the analysis kernel back at campaign orchestration. Focused campaign/retention/lease/checkpoint tests: 29 passed. The full 150-target rerun produced the identical filename set and **150/150 byte-identical per-target JSON files** (SHA-256), with 35/115/0 counts and no temp files. Because the per-target reports exercise the analysis path rather than the helpers this slice moved, the gate was extended to the campaign-published artifacts: `batch_summary.json` settings, counts, vetting coverage, common-mode screen and **all 150 result rows**, plus the 74-entry `deep_followup_queue.json`, are identical to both `golden_v0` and the prior slice's rerun |
 | CLI decomposition: target-list construction | Done; A/B equivalence passed | Official-target-list reading, observing-sector subset choice, curated catalog selection, small-planet host ranking, and the three `make-*-targets` commands moved from `cli.py` to a new `targets.py`; 9 of 10 definitions moved byte-identical and only `_make_sector_targets` changed, to reach `_atomic_write_json` on the live CLI module. `cli.py` 2,919 → 2,389 lines (3,607 → 2,389 across both of today's slices, −34%). **The pinned 150-target rerun cannot gate this slice** — `batch-hunt` reads a pre-built CSV and never calls target-list construction — so equivalence was proven by direct A/B: the pre-move tree (`3d1c283`, via `git archive`) and the post-move tree were driven through identical inputs with identical deterministic stubs for the network collaborators, and their canonical JSON dumps hash to the same SHA-256 (`6be34854…`). That covers 675 pure-function cases plus all five command paths, including `make-sector-targets` run twice (round-robin and small-star ranking) against the real 13,000-row official Sector 100 list and the real 12,168-entry exclusion ledger, selecting 750 stars each time. Only `created_utc` and the harness's own per-run temp-directory name were normalized. Focused target/pixel/campaign/retention/lease/checkpoint tests: 33 passed. The 150-target rerun still ran as a regression check on the untouched campaign path and again produced 150/150 byte-identical reports, 35/115/0 counts, no temp files, and published artifacts identical to both `golden_v0` and the prior slice |
+| Catalog ephemeris masking | Done; bounded real-data gate passed | NASA period/epoch uncertainties are now propagated linearly to the complete observation window. Safe masks widen by the accumulated error; missing or >1-duration uncertainty removes zero cadences, is explicitly reported as unmaskable, forces recovery-only labeling, and blocks promotion. Injection-recovery and sector-vetting paths refuse unsafe masks. On the locked 28-product cohort: 30/37 catalog signals safely masked, 7/37 explicitly unmaskable, 0 silent/unsafe masks, 0 execution errors; a second shipping-path execution reproduced all 28 strongest signals, triage verdicts, and classifications. Full evidence: `P2_CATALOG_MASKING.md`. |
+| Catalog ephemeris matching | Exact and harmonic diagnostics complete; production changes held behind masking commit | On the trustworthy 28-product masking cohort, period-only matching produced 9 relations: 4 unmaskable recovery cases, plus 5 safely masked exact-period relations. Conservative event-window comparison found 1 known-mask-overlap control and 4 phase-distinct signals; 2 of the phase-distinct signals are rejected solely by the current period-only rule. A separate frozen historical cohort now covers 20 safely masked harmonic relations: 12 zero-overlap phase-distinct, 3 consistent event-number controls, and 5 partial/ambiguous. Half, double, and triple have real controls; one-third has only one ambiguous example and remains held. Diagnostics only—no second behavior change is stacked on the uncommitted masking patch. Full evidence: `P2_CATALOG_MATCHING.md` and `P2_HARMONIC_MATCHING.md`. |
 | **Not yet done** | — | Remaining structure-only extraction (the single-target `_hunt_from_light_curve` analysis path and the context/vetting commands), then separately measured rewiring onto `detrend.py`/`search.py`/`vetoes.py`/`population.py`/epoch-aware adjudication and first-class signature/evidence records; real-data artifact regression; known-planet campaign cohort; monotransit detector; TLS integration into T2; cli.py AST tripwire |
 
 ### P3–P5: **not started** (gated behind P2 exit, per plan)
@@ -237,15 +239,116 @@ record was written; `origin/main` and the research branch are synchronized at
     on these targets. That is a correctness bug in the shipping pipeline, not a
     P2 design question, and it is the more valuable of the two findings.
 
+    **Resolution (2026-07-27): fixed and measured.** The catalog query now
+    requests period, epoch, and duration uncertainties; known-host cache rows
+    created before those columns were requested refresh once, while zero-known
+    cache rows remain rate-safe. The mask propagates the conservative linear
+    error envelope across the complete observation window, widens by that error
+    only while it remains at most one transit duration, and otherwise removes
+    zero cadences and records an explicit unmaskable verdict. The normal
+    residual path stops; `--allow-no-known` may continue only as an honestly
+    labelled recovery scan with promotion disabled. The injection and
+    sector-coherence paths also stop on an unsafe mask.
+
+    The locked 28-product gate (7 SPOC + 21 TESScut) contains 37 catalog
+    signals: **30 safely masked, 7 explicitly unmaskable, 0 silently or
+    partially masked, 0 execution errors**. A second execution reproduced all
+    28 strongest-signal payloads, triage verdicts, and classifications. The two
+    TESScut automated survivors remain diagnostic only; this gate establishes
+    mask correctness, not novelty. Focused tests: 42 passed; full suite:
+    **186 passed**. See `P2_CATALOG_MASKING.md`.
+
+13. **The owner-selected quarter-window guard plus edge-only diagnostic lane
+    was measured and rejected.** This was a different mechanism, not another
+    support-weight parameter sweep: the hard guard narrowed from 0.50 to 0.25
+    window, and promotion required at least two transit events with real
+    in-transit cadences and two-sided local baselines. Focused mechanism tests
+    and the full experimental suite passed (190 tests), then the complete
+    371-target cohort ran through shipping `batch-hunt` with zero errors.
+
+    | arm | retention | artifact enrichment | p | survivors | survivors *on* an artifact epoch |
+    |---|---:|---:|---:|---:|---:|
+    | Savitzky–Golay + half-window guard | 0.66933 | 1.137 | 0.046 | 24 | **1** |
+    | quarter-window + event-support lane | **0.83584** | **1.14193** | **0.04805** | 21 | **3** |
+
+    The lane found 34 edge-dependent signals and prevented all of them from
+    promotion; 15 had no other rejection and would otherwise have survived.
+    That part worked. The release still fails: retention misses the 0.85 gate,
+    artifact enrichment does not improve, and artifact-aligned survivors rise
+    1 → 3. The surviving failure has two-sided samples, so the missing
+    discriminator is trend-model *bias*, not sample support. The behavior and
+    its temporary tests were reverted; production remains at 186 tests and the
+    half-window guard. Full injections and the authorized 500-target check were
+    not fired after the first two release gates failed. See
+    `P2_EDGE_DIAGNOSTIC.md`; raw measurement:
+    `results/p2_gates/artifact_narrow_guard_edge_diagnostic/p2_gate_measurement.json`.
+
+14. **Trustworthy masking proves that period-only exact matching discards
+    distinct ephemerides.** The fresh 28-product masking cohort contains nine
+    period relations: four belong to explicitly unmaskable recovery-only
+    signals, while five are safely masked exact-period relations. A conservative
+    epoch diagnostic generated every recovered event and asked whether its full
+    transit window overlaps the uncertainty-expanded catalog mask.
+
+    - TIC 301160638 overlaps the known mask at both recovered events. It is the
+      control: the recovered BLS centers sit just beyond the mask center, but
+      the fitted transit windows still touch the removed known-signal windows,
+      so it remains rejected as leakage.
+    - Four safely masked exact-period relations have **zero** overlapping event
+      windows. Two still fail other gates. TIC 301248781 and TIC 450649506 have
+      no other automated rejection and are currently discarded solely because
+      their periods are nearby.
+
+    The result justifies epoch-window adjudication for **exact** relations:
+    host match + period match is not signal match. It does not justify changing
+    harmonic handling; the trustworthy cohort contains no safely masked
+    harmonic relation, and aliases require event-number-aware comparison.
+    Four synthetic diagnostic tests pass; full suite **190 passed**. No
+    production behavior was changed because catalog masking remains uncommitted
+    and must land separately. Repeating the diagnostic on the earlier v2
+    outputs reproduced every count and safely masked verdict; only the four
+    unmaskable status/reason strings changed wording. See
+    `P2_CATALOG_MATCHING.md` and
+    `scripts/measure_p2_catalog_matching.py`.
+
+15. **A frozen harmonic cohort now separates period ratio from event-number
+    identity without a new campaign.** Only the two historical shipping-path
+    Sector 100 campaign directories were eligible discovery sources;
+    experimental detrending outputs, equivalence copies, and later catalog
+    diagnostics were excluded. Each selected product also had to be cached,
+    use the uncertainty-aware catalog schema, and reference a signal marked
+    safely masked in the current masking gate.
+
+    The locked cohort contains 20 product-targets (6 SPOC + 14 TESScut, 19
+    unique stars) and 20 harmonic relations: 5 half, 5 double, 1 one-third,
+    and 9 triple. Event windows use the same conservative tolerance as the
+    exact diagnostic. Longer-period aliases must align every recovered event;
+    shorter-period aliases must align one complete event-number class modulo
+    two or three at least twice.
+
+    | verdict | count | treatment |
+    |---|---:|---|
+    | zero-overlap phase-distinct | **12** | may continue through other gates |
+    | consistent event-number pattern | **3** | remains catalog-harmonic |
+    | partial/ambiguous overlap | **5** | remains rejected |
+
+    All 12 phase-distinct historical signals were rejected solely by the
+    period-only rule. They are diagnostic survivors, not candidates, and the
+    selected regression set cannot estimate population yield or false-alarm
+    rate. Half, double, and triple each have real phase-distinct and consistent
+    controls; one-third has only one ambiguous example and no positive or
+    phase-distinct real control, so its production behavior remains held. Four cohort
+    builder tests plus five harmonic diagnostic tests pass; full suite:
+    **199 passed**. No campaign, download, or production behavior change was
+    run. See `P2_HARMONIC_MATCHING.md`.
+
 ## Owner notes
 
-- The old FITS cache (`data/lightkurve`, 9.4 GB inside OneDrive) is now
-  orphaned: new downloads go to `%LOCALAPPDATA%\exohunt\cache\lightkurve`.
-  Everything in it is re-downloadable. Reclaim the space any time with:
-
-  ```powershell
-  Remove-Item -Recurse -Force "data\lightkurve"
-  ```
+- **Do not delete `data/lightkurve` yet.** Although new downloads go to
+  `%LOCALAPPDATA%\exohunt\cache\lightkurve`, this 9.4 GB tree contains the
+  1,902 cached SPOC Sector 100 light curves used by the offline P2 regression
+  gates. It is re-downloadable, but deleting it would force a large avoidable
+  MAST re-fetch before P2 exits.
 
 - Dashboard launch path (the one true way):
   `.venv\Scripts\exohunt-dashboard.exe` — a second launch now exits

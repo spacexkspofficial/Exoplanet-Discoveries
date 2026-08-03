@@ -1,0 +1,1543 @@
+{
+  "schema_version": 1,
+  "scope": "cached Sector 100 product-targets with historical simple-harmonic evidence and a matching safely masked catalog signal",
+  "selection_rule": [
+    "historical report is exactly Sector 100 and uses SPOC or TESScut",
+    "historical relation is half, double, one-third, or triple period",
+    "matching photometry product is already cached",
+    "catalog cache records uncertainty-aware ephemeris fields",
+    "uncertainty-aware masking report marked the referenced signal masked"
+  ],
+  "execution_boundary": "cohort construction only; no network access, campaign execution, or production matcher change",
+  "inputs": {
+    "historical_results_root": "results",
+    "historical_report_directories": [
+      "campaign/sector100_spoc",
+      "campaign/sector100_expansion_5000"
+    ],
+    "photometry_cache_root": "data/lightkurve",
+    "catalog_cache_root": "data/catalogs/nasa_exoplanet_archive",
+    "mask_report_directories": {
+      "SPOC": "p2_gates/catalog_mask_uncertainty_spoc_v2",
+      "TESScut": "p2_gates/catalog_mask_uncertainty_tesscut_v2"
+    }
+  },
+  "counts": {
+    "harmonic_report_files_discovered": 43,
+    "reports_parsed": 43,
+    "sector_100_harmonic_reports": 43,
+    "sector_100_product_targets": 43,
+    "selected_product_targets": 20,
+    "selected_unique_tics": 19,
+    "selected_by_author": {
+      "SPOC": 6,
+      "TESScut": 14
+    },
+    "safely_masked_harmonic_relations": 20,
+    "relations_by_type": {
+      "double-period alias": 5,
+      "half-period alias": 5,
+      "one-third-period alias": 1,
+      "triple-period alias": 9
+    },
+    "excluded_product_targets": 23,
+    "exclusion_reasons": {
+      "catalog_missing": 3,
+      "catalog_refresh_required": 17,
+      "current_mask_report_missing": 22,
+      "no_safely_masked_historical_harmonic": 1,
+      "photometry_not_cached": 18
+    }
+  },
+  "target_files": {
+    "SPOC": {
+      "path": "targets/p2_harmonic_matching_spoc_6.csv",
+      "sha256": "bd5ffd3920af80111f771f1d51c5f466ec36f63fd0714f7914880ea140c79f1a",
+      "product_targets": 6
+    },
+    "TESScut": {
+      "path": "targets/p2_harmonic_matching_tesscut_14.csv",
+      "sha256": "cff12753ec8fa9cab950515edecaaa2044c244c09279446f489616f58bb41102",
+      "product_targets": 14
+    }
+  },
+  "selected_products": [
+    {
+      "target": "TIC 20318757",
+      "tic_id": 20318757,
+      "sector": 100,
+      "sectors": "100",
+      "author": "SPOC",
+      "cadence_seconds": 120,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_20318757_s100\\mastDownload\\TESS\\tess2026033082000-s0100-0000000020318757-0302-s\\tess2026033082000-s0100-0000000020318757-0302-s_lc.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_spoc_v2\\TIC_20318757_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "TOI-1027.02",
+          "fractional_error_to_relation": 0.009570313471100949,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_spoc\\TIC_20318757_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 11.02875
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_spoc\\TIC_20318757_s100_residual.json",
+          "pipeline_version": "processed-lc-v2",
+          "recovered_period_days": 5.461600702652798,
+          "recovered_transit_time_btjd": 4076.583072055863,
+          "recovered_duration_hours": 2.0,
+          "recovered_depth_snr": 7.164736756521374,
+          "relations": [
+            {
+              "relation": "half-period alias",
+              "known_signal": "TOI-1027.02",
+              "fractional_error_to_relation": 0.009570313471100949,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 23434737",
+      "tic_id": 23434737,
+      "sector": 100,
+      "sectors": "100",
+      "author": "SPOC",
+      "cadence_seconds": 120,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_23434737_s100\\mastDownload\\TESS\\tess2026033082000-s0100-0000000023434737-0302-s\\tess2026033082000-s0100-0000000023434737-0302-s_lc.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_spoc_v2\\TIC_23434737_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "double-period alias",
+          "known_signal": "TOI-1203 b",
+          "fractional_error_to_relation": 0.012656569481648238,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_spoc\\TIC_23434737_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 4.1572888
+        }
+      ],
+      "excluded_relations": [
+        {
+          "relation": "one-third-period alias",
+          "known_signal": "TOI-1203.01",
+          "fractional_error_to_relation": 0.03493402750211506,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_spoc\\TIC_23434737_s100_residual.json"
+          ],
+          "current_mask_status": "unmasked_ephemeris_uncertainty",
+          "known_period_days": 25.5195307
+        }
+      ],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_spoc\\TIC_23434737_s100_residual.json",
+          "pipeline_version": "processed-lc-v2",
+          "recovered_period_days": 8.209343570895044,
+          "recovered_transit_time_btjd": 4077.828168337704,
+          "recovered_duration_hours": 6.0,
+          "recovered_depth_snr": 15.40725838601731,
+          "relations": [
+            {
+              "relation": "one-third-period alias",
+              "known_signal": "TOI-1203.01",
+              "fractional_error_to_relation": 0.03493402750211506,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            },
+            {
+              "relation": "double-period alias",
+              "known_signal": "TOI-1203 b",
+              "fractional_error_to_relation": 0.012656569481648238,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 221861843",
+      "tic_id": 221861843,
+      "sector": 100,
+      "sectors": "100",
+      "author": "SPOC",
+      "cadence_seconds": 120,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_221861843_s100\\mastDownload\\TESS\\tess2026033082000-s0100-0000000221861843-0302-s\\tess2026033082000-s0100-0000000221861843-0302-s_lc.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_spoc_v2\\TIC_221861843_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-3486.01",
+          "fractional_error_to_relation": 0.030520155322590566,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_spoc\\TIC_221861843_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 2.217782
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_spoc\\TIC_221861843_s100_residual.json",
+          "pipeline_version": "processed-lc-v2",
+          "recovered_period_days": 6.450284846665064,
+          "recovered_transit_time_btjd": 4074.306823582441,
+          "recovered_duration_hours": 1.5,
+          "recovered_depth_snr": 13.894873795189186,
+          "relations": [
+            {
+              "relation": "triple-period alias",
+              "known_signal": "TOI-3486.01",
+              "fractional_error_to_relation": 0.030520155322590566,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 260647166",
+      "tic_id": 260647166,
+      "sector": 100,
+      "sectors": "100",
+      "author": "SPOC",
+      "cadence_seconds": 120,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_260647166_s100\\mastDownload\\TESS\\tess2026033082000-s0100-0000000260647166-0302-s\\tess2026033082000-s0100-0000000260647166-0302-s_lc.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_spoc_v2\\TIC_260647166_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "one-third-period alias",
+          "known_signal": "TOI-1233.02",
+          "fractional_error_to_relation": 0.038967747929446746,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_spoc\\TIC_260647166_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 19.5901578
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_spoc\\TIC_260647166_s100_residual.json",
+          "pipeline_version": "processed-lc-v2",
+          "recovered_period_days": 6.275591156317171,
+          "recovered_transit_time_btjd": 4074.5147037671086,
+          "recovered_duration_hours": 3.0,
+          "recovered_depth_snr": 10.987071399339102,
+          "relations": [
+            {
+              "relation": "one-third-period alias",
+              "known_signal": "TOI-1233.02",
+              "fractional_error_to_relation": 0.038967747929446746,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 301160638",
+      "tic_id": 301160638,
+      "sector": 100,
+      "sectors": "100",
+      "author": "SPOC",
+      "cadence_seconds": 120,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_301160638_s100\\mastDownload\\TESS\\tess2026033082000-s0100-0000000301160638-0302-s\\tess2026033082000-s0100-0000000301160638-0302-s_lc.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_spoc_v2\\TIC_301160638_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "TOI-3487.01",
+          "fractional_error_to_relation": 0.0008236068128565188,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_spoc\\TIC_301160638_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 16.0085751
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_spoc\\TIC_301160638_s100_residual.json",
+          "pipeline_version": "processed-lc-v2",
+          "recovered_period_days": 8.010879935758243,
+          "recovered_transit_time_btjd": 4076.112370421719,
+          "recovered_duration_hours": 3.0,
+          "recovered_depth_snr": 126.25527992180926,
+          "relations": [
+            {
+              "relation": "half-period alias",
+              "known_signal": "TOI-3487.01",
+              "fractional_error_to_relation": 0.0008236068128565188,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 313675203",
+      "tic_id": 313675203,
+      "sector": 100,
+      "sectors": "100",
+      "author": "SPOC",
+      "cadence_seconds": 120,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_313675203_s100\\mastDownload\\TESS\\tess2026033082000-s0100-0000000313675203-0302-s\\tess2026033082000-s0100-0000000313675203-0302-s_lc.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_spoc_v2\\TIC_313675203_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-4367.01",
+          "fractional_error_to_relation": 0.005357496426481282,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_spoc\\TIC_313675203_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 2.5025812
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_spoc\\TIC_313675203_s100_residual.json",
+          "pipeline_version": "processed-lc-v2",
+          "recovered_period_days": 7.547966309507937,
+          "recovered_transit_time_btjd": 4077.7748776394083,
+          "recovered_duration_hours": 2.0,
+          "recovered_depth_snr": 7.577905104084418,
+          "relations": [
+            {
+              "relation": "triple-period alias",
+              "known_signal": "TOI-4367.01",
+              "fractional_error_to_relation": 0.005357496426481282,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 23434737",
+      "tic_id": 23434737,
+      "sector": 100,
+      "sectors": "100",
+      "author": "TESScut",
+      "cadence_seconds": 158,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_23434737_s100\\tesscut\\tess-s0100-2-3_168.225207_-34.406744_11x11_astrocut.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_tesscut_v2\\TIC_23434737_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-1203 b",
+          "fractional_error_to_relation": 0.016756548848191378,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_23434737_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 4.1572888
+        }
+      ],
+      "excluded_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "TOI-1203.01",
+          "fractional_error_to_relation": 0.03894149891711899,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_23434737_s100_residual.json"
+          ],
+          "current_mask_status": "unmasked_ephemeris_uncertainty",
+          "known_period_days": 25.5195307
+        }
+      ],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_expansion_5000\\TIC_23434737_s100_residual.json",
+          "pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
+          "recovered_period_days": 12.262880961440283,
+          "recovered_transit_time_btjd": 4080.8148611524052,
+          "recovered_duration_hours": 6.0,
+          "recovered_depth_snr": 22.547152029311462,
+          "relations": [
+            {
+              "relation": "half-period alias",
+              "known_signal": "TOI-1203.01",
+              "fractional_error_to_relation": 0.03894149891711899,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            },
+            {
+              "relation": "triple-period alias",
+              "known_signal": "TOI-1203 b",
+              "fractional_error_to_relation": 0.016756548848191378,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 105712339",
+      "tic_id": 105712339,
+      "sector": 100,
+      "sectors": "100",
+      "author": "TESScut",
+      "cadence_seconds": 158,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_105712339_s100\\tesscut\\tess-s0100-2-4_156.412322_-38.859414_11x11_astrocut.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_tesscut_v2\\TIC_105712339_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "TOI-7754.01",
+          "fractional_error_to_relation": 0.0293652051865768,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_105712339_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 23.7290955
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_expansion_5000\\TIC_105712339_s100_residual.json",
+          "pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
+          "recovered_period_days": 11.516142870875312,
+          "recovered_transit_time_btjd": 4078.982789527275,
+          "recovered_duration_hours": 1.0,
+          "recovered_depth_snr": 9.275280376099953,
+          "relations": [
+            {
+              "relation": "half-period alias",
+              "known_signal": "TOI-7754.01",
+              "fractional_error_to_relation": 0.0293652051865768,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 157266693",
+      "tic_id": 157266693,
+      "sector": 100,
+      "sectors": "100",
+      "author": "TESScut",
+      "cadence_seconds": 158,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_157266693_s100\\tesscut\\tess-s0100-2-3_176.628505_-33.860057_11x11_astrocut.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_tesscut_v2\\TIC_157266693_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "TOI-1929.01",
+          "fractional_error_to_relation": 0.007446949002435387,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_157266693_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 3.8537616
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_expansion_5000\\TIC_157266693_s100_residual.json",
+          "pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
+          "recovered_period_days": 1.912531416948628,
+          "recovered_transit_time_btjd": 4074.2200694857383,
+          "recovered_duration_hours": 6.0,
+          "recovered_depth_snr": 7.973352870379906,
+          "relations": [
+            {
+              "relation": "half-period alias",
+              "known_signal": "TOI-1929.01",
+              "fractional_error_to_relation": 0.007446949002435387,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 162620529",
+      "tic_id": 162620529,
+      "sector": 100,
+      "sectors": "100",
+      "author": "TESScut",
+      "cadence_seconds": 158,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_162620529_s100\\tesscut\\tess-s0100-2-1_170.330184_-44.308047_11x11_astrocut.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_tesscut_v2\\TIC_162620529_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "double-period alias",
+          "known_signal": "TOI-3100.01",
+          "fractional_error_to_relation": 0.010286991025772388,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_162620529_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 3.2907468
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_expansion_5000\\TIC_162620529_s100_residual.json",
+          "pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
+          "recovered_period_days": 6.649197365599378,
+          "recovered_transit_time_btjd": 4080.27438124754,
+          "recovered_duration_hours": 6.0,
+          "recovered_depth_snr": 15.485094196891813,
+          "relations": [
+            {
+              "relation": "double-period alias",
+              "known_signal": "TOI-3100.01",
+              "fractional_error_to_relation": 0.010286991025772388,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 256124756",
+      "tic_id": 256124756,
+      "sector": 100,
+      "sectors": "100",
+      "author": "TESScut",
+      "cadence_seconds": 158,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_256124756_s100\\tesscut\\tess-s0100-3-4_199.577299_-59.758695_11x11_astrocut.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_tesscut_v2\\TIC_256124756_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-6637.01",
+          "fractional_error_to_relation": 0.0024602174394016438,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_256124756_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 2.231293
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_expansion_5000\\TIC_256124756_s100_residual.json",
+          "pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
+          "recovered_period_days": 6.710347397853044,
+          "recovered_transit_time_btjd": 4074.1187180108896,
+          "recovered_duration_hours": 6.0,
+          "recovered_depth_snr": 21.092311997954145,
+          "relations": [
+            {
+              "relation": "triple-period alias",
+              "known_signal": "TOI-6637.01",
+              "fractional_error_to_relation": 0.0024602174394016438,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 259230140",
+      "tic_id": 259230140,
+      "sector": 100,
+      "sectors": "100",
+      "author": "TESScut",
+      "cadence_seconds": 158,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_259230140_s100\\tesscut\\tess-s0100-4-1_223.193762_-68.666484_11x11_astrocut.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_tesscut_v2\\TIC_259230140_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "TOI-4384.01",
+          "fractional_error_to_relation": 0.01544829740077143,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_259230140_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 14.3171998
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_expansion_5000\\TIC_259230140_s100_residual.json",
+          "pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
+          "recovered_period_days": 7.048011719771667,
+          "recovered_transit_time_btjd": 4080.1926380406794,
+          "recovered_duration_hours": 1.5,
+          "recovered_depth_snr": 52.91858774928381,
+          "relations": [
+            {
+              "relation": "half-period alias",
+              "known_signal": "TOI-4384.01",
+              "fractional_error_to_relation": 0.01544829740077143,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 261020738",
+      "tic_id": 261020738,
+      "sector": 100,
+      "sectors": "100",
+      "author": "TESScut",
+      "cadence_seconds": 158,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_261020738_s100\\tesscut\\tess-s0100-4-1_226.112142_-66.203031_11x11_astrocut.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_tesscut_v2\\TIC_261020738_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-5049.01",
+          "fractional_error_to_relation": 0.018723290994259782,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_261020738_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 2.9204289
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_expansion_5000\\TIC_261020738_s100_residual.json",
+          "pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
+          "recovered_period_days": 8.597246579631761,
+          "recovered_transit_time_btjd": 4078.6343047073465,
+          "recovered_duration_hours": 1.5,
+          "recovered_depth_snr": 35.615885448884,
+          "relations": [
+            {
+              "relation": "triple-period alias",
+              "known_signal": "TOI-5049.01",
+              "fractional_error_to_relation": 0.018723290994259782,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 263486257",
+      "tic_id": 263486257,
+      "sector": 100,
+      "sectors": "100",
+      "author": "TESScut",
+      "cadence_seconds": 158,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_263486257_s100\\tesscut\\tess-s0100-4-2_234.548438_-71.927797_11x11_astrocut.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_tesscut_v2\\TIC_263486257_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-5037.01",
+          "fractional_error_to_relation": 0.042250451842686325,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_263486257_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 4.1245473
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_expansion_5000\\TIC_263486257_s100_residual.json",
+          "pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
+          "recovered_period_days": 11.850849938785403,
+          "recovered_transit_time_btjd": 4075.349105458796,
+          "recovered_duration_hours": 0.25,
+          "recovered_depth_snr": 17.162280237402566,
+          "relations": [
+            {
+              "relation": "triple-period alias",
+              "known_signal": "TOI-5037.01",
+              "fractional_error_to_relation": 0.042250451842686325,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 295233473",
+      "tic_id": 295233473,
+      "sector": 100,
+      "sectors": "100",
+      "author": "TESScut",
+      "cadence_seconds": 158,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_295233473_s100\\tesscut\\tess-s0100-3-2_170.310557_-66.172387_11x11_astrocut.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_tesscut_v2\\TIC_295233473_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-3226.01",
+          "fractional_error_to_relation": 0.045163477735485125,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_295233473_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 2.3720554
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_expansion_5000\\TIC_295233473_s100_residual.json",
+          "pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
+          "recovered_period_days": 6.794775386264288,
+          "recovered_transit_time_btjd": 4079.8524385092364,
+          "recovered_duration_hours": 6.0,
+          "recovered_depth_snr": 25.750067981273958,
+          "relations": [
+            {
+              "relation": "triple-period alias",
+              "known_signal": "TOI-3226.01",
+              "fractional_error_to_relation": 0.045163477735485125,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 306648160",
+      "tic_id": 306648160,
+      "sector": 100,
+      "sectors": "100",
+      "author": "TESScut",
+      "cadence_seconds": 158,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_306648160_s100\\tesscut\\tess-s0100-4-4_265.760334_-65.008243_11x11_astrocut.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_tesscut_v2\\TIC_306648160_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "double-period alias",
+          "known_signal": "TOI-3321.01",
+          "fractional_error_to_relation": 0.021960021382047834,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_306648160_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 3.6525305
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_expansion_5000\\TIC_306648160_s100_residual.json",
+          "pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
+          "recovered_period_days": 7.1446417042428365,
+          "recovered_transit_time_btjd": 4080.003339678922,
+          "recovered_duration_hours": 1.0,
+          "recovered_depth_snr": 62.98909523864995,
+          "relations": [
+            {
+              "relation": "double-period alias",
+              "known_signal": "TOI-3321.01",
+              "fractional_error_to_relation": 0.021960021382047834,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 316236118",
+      "tic_id": 316236118,
+      "sector": 100,
+      "sectors": "100",
+      "author": "TESScut",
+      "cadence_seconds": 158,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_316236118_s100\\tesscut\\tess-s0100-3-2_171.894202_-65.144454_11x11_astrocut.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_tesscut_v2\\TIC_316236118_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-3212.01",
+          "fractional_error_to_relation": 0.03200041598646167,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_316236118_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 4.1943867
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_expansion_5000\\TIC_316236118_s100_residual.json",
+          "pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
+          "recovered_period_days": 12.985826457624247,
+          "recovered_transit_time_btjd": 4086.8586885092363,
+          "recovered_duration_hours": 6.0,
+          "recovered_depth_snr": 11.996564697605228,
+          "relations": [
+            {
+              "relation": "triple-period alias",
+              "known_signal": "TOI-3212.01",
+              "fractional_error_to_relation": 0.03200041598646167,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 384016413",
+      "tic_id": 384016413,
+      "sector": 100,
+      "sectors": "100",
+      "author": "TESScut",
+      "cadence_seconds": 158,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_384016413_s100\\tesscut\\tess-s0100-4-2_240.470553_-78.602547_11x11_astrocut.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_tesscut_v2\\TIC_384016413_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "double-period alias",
+          "known_signal": "TOI-3301.01",
+          "fractional_error_to_relation": 0.010047080822999677,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_384016413_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 5.451593
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_expansion_5000\\TIC_384016413_s100_residual.json",
+          "pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
+          "recovered_period_days": 11.012731190970198,
+          "recovered_transit_time_btjd": 4076.137647125463,
+          "recovered_duration_hours": 1.5,
+          "recovered_depth_snr": 17.024871028764988,
+          "relations": [
+            {
+              "relation": "double-period alias",
+              "known_signal": "TOI-3301.01",
+              "fractional_error_to_relation": 0.010047080822999677,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 448589187",
+      "tic_id": 448589187,
+      "sector": 100,
+      "sectors": "100",
+      "author": "TESScut",
+      "cadence_seconds": 158,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_448589187_s100\\tesscut\\tess-s0100-2-4_166.318926_-34.122771_11x11_astrocut.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_tesscut_v2\\TIC_448589187_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "double-period alias",
+          "known_signal": "TOI-2642.01",
+          "fractional_error_to_relation": 0.01511490855041377,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_448589187_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 3.0652926
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_expansion_5000\\TIC_448589187_s100_residual.json",
+          "pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
+          "recovered_period_days": 6.22324843465852,
+          "recovered_transit_time_btjd": 4074.5838311939415,
+          "recovered_duration_hours": 6.0,
+          "recovered_depth_snr": 8.29554576554163,
+          "relations": [
+            {
+              "relation": "double-period alias",
+              "known_signal": "TOI-2642.01",
+              "fractional_error_to_relation": 0.01511490855041377,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "target": "TIC 453668803",
+      "tic_id": 453668803,
+      "sector": 100,
+      "sectors": "100",
+      "author": "TESScut",
+      "cadence_seconds": 158,
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "cached_products": [
+        "batch_targets\\TIC_453668803_s100\\tesscut\\tess-s0100-3-4_205.817973_-56.156384_11x11_astrocut.fits"
+      ],
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_tesscut_v2\\TIC_453668803_s100_residual.json",
+      "safely_masked_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-6564.01",
+          "fractional_error_to_relation": 0.01174520761632657,
+          "period_status": "harmonic_alias",
+          "historical_mask_status": "masked",
+          "source_reports": [
+            "campaign\\sector100_expansion_5000\\TIC_453668803_s100_residual.json"
+          ],
+          "current_mask_status": "masked",
+          "known_period_days": 3.9854465
+        }
+      ],
+      "excluded_relations": [],
+      "historical_sources": [
+        {
+          "report": "campaign\\sector100_expansion_5000\\TIC_453668803_s100_residual.json",
+          "pipeline_version": "tesscut-bgsub-commonmode-quarantined-v4",
+          "recovered_period_days": 12.096769189758787,
+          "recovered_transit_time_btjd": 4080.794759677556,
+          "recovered_duration_hours": 4.0,
+          "recovered_depth_snr": 19.77914569614388,
+          "relations": [
+            {
+              "relation": "triple-period alias",
+              "known_signal": "TOI-6564.01",
+              "fractional_error_to_relation": 0.01174520761632657,
+              "period_status": "harmonic_alias",
+              "historical_mask_status": "masked"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "excluded_products": [
+    {
+      "target": "TIC 35009898",
+      "tic_id": 35009898,
+      "sector": 100,
+      "author": "SPOC",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 1,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "one-third-period alias",
+          "known_signal": "TOI-654.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 36724087",
+      "tic_id": 36724087,
+      "sector": 100,
+      "author": "SPOC",
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 1,
+      "current_mask_report": "p2_gates\\catalog_mask_uncertainty_spoc_v2\\TIC_36724087_s100_residual.json",
+      "historical_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "TOI-732.02",
+          "current_mask_status": "unmasked_ephemeris_uncertainty"
+        }
+      ],
+      "exclusion_reasons": [
+        "no_safely_masked_historical_harmonic"
+      ]
+    },
+    {
+      "target": "TIC 152569268",
+      "tic_id": 152569268,
+      "sector": 100,
+      "author": "SPOC",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 1,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "TOI-6281.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 158588995",
+      "tic_id": 158588995,
+      "sector": 100,
+      "author": "SPOC",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 1,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "double-period alias",
+          "known_signal": "TOI-674.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 178709444",
+      "tic_id": 178709444,
+      "sector": 100,
+      "author": "SPOC",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 1,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "one-third-period alias",
+          "known_signal": "TOI-762.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 22221375",
+      "tic_id": 22221375,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-652.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 73723286",
+      "tic_id": 73723286,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "missing",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "TOI-665.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_missing",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 168158622",
+      "tic_id": 168158622,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "TOI-4871.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 168449943",
+      "tic_id": 168449943,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "double-period alias",
+          "known_signal": "TOI-2983.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 221861843",
+      "tic_id": 221861843,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-3486.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 260647166",
+      "tic_id": 260647166,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "uncertainty_aware",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "double-period alias",
+          "known_signal": "TOI-1233.03",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 292477426",
+      "tic_id": 292477426,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-3327.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 295541511",
+      "tic_id": 295541511,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-1117.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 295593712",
+      "tic_id": 295593712,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "TOI-4418.02",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 303385111",
+      "tic_id": 303385111,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "double-period alias",
+          "known_signal": "TOI-4989.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 304690618",
+      "tic_id": 304690618,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "TOI-6655.02",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 306249066",
+      "tic_id": 306249066,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "missing",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "TOI-6596.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_missing",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 332710679",
+      "tic_id": 332710679,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "double-period alias",
+          "known_signal": "TOI-3417.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 333736132",
+      "tic_id": 333736132,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "missing",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "NGTS-35 b",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_missing",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 360156606",
+      "tic_id": 360156606,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "one-third-period alias",
+          "known_signal": "TOI-1227.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 360630575",
+      "tic_id": 360630575,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "half-period alias",
+          "known_signal": "TOI-1097.02",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 402219289",
+      "tic_id": 402219289,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-3479.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    },
+    {
+      "target": "TIC 418471796",
+      "tic_id": 418471796,
+      "sector": 100,
+      "author": "TESScut",
+      "catalog_cache_status": "refresh_required",
+      "cached_product_count": 0,
+      "current_mask_report": null,
+      "historical_relations": [
+        {
+          "relation": "triple-period alias",
+          "known_signal": "TOI-3136.01",
+          "current_mask_status": null
+        }
+      ],
+      "exclusion_reasons": [
+        "photometry_not_cached",
+        "catalog_refresh_required",
+        "current_mask_report_missing"
+      ]
+    }
+  ]
+}

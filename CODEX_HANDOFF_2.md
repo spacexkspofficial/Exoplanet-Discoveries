@@ -1,14 +1,15 @@
-# Codex handoff 2: P2 rewiring after two rejected attempts
+# Codex handoff 2: P2 rewiring after measured rejections
 
 Supersedes `CODEX_HANDOFF.md` for **state and work queue**. That document's
-§1 step 2 (structure-only extraction) is now complete, and its step 3 has been
-attempted twice with both attempts measured and rejected. Everything else in it
+§1 step 2 (structure-only extraction) is now complete. Its first detrending
+rewiring and the later owner-selected narrow-guard/event-support fallback were
+both measured and rejected. Everything else in it
 — the P2 exit gates, the P3 plan, the monotransit detector, the claim ceiling —
 remains current and you should read it.
 
-**Are we ready for science? Still no**, and for a new reason. Two of the
-rewiring steps are blocked on findings, and one of them is a correctness bug in
-the *shipping* pipeline that predates this work.
+**Are we ready for science? Still no.** The catalog-mask correctness bug is now
+fixed and measured in the working tree, but the detrending behavior remains
+blocked and the downstream kernel rewiring/calibration gates remain open.
 
 ---
 
@@ -16,7 +17,7 @@ the *shipping* pipeline that predates this work.
 
 ```powershell
 cd "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries"
-& ".venv\Scripts\python.exe" -m pytest -q          # expect: 180 passed
+& ".venv\Scripts\python.exe" -m pytest -q          # expect: 199 passed
 git log --oneline -1 main                          # a45403a
 ```
 
@@ -26,10 +27,16 @@ git log --oneline -1 main                          # a45403a
   there mid-session and pushed. That commit contains only
   `targets/p2_artifact_regression_cohort.{csv,json}`. It is merged into the
   branch; there was no conflict.
-- 180 tests pass, un-edited, from a clean checkout.
+- 199 tests pass from the current worktree (180 inherited + 6 masking tests +
+  4 exact-matching diagnostic tests + 4 harmonic-cohort tests + 5
+  harmonic-matching diagnostic tests).
 - `cli.py` is **2,389 lines**, down from 3,607 (−34%).
-- **No behaviour change has shipped.** Every science path is exactly what it
-  was at `7583413`. Two attempts were wired, measured, and reverted.
+- **No behaviour change has shipped to `main`.** The worktree contains one
+  measured behavior patch: uncertainty-propagated catalog masking. The two
+  detrending mechanisms and the earlier catalog-matching attempts are reverted.
+- The masking patch, locked 7+21 product cohorts, and
+  `P2_CATALOG_MASKING.md` are uncommitted because this sandbox cannot create
+  the worktree's Git lock files.
 
 ### Commits
 
@@ -43,7 +50,7 @@ git log --oneline -1 main                          # a45403a
 | `dfadf8c` | corrected catalog-matching finding; the masks are stale |
 | `1ea6e84` | merge main |
 
-`PROGRESS.md` corrections 9–12 are the substance. Read them before the code.
+`PROGRESS.md` corrections 9–14 are the substance. Read them before the code.
 
 ---
 
@@ -59,7 +66,7 @@ it — `batch-hunt` never calls target-list code).
 
 ---
 
-## What is blocked, and why
+## What remains blocked, and why
 
 ### 1. Detrending rewiring — measured, rejected (PROGRESS correction 10)
 
@@ -70,6 +77,7 @@ measured through the real `batch-hunt` path on 371 targets, reverted.
 |---|---|---|---|---|---|
 | Savitzky–Golay + hard guard (ships today) | 0.669 | 1.137 | 0.046 | 24 | **1** |
 | biweight support-weighted, α=5 | 0.993 | 1.140 | 0.039 | 51 | **9** |
+| quarter-window + two-sided event support | 0.836 | 1.142 | 0.048 | 21 | **3** |
 
 Retention passes overwhelmingly; artifact enrichment does not move; artifact-epoch
 survivors rise 1 → 9. §2.3 ships only when all four numbers pass.
@@ -81,33 +89,48 @@ it needs, i.e. it passes by destroying the capability. Geometry bounds this: a
 floor `F` drops cadences within `2h(F − 0.5)` of an edge, so `F ≥ 0.58` always
 eats edge transits at a 1.0 d window. Alpha cannot carry it either.
 
-**The mechanism cannot separate edge sensitivity from edge artifacts. Do not run
-another parameter sweep — that ground is covered.** A different mechanism is
-needed, and that is a design decision for the owner.
+Support weighting cannot separate edge sensitivity from edge artifacts. The
+owner-selected quarter-window/event-support fallback also fails: its event lane
+quarantined 34 edge-dependent detections (15 with no other rejection), but
+retention missed 85% and three artifact-aligned signals still survived. Local
+sampling support does not detect trend-model bias. Both mechanisms are reverted;
+do not sweep their parameters again. See `P2_EDGE_DIAGNOSTIC.md`.
 
-### 2. Catalog matching — blocked on a pipeline bug (PROGRESS correction 12)
+### 2. Catalog masking — fixed; exact-period matching measured
 
-This is the more valuable finding. For **all 28** targets rejected solely for a
-period "within 5% of a catalogued transit period or simple harmonic" and above
-S/N 7.1, the catalogued epoch predates the observation window by **70 to 1,616
-cycles**, and accumulated phase drift exceeds the mask half-width (0.06–0.21 d)
-in **every case**.
+The worktree now queries the official period/epoch uncertainty columns,
+propagates a conservative linear timing envelope over the complete observation
+window, widens safe masks, and removes zero cadences when the prediction is
+missing or more uncertain than one transit duration. Unsafe cases stop the
+normal residual path; recovery-only reports name them and disable promotion.
+Injection-recovery and sector-coherence commands also refuse unsafe masks.
 
-The mask therefore lands at an arbitrary phase. It removes 146–1,570
-measurements that are largely not the known transits, while the real transits
-survive into what the pipeline calls a *residual* search.
+Locked shipping-path gate, 7 SPOC + 21 TESScut product-targets:
 
-Demonstration — TIC 301160638, TOI-3487.01: catalogued epoch BTJD 2378.99
-against data at 4070–4097 (~106 cycles), drift ≈ 2.6 d against a 0.14 d mask
-half-width. Re-running yields a 1.3 %-deep signal at S/N 153.6 matching the
-catalogued period to 0.15 %. That is the known planet, unmasked.
+| catalog signals | safely masked | explicitly unmaskable | unsafe/silent masks | execution errors |
+|---:|---:|---:|---:|---:|
+| 37 | 30 | 7 | **0** | **0** |
 
-**Fix the masking before touching epoch-aware matching.** Propagate catalogued
-ephemerides with their uncertainty, widen the mask by the accumulated phase
-error, and refuse to claim a signal is masked when that error exceeds the
-transit duration. Until then the residual search is not searching residuals on
-any target with a catalogued signal, and no judgement about catalog matching is
-measurable.
+A second fresh-output execution reproduced all 28 strongest signals, triage
+verdicts, and classifications. The two TESScut survivors remain diagnostic
+only. See `P2_CATALOG_MASKING.md`.
+
+The exact-period diagnostic is also complete, without changing production behavior.
+Of five safely masked exact-period relations, one recovered signal overlaps the
+known mask at every fitted event and remains known-signal leakage; four have
+zero event-window overlap and are phase-distinct. Two of those four are rejected
+solely by the current period-only rule. That justifies a narrow exact-period
+epoch matcher after masking is committed separately. See
+`P2_CATALOG_MATCHING.md`.
+
+A separate frozen historical cohort now covers harmonic identity without a
+campaign rerun: 20 cached product-targets, 20 safely masked historical
+relations, and an explicit event-number model. Twelve have zero event-window
+overlap, three are consistent controls, and five are partial/ambiguous. Half,
+double, and triple periods have real controls; one-third has only one ambiguous
+case and remains held. All 12 distinct cases were historically rejected solely
+by the period rule. No production behavior changed. See
+`P2_HARMONIC_MATCHING.md`.
 
 ---
 
@@ -167,6 +190,10 @@ takes the "already running" early return and fails spuriously.
 | `targets/p2_artifact_regression_cohort.{csv,json}` | 371-target cohort + manifest, **committed on main** |
 | `results/p2_gates/artifact_baseline_e425974/` | baseline, current code, 371 targets |
 | `results/p2_gates/artifact_biweight_alpha5/` | biweight arm, 371 targets |
+| `results/p2_gates/artifact_narrow_guard_edge_diagnostic/` | owner-selected fallback, 371 targets, **rejected** |
+| `results/p2_gates/catalog_matching_epoch_diagnostic/` | exact-period epoch diagnostic over 28 trustworthy-mask reports |
+| `results/p2_gates/harmonic_epoch_diagnostic/` | event-number diagnostic over 20 frozen historical harmonic relations |
+| `targets/p2_harmonic_matching_*` | 6 SPOC + 14 TESScut harmonic regression targets and manifest |
 | `results/p2_gates/catalog_epoch_after/` | 12-target rerun that exposed the stale-mask bug |
 | `results/equivalence/campaign_support_extract_v4/` | structure-slice equivalence + manifest |
 | `results/equivalence/target_list_extract_v5/` | structure-slice equivalence + manifest |
@@ -197,18 +224,24 @@ equivalence cohort and its golden baseline are unchanged; see
 
 ## Suggested next work, in order
 
-1. **Fix ephemeris propagation in masking.** The correctness bug above. Highest
-   value, independent of everything else, and it unblocks (2). Gate: on the 28
-   affected targets, a catalogued signal is either demonstrably masked or
-   explicitly reported as unmaskable — never silently half-masked.
-2. **Then** revisit epoch-aware catalog matching, which is unmeasurable until
-   (1) lands.
-3. **Independent of both**: the remaining kernel rewirings — search grids from
+1. **Commit the masking behavior patch separately**, then wire the measured
+   exact-period epoch-overlap rule as its own behavior change. Locked
+   expectation: one mask-edge leakage control remains rejected, four
+   phase-distinct exact relations lose the catalog reason, and only two become
+   triage passes.
+2. In a later behavior commit, replay the pure harmonic adjudicator over the
+   frozen 20-relation cohort. Allow only zero-overlap half-, double-, and
+   triple-period relations to continue; retain the three consistent and five
+   ambiguous rejections. Keep one-third behavior unchanged until real positive
+   and partial controls exist.
+3. **Independent of that**: the remaining kernel rewirings — search grids from
    `search.py`, alias adjudication, T3 vetoes from `vetoes.py`, dip registry
    from `population.py`. Each is its own behaviour commit with its own measured
    effect. None depends on the detrending question.
-4. **Owner decision needed**: what replaces support-weighted edges, given the
-   measured impossibility. Do not sweep parameters again.
+4. **Detrending remains blocked**: support weighting and the owner-selected
+   narrow-guard/event-support fallback are both ruled out. Any next proposal
+   must address trend-model bias directly or require agreement across genuinely
+   independent preparations; do not sweep either rejected mechanism.
 
 ## Standing constraints
 
@@ -221,5 +254,5 @@ equivalence cohort and its golden baseline are unchanged; see
 - No other campaign-scale runs, injection runs, or science downloads without
   explicit owner approval (`REFACTOR_REVIEW.md` stop condition).
 - Behaviour changes ship in their own commit with their measurement. Structure
-  changes ship byte-identical. The 180 tests stay green un-edited; if one must
-  change, say in the commit whether it pinned a constant or behaviour.
+  changes ship byte-identical. The 199 tests stay green; if one must change,
+  say in the commit whether it pinned a constant or behaviour.
