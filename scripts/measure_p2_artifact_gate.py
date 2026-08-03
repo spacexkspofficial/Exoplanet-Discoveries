@@ -24,20 +24,28 @@ def _folded_offset(epoch: float, period: np.ndarray, transit_time: np.ndarray) -
 
 
 def _alignment_flags(
-    epochs: tuple[float, float],
+    epochs: tuple[float, ...],
     period: np.ndarray,
     transit_time: np.ndarray,
     tolerance: np.ndarray,
 ) -> np.ndarray:
-    return np.minimum(
-        _folded_offset(epochs[0], period, transit_time),
-        _folded_offset(epochs[1], period, transit_time),
-    ) <= tolerance
+    """Flag ephemerides aligning with the nearest of any number of epochs.
+
+    Previously fixed at exactly two. The count is now whatever is passed, and
+    the null draws the same number of controls, so the chance model always
+    matches the test being run.
+    """
+
+    nearest = _folded_offset(epochs[0], period, transit_time)
+    for epoch in epochs[1:]:
+        nearest = np.minimum(nearest, _folded_offset(epoch, period, transit_time))
+    return nearest <= tolerance
 
 
 def measure(
     results_dir: Path,
     *,
+    epochs: tuple[float, ...] = ARTIFACT_EPOCHS,
     draws: int,
     seed: int,
     label: str,
@@ -88,8 +96,11 @@ def measure(
         np.asarray([row["duration_hours"] for row in rows], dtype=float) / 48.0,
         MINIMUM_PHASE_TOLERANCE_DAYS,
     )
+    epochs = tuple(float(value) for value in epochs)
+    if not epochs:
+        raise ValueError("at least one artifact epoch is required")
     observed_flags = _alignment_flags(
-        ARTIFACT_EPOCHS, period, transit_time, tolerance
+        epochs, period, transit_time, tolerance
     )
     snr = np.asarray([row["depth_snr"] for row in rows], dtype=float)
     passes = np.asarray([row["passes_triage"] for row in rows], dtype=bool)
@@ -100,7 +111,14 @@ def measure(
     rng = np.random.default_rng(seed)
     null_counts = np.empty(draws, dtype=int)
     for index in range(draws):
-        controls = tuple(float(value) for value in rng.uniform(span_start, span_end, 2))
+        # The null must draw as many control epochs as there are artifact
+        # epochs. Correction 9 records the factor-of-2 error from counting
+        # one epoch's worth of chance against two real ones; hard-coding 2
+        # here would reintroduce it as soon as the epoch list changes.
+        controls = tuple(
+            float(value)
+            for value in rng.uniform(span_start, span_end, len(epochs))
+        )
         null_counts[index] = int(
             np.count_nonzero(
                 _alignment_flags(controls, period, transit_time, tolerance)
@@ -112,13 +130,13 @@ def measure(
     for index, row in enumerate(rows):
         offsets = [
             float(_folded_offset(epoch, period[index:index + 1], transit_time[index:index + 1])[0])
-            for epoch in ARTIFACT_EPOCHS
+            for epoch in epochs
         ]
         nearest_index = int(np.argmin(offsets))
         row.update(
             {
                 "phase_tolerance_days": round(float(tolerance[index]), 5),
-                "nearest_artifact_epoch": ARTIFACT_EPOCHS[nearest_index],
+                "nearest_artifact_epoch": epochs[nearest_index],
                 "folded_offset_days": round(offsets[nearest_index], 5),
                 "aligns_with_artifact_epoch": bool(observed_flags[index]),
                 "above_detection_gate": bool(snr[index] >= DETECTION_SNR),
@@ -133,10 +151,12 @@ def measure(
         "results_dir": str(results_dir.resolve()),
         "targets": len(rows),
         "detrend_methods": sorted({str(row["detrend_method"]) for row in rows}),
+        "artifact_epochs_btjd": list(epochs),
         "gate_1_artifact_regression": {
             "definition": (
                 "fitted ephemeris predicts a transit within phase tolerance of "
-                "BTJD 4074.4 or 4080.8 (folded, not raw epoch difference)"
+                + " or ".join(f"BTJD {value}" for value in epochs)
+                + " (folded, not raw epoch difference)"
             ),
             "aligns_regardless_of_snr": observed_count,
             "detects_at_artifact_epoch": int(
@@ -190,10 +210,25 @@ def main() -> int:
     parser.add_argument("--draws", type=int, default=20_000)
     parser.add_argument("--seed", type=int, default=20_260_727)
     parser.add_argument("--label", default="P2 artifact gate")
+    parser.add_argument(
+        "--artifact-epoch",
+        type=float,
+        action="append",
+        dest="artifact_epochs",
+        help=(
+            "BTJD epoch to test alignment against; repeatable. Defaults to "
+            "the historical pair (4074.4, 4080.8). Those two were derived "
+            "from TESScut evidence, so measuring a SPOC cohort against them "
+            "tests phase coincidence rather than artifact contamination "
+            "(PROGRESS correction 22) -- pass epochs derived from the "
+            "reduction actually under test."
+        ),
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     measured = measure(
         args.results_dir,
+        epochs=tuple(args.artifact_epochs) if args.artifact_epochs else ARTIFACT_EPOCHS,
         draws=args.draws,
         seed=args.seed,
         label=args.label,

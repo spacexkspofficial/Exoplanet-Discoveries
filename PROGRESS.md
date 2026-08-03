@@ -616,6 +616,68 @@ record was written; `origin/main` and the research branch are synchronized at
     behaviour was changed by this entry. Raw probes are session scratch; the
     ledger queries and arm A reports reproduce every number above.
 
+23. **The artifact-enrichment criterion cannot resolve the difference it was
+    asked to judge.** Section 2.3 requires artifact enrichment to improve
+    before a detrending change ships, and corrections 10 and 13 recorded that
+    it "does not move at all" across the three arms: 1.137 (production),
+    1.140 (biweight), 1.142 (narrow guard). That observation is correct and
+    its interpretation was too generous to the statistic -- it could not have
+    moved.
+
+    Measured on arm A (371 targets, the same cohort and the same two epochs
+    all three arms used), bootstrapping over targets at **fixed** epochs so
+    that epoch choice cancels exactly as it does between arms:
+
+    | measurement | value |
+    |---|---:|
+    | aligned at the historical epochs | 157 / 371 |
+    | empirical null mean | 136.33 |
+    | enrichment | 1.1516 |
+    | bootstrap standard deviation | **0.0704** |
+    | 95% confidence interval | **[1.0122, 1.2836]** |
+    | spread across the three arms | 0.0050 |
+    | that spread, in sigma | **0.071** |
+    | spread needed to detect at 2 sigma | 0.141 |
+
+    The arms differ by **one fourteenth of one standard deviation**. Closing
+    that gap by cohort size alone would need roughly `371 x (0.141/0.005)^2`
+    targets -- on the order of **300,000 stars**, which is more than the
+    entire searched population to date and decisively impractical. The
+    criterion is not merely underpowered on this cohort; it is unusable at
+    this effect size by any cohort this project will run.
+
+    Two further readings, both measured:
+
+    - **The epochs are genuinely elevated, marginally.** Against 40 random
+      interior epoch pairs (mean 0.999, sd 0.075), the observed 1.137-1.142
+      sits at the 95th percentile. The 95% interval [1.012, 1.284] excludes
+      1.0 only barely. So there is a real effect; it is small and imprecisely
+      measured.
+    - **Almost all of it comes from an epoch outside the observation span.**
+      Per epoch: BTJD 4074.4 gives 1.189 (p=0.029) and lies 0.594 d *before*
+      the data begins, while 4080.8 gives 1.042 (p=0.358). Controls are drawn
+      uniformly *inside* the span, so the observed epoch and its null are not
+      like for like. Correction 9 fixed the mirror image of this (controls
+      drawn from the fitted-epoch range rather than the observation span);
+      this is the same class of error on the other side.
+
+    **What this does not overturn.** Corrections 10 and 13 rejected both
+    mechanisms primarily on numbers that did move by large amounts:
+    retention (0.669 / 0.993 / 0.836) and survivors sitting on artifact
+    epochs (1 / 9 / 3). Those remain informative and the rejections stand.
+    It is specifically the enrichment criterion that carries no information
+    at this effect size, and section 2.3 should stop treating it as one of
+    the four numbers that must pass.
+
+    `scripts/measure_p2_artifact_gate.py` now takes `--artifact-epoch`
+    (repeatable, defaulting to the historical pair so existing invocations
+    reproduce exactly), and the empirical null draws as many controls as
+    there are epochs rather than always two. `scripts/derive_artifact_epochs.py`
+    finds epochs from a campaign's own `population_bins` by binomial tail
+    against the cohort's background dip rate; on arm A only two bins clear
+    p < 1e-4 out of 863 observed, both at BTJD 4092.40-4092.44. Full suite:
+    **265 passed**. No production behaviour changed.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to
