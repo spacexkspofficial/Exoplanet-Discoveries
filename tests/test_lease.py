@@ -159,3 +159,59 @@ def test_heartbeat_failure_never_breaks_a_campaign(tmp_path, monkeypatch) -> Non
     heartbeat.beat()
     heartbeat.beat()
     heartbeat.release()
+
+
+def test_heartbeat_survives_being_beaten_from_its_own_thread(tmp_path, monkeypatch):
+    # A SQLite connection belongs to one thread. The timer thread owns it;
+    # nothing else may beat, or the resulting ProgrammingError silently
+    # latched the heartbeat off for the rest of the campaign.
+    import time as _time
+
+    monkeypatch.setenv("EXOHUNT_DB_PATH", str(tmp_path / "ops.db"))
+    from exohunt import ledger
+    from exohunt.campaign import _CoordinatorHeartbeat
+    from exohunt.dashboard_api import ops_payload
+
+    heartbeat = _CoordinatorHeartbeat()
+    conn = ledger.connect()
+    try:
+        assert ops_payload(conn)["liveness"] == "absent"
+        heartbeat.start_background(interval_seconds=0.05)
+        deadline = _time.time() + 5.0
+        while _time.time() < deadline:
+            if ops_payload(conn)["live"]:
+                break
+            _time.sleep(0.05)
+        assert ops_payload(conn)["live"] is True, "timer thread never claimed the lease"
+
+        # Keep beating for a while; a cross-thread fault would latch it off.
+        _time.sleep(0.5)
+        assert heartbeat._latched_off is False
+        assert ops_payload(conn)["live"] is True
+
+        heartbeat.release()
+        assert ops_payload(conn)["liveness"] == "absent"
+    finally:
+        heartbeat.release()
+        conn.close()
+
+
+def test_a_denied_lease_does_not_stop_the_heartbeat(tmp_path, monkeypatch):
+    # Right after a restart the previous coordinator's row is still inside
+    # its TTL, so acquire returns "denied". That is normal, not a failure.
+    monkeypatch.setenv("EXOHUNT_DB_PATH", str(tmp_path / "ops.db"))
+    from exohunt import ledger
+    from exohunt.campaign import COORDINATOR_LEASE_NAME, _CoordinatorHeartbeat
+
+    conn = ledger.connect()
+    try:
+        ledger.acquire_db_lease(
+            conn, name=COORDINATOR_LEASE_NAME, holder="someone else"
+        )
+        heartbeat = _CoordinatorHeartbeat()
+        heartbeat.beat()
+        heartbeat.beat()
+        assert heartbeat._latched_off is False
+        heartbeat.release()
+    finally:
+        conn.close()

@@ -17,6 +17,7 @@ import csv
 import json
 import os
 import sys
+import threading
 import time
 from collections import deque
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
@@ -58,8 +59,45 @@ class _CoordinatorHeartbeat:
         self._conn = None
         self._holder: str | None = None
         self._latched_off = False
+        self._failures = 0
+        self._stop: threading.Event | None = None
+        self._thread: threading.Thread | None = None
+
+    def start_background(self, interval_seconds: float = 10.0) -> None:
+        """Beat on a timer, independent of target completion.
+
+        Beating only when a target finishes ties liveness to throughput: a
+        single slow archive fetch can exceed the dashboard's 45-second
+        threshold and make a perfectly healthy campaign flicker between live
+        and stale. The coordinator is alive whether or not a target happened
+        to complete, so the heartbeat says so on its own schedule.
+        """
+
+        if self._thread is not None:
+            return
+        self._stop = threading.Event()
+
+        def loop() -> None:
+            self.beat()
+            assert self._stop is not None
+            while not self._stop.wait(interval_seconds):
+                self.beat()
+
+        self._thread = threading.Thread(
+            target=loop, name="exohunt-heartbeat", daemon=True
+        )
+        self._thread.start()
 
     def beat(self) -> None:
+        """Refresh the coordinator lease. Only the timer thread calls this.
+
+        A SQLite connection belongs to the thread that created it, so this
+        must have exactly one caller. It previously had two -- the timer and
+        `publish_progress` on a worker thread -- and whichever lost the race
+        raised `ProgrammingError`, which the blanket except turned into a
+        permanent latch-off. The campaign then ran for hours reporting stale.
+        """
+
         if self._latched_off:
             return
         try:
@@ -68,32 +106,61 @@ class _CoordinatorHeartbeat:
             if self._conn is None:
                 self._holder = holder_description()
                 self._conn = ledger.connect()
-            ledger.acquire_db_lease(
+            outcome = ledger.acquire_db_lease(
                 self._conn,
                 name=COORDINATOR_LEASE_NAME,
                 holder=self._holder,
             )
+            # "denied" means a previous coordinator's row is still inside its
+            # TTL -- normal right after a restart, and it resolves itself on
+            # takeover. It is not an error and must not stop the beating.
+            if outcome != "denied":
+                self._failures = 0
         except Exception:
-            self._latched_off = True
+            # Recover rather than give up: drop the connection so the next
+            # tick reconnects. Only a persistent fault latches off, and even
+            # then the campaign is unaffected -- the dashboard simply reports
+            # nothing as running.
+            self._failures += 1
             self._close()
+            if self._failures >= 5:
+                self._latched_off = True
 
     def release(self) -> None:
-        if self._conn is None:
+        # Stop the timer first, so the thread cannot touch the connection
+        # while this thread is closing it.
+        if self._stop is not None:
+            self._stop.set()
+        thread, self._thread = self._thread, None
+        if thread is not None:
+            thread.join(timeout=5.0)
+        holder = self._holder
+        # The timer thread owned self._conn, and a SQLite connection cannot
+        # cross threads, so drop the reference and use a fresh one here.
+        self._conn = None
+        if holder is None:
             return
+        conn = None
         try:
             from . import ledger
 
+            conn = ledger.connect()
             ledger.release_db_lease(
-                self._conn,
+                conn,
                 name=COORDINATOR_LEASE_NAME,
-                holder=self._holder,
+                holder=holder,
             )
+            conn.commit()
         except Exception:
             # A stale row is self-correcting: the dashboard ages it out of
-            # "live" once the heartbeat passes its threshold.
+            # "live", and the next coordinator takes it over after its TTL.
             pass
         finally:
-            self._close()
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
     def _close(self) -> None:
         if self._conn is not None:
@@ -139,6 +206,9 @@ def _batch_hunt(args: argparse.Namespace) -> int:
         if not getattr(args, "allow_sleep", False):
             awake.start()
             print(f"Power: {awake.reason}")
+        # Liveness on its own clock, so a slow archive fetch cannot make a
+        # healthy campaign read as stale.
+        _COORDINATOR_HEARTBEAT.start_background()
         try:
             return cli_module._run_batch_hunt(args)
         finally:
@@ -420,11 +490,9 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
 
     def publish_progress(state: str = "running") -> None:
         nonlocal last_progress_publish
-        # Heartbeat before the throttle, not after: the lease update is one
-        # indexed row write, while the checkpoint rewrite is megabytes.
-        # Throttling them together would let liveness lapse on a slow target
-        # even though the coordinator is plainly alive.
-        _COORDINATOR_HEARTBEAT.beat()
+        # Deliberately does NOT beat the coordinator lease. Liveness runs on
+        # its own timer thread; beating from here as well put two threads on
+        # one SQLite connection, which SQLite forbids.
         now_monotonic = time.monotonic()
         # Reports are durable per target and are rediscovered on resume, so
         # limiting large checkpoint/dashboard rewrites to the browser's polling
@@ -1369,10 +1437,21 @@ def _download_batch_target(
         f"TIC_{int(spec['tic_id'])}_s"
         + "-".join(str(value) for value in spec["sectors"])
     )
+    try:
+        download_dir = (
+            resolve_cache_dir(
+                os.environ.get("EXOHUNT_CACHE_DIR"), workspace_root=Path.cwd()
+            )
+            / "batch_targets"
+            / cli_module._safe_name(namespace)
+        )
+    except Exception:
+        download_dir = None
     TRACKER.begin(
         int(spec["tic_id"]),
         target=str(spec["target"]),
         stage="downloading",
+        download_dir=download_dir,
     )
     for attempt in range(1, 4):
         try:

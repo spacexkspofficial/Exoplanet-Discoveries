@@ -1399,3 +1399,22 @@ button {
     display: none;
   }
 }
+
+/* The active stage pulses so a long download reads as working rather than
+   stuck. Respects reduced-motion preferences. */
+.inflight-bar b.current {
+  background: var(--green);
+  animation: inflight-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes inflight-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inflight-bar b.current {
+    animation: none;
+    opacity: 0.8;
+  }
+}

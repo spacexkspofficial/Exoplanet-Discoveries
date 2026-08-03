@@ -27,7 +27,32 @@ from __future__ import annotations
 
 import threading
 import time
+from pathlib import Path
 from typing import Any
+
+
+def _directory_bytes(path: object) -> int | None:
+    """Total bytes currently on disk under a cache namespace.
+
+    Returns None rather than raising: the directory may not exist yet, may
+    vanish under a retry that clears a failed namespace, or may be briefly
+    unreadable while Windows holds a handle. None simply means "no size to
+    report", which the panel renders as a spinner rather than a wrong number.
+    """
+
+    if not isinstance(path, Path):
+        return None
+    try:
+        total = 0
+        for item in path.rglob("*"):
+            try:
+                if item.is_file():
+                    total += item.stat().st_size
+            except OSError:
+                continue
+        return total
+    except OSError:
+        return None
 
 # The ordered pipeline a target passes through. The dashboard renders a bar
 # across these, so the order is the display order; unknown stages sort last
@@ -68,8 +93,15 @@ class StageTracker:
         *,
         target: str = "",
         stage: str = "queued",
+        download_dir: "Path | None" = None,
     ) -> None:
-        """Register a target as in flight, or reset it if already present."""
+        """Register a target as in flight, or reset it if already present.
+
+        ``download_dir`` is the target's cache namespace. Archive clients do
+        not report byte progress, but the partially written file on disk
+        does, so the size of that directory is the honest measure of how far
+        a download has actually got.
+        """
 
         if tic_id is None:
             return
@@ -81,6 +113,7 @@ class StageTracker:
                 "stage": stage,
                 "started_at": now,
                 "stage_started_at": now,
+                "download_dir": download_dir,
             }
 
     def stage(self, tic_id: int | None, stage: str) -> None:
@@ -124,20 +157,28 @@ class StageTracker:
                 index = STAGES.index(stage)
             except ValueError:
                 index = len(STAGES) - 1
-            rows.append(
-                {
-                    "tic_id": entry["tic_id"],
-                    "target": entry["target"],
-                    "stage": stage,
-                    "module": STAGE_MODULES.get(stage, ""),
-                    "stage_index": index,
-                    "stage_count": len(STAGES),
-                    "elapsed_seconds": round(max(moment - entry["started_at"], 0.0), 1),
-                    "stage_elapsed_seconds": round(
-                        max(moment - entry["stage_started_at"], 0.0), 1
-                    ),
-                }
-            )
+            stage_elapsed = max(moment - entry["stage_started_at"], 0.0)
+            row = {
+                "tic_id": entry["tic_id"],
+                "target": entry["target"],
+                "stage": stage,
+                "module": STAGE_MODULES.get(stage, ""),
+                "stage_index": index,
+                "stage_count": len(STAGES),
+                "elapsed_seconds": round(max(moment - entry["started_at"], 0.0), 1),
+                "stage_elapsed_seconds": round(stage_elapsed, 1),
+            }
+            if stage == "downloading":
+                fetched = _directory_bytes(entry.get("download_dir"))
+                if fetched is not None:
+                    row["downloaded_bytes"] = fetched
+                    # Rate is only meaningful once a little time has passed;
+                    # reporting MB/s from a fraction of a second is noise.
+                    if stage_elapsed >= 1.0:
+                        row["download_bytes_per_second"] = round(
+                            fetched / stage_elapsed
+                        )
+            rows.append(row)
         rows.sort(key=lambda row: -row["elapsed_seconds"])
         return rows
 

@@ -103,6 +103,9 @@ type InFlightTarget = {
   stage_count: number;
   elapsed_seconds: number;
   stage_elapsed_seconds: number;
+  /** Present only while downloading; archive clients report no byte total. */
+  downloaded_bytes?: number;
+  download_bytes_per_second?: number;
 };
 
 type ActiveCampaign = {
@@ -598,6 +601,21 @@ const SPRITE_CACHE = new Map<
  */
 function InFlightPanel({ campaign }: { campaign?: ActiveCampaign }) {
   const rows = campaign?.in_flight || [];
+  // The checkpoint is throttled to ~5s and the browser polls on the same
+  // cadence, so raw values step in five-second jumps. Record when this
+  // payload arrived and extrapolate from it at 10Hz: the numbers advance
+  // smoothly, and every poll re-anchors them to the truth so the display
+  // can drift by at most one frame rather than accumulating error.
+  const arrivedAt = useMemo(() => performance.now(), [rows]);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (rows.length === 0) return;
+    const id = window.setInterval(() => setTick((n) => n + 1), 100);
+    return () => window.clearInterval(id);
+  }, [rows.length]);
+  void tick;
+  const drift = Math.max(0, (performance.now() - arrivedAt) / 1000);
+
   if (!campaign || rows.length === 0) return null;
   const stages = campaign.stages && campaign.stages.length
     ? campaign.stages
@@ -615,7 +633,11 @@ function InFlightPanel({ campaign }: { campaign?: ActiveCampaign }) {
       <div className="inflight-rows">
         {rows.map((row) => {
           const index = Math.max(0, Math.min(row.stage_index, stages.length - 1));
-          const percent = ((index + 1) / stages.length) * 100;
+          const stageElapsed = row.stage_elapsed_seconds + drift;
+          const totalElapsed = row.elapsed_seconds + drift;
+          const downloading = row.stage === "downloading";
+          const bytes = row.downloaded_bytes;
+          const rate = row.download_bytes_per_second;
           return (
             <div className="inflight-row" key={row.tic_id}>
               <span className="inflight-tic" title={row.target || `TIC ${row.tic_id}`}>
@@ -624,20 +646,29 @@ function InFlightPanel({ campaign }: { campaign?: ActiveCampaign }) {
               <span className="inflight-stage" data-stage={row.stage}>
                 {row.stage}
               </span>
-              <span className="inflight-module">{row.module}</span>
+              <span className="inflight-module">
+                {downloading && bytes !== undefined
+                  ? `${fmtBytes(bytes)}${rate ? ` · ${fmtBytes(rate)}/s` : ""}`
+                  : row.module}
+              </span>
               <span className="inflight-bar" aria-hidden="true">
-                <i style={{ "--inflight-progress": `${percent}%` } as React.CSSProperties} />
                 {stages.map((stage, position) => (
                   <b
                     key={stage}
-                    className={position <= index ? "done" : ""}
+                    className={
+                      position < index
+                        ? "done"
+                        : position === index
+                          ? "current"
+                          : ""
+                    }
                     title={stage}
                   />
                 ))}
               </span>
               <span className="inflight-elapsed">
-                {fmtElapsed(row.stage_elapsed_seconds)}
-                <em> / {fmtElapsed(row.elapsed_seconds)}</em>
+                {fmtElapsed(stageElapsed)}
+                <em> / {fmtElapsed(totalElapsed)}</em>
               </span>
             </div>
           );
@@ -649,10 +680,19 @@ function InFlightPanel({ campaign }: { campaign?: ActiveCampaign }) {
 
 function fmtElapsed(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "—";
-  if (seconds < 60) return `${Math.round(seconds)}s`;
+  // One decimal under a minute so the extrapolated counter visibly moves
+  // rather than sitting on an integer for a second at a time.
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ${Math.round(seconds % 60)}s`;
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+function fmtBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "—";
+  if (bytes < 1024) return `${Math.round(bytes)} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 const ATLAS_TILE_CSS = 26;
