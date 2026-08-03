@@ -225,6 +225,8 @@ def _shipping_catalog_report(
     recovered_transit_time: float,
     recovered_period: float = 2.0,
     recovered_duration_hours: float = 2.4,
+    effective_duration_grid_hours: np.ndarray | None = None,
+    requested_duration_grid_hours: np.ndarray | None = None,
 ) -> dict[str, object]:
     monkeypatch.setattr(
         cli_module,
@@ -255,6 +257,10 @@ def _shipping_catalog_report(
         "effective_frequency_factor": 1.0,
         "period_grid_was_capped": False,
     }
+    if effective_duration_grid_hours is not None:
+        arrays["duration_grid_hours"] = effective_duration_grid_hours
+    if requested_duration_grid_hours is not None:
+        arrays["requested_duration_grid_hours"] = requested_duration_grid_hours
     monkeypatch.setattr(
         cli_module,
         "search_transits",
@@ -400,3 +406,53 @@ def test_shipping_hunt_keeps_one_third_period_alias_rejected(
     )
     assert relation["catalog_match_rejects"] is True
     assert report["automated_triage"]["passes"] is False
+
+
+def test_shipping_hunt_rejects_best_fit_inside_period_overscan(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    report = _shipping_catalog_report(
+        tmp_path,
+        monkeypatch,
+        recovered_period=5.2,
+        recovered_transit_time=101.0,
+        recovered_duration_hours=1.0,
+    )
+
+    grid = report["search_grid"]
+    assert grid["maximum_reportable_period_days"] == 5.0
+    assert grid["maximum_searched_period_days"] == 5.4
+    assert grid["best_period_in_overscan"] is True
+    assert report["automated_triage"]["passes"] is False
+    assert (
+        "the best-fit period is in the search-grid overscan zone"
+        in report["automated_triage"]["rejection_reasons"]
+    )
+
+
+def test_shipping_hunt_rejects_duration_grid_rail(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    report = _shipping_catalog_report(
+        tmp_path,
+        monkeypatch,
+        recovered_period=2.0,
+        recovered_transit_time=101.5,
+        recovered_duration_hours=1.95,
+        effective_duration_grid_hours=np.array([0.5, 1.0, 1.95]),
+        requested_duration_grid_hours=np.array([0.5, 1.0, 1.96877]),
+    )
+
+    assert report["search_grid"]["duration_grid_hours"][-1] == 1.95
+    assert report["search_grid"]["requested_duration_grid_hours"][-1] == (
+        1.96877
+    )
+    assert report["search_grid"]["duration_at_grid_rail"] is True
+    assert report["search_grid"]["grid_rail"] is True
+    assert report["automated_triage"]["passes"] is False
+    assert (
+        "the best-fit period or duration is pinned to a search-grid rail"
+        in report["automated_triage"]["rejection_reasons"]
+    )

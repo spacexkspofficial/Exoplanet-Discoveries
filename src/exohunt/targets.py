@@ -128,6 +128,7 @@ def _make_targets(args: argparse.Namespace) -> int:
                 "tmag": row["st_tmag"],
                 "teff_k": row["st_teff"],
                 "stellar_radius_solar": row["st_rad"],
+                "stellar_mass_solar": row["st_mass"],
                 "distance_pc": row["st_dist"],
                 "known_period_days": row["pl_orbper"],
                 "unique_transiting_signal_count": len(unique_periods),
@@ -290,6 +291,7 @@ def _make_sector_targets(args: argparse.Namespace) -> int:
             if metadata is None:
                 luminosity_class = "UNKNOWN"
                 radius = None
+                mass = None
                 teff = None
                 distance = None
             else:
@@ -300,12 +302,14 @@ def _make_sector_targets(args: argparse.Namespace) -> int:
                     else "UNKNOWN"
                 )
                 radius = _optional_float(metadata["rad"])
+                mass = _optional_float(metadata["mass"])
                 teff = _optional_float(metadata["Teff"])
                 distance = _optional_float(metadata["d"])
             row.update(
                 {
                     "teff_k": teff,
                     "stellar_radius_solar": radius,
+                    "stellar_mass_solar": mass,
                     "distance_pc": distance,
                     "luminosity_class": luminosity_class,
                     "stellar_selection_tier": _small_planet_selection_tier(
@@ -489,6 +493,7 @@ def _make_blank_targets(args: argparse.Namespace) -> int:
     for tic_id, row in tic_rows.items():
         teff = _optional_float(row["Teff"])
         radius = _optional_float(row["rad"])
+        mass = _optional_float(row["mass"])
         distance = _optional_float(row["d"])
         tmag = _optional_float(row["Tmag"])
         if None in {teff, radius, distance, tmag}:
@@ -509,6 +514,7 @@ def _make_blank_targets(args: argparse.Namespace) -> int:
                 "tmag": tmag,
                 "teff_k": teff,
                 "stellar_radius_solar": radius,
+                "stellar_mass_solar": mass,
                 "distance_pc": distance,
                 "ra_deg": _optional_float(row["ra"]),
                 "dec_deg": _optional_float(row["dec"]),

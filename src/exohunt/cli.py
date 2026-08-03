@@ -74,6 +74,7 @@ from .photometry import (
 )
 from .pixel import difference_image, target_pixel_from_sky_grid
 from .reporting import create_campaign_report, create_candidate_packet
+from .search import build_search_grid, grid_rail_flags
 from .screening import (
     CATALOG_PERIOD_REJECTION_REASON,
     _adjudicate_catalog_relation,
@@ -253,6 +254,9 @@ def _scientific_settings(args: argparse.Namespace) -> dict[str, object]:
         "mask_width": args.mask_width,
         "allow_no_known": args.allow_no_known,
         "catalog_masking": asdict(CURRENT_CONFIG.catalog_masking),
+        # Round-trip through JSON so tuple-valued config fields compare equal
+        # after reports are serialized and loaded for checkpoint reuse.
+        "search": json.loads(json.dumps(asdict(CURRENT_CONFIG.search))),
         # Detrending decides which cadences BLS ever sees, so it belongs to a
         # result's scientific identity. Without it here a resumed campaign would
         # silently reuse reports produced under a different segmentation rule
@@ -1623,11 +1627,46 @@ def _hunt_from_light_curve(
             "catalog ephemeris and could not be demonstrably masked from the "
             f"observed cadences: {values}"
         )
+    searched_sectors = _sector_values(
+        metadata.get("downloaded_sectors") or args.sector
+    )
+    search_grid_plan = build_search_grid(
+        baseline_days=float(
+            np.nanmax(cleaned_time) - np.nanmin(cleaned_time)
+        ),
+        single_sector=len(searched_sectors) <= 1,
+        requested_min_period_days=float(args.min_period),
+        requested_max_period_days=float(args.max_period),
+        stellar_radius_solar=_optional_float(
+            metadata.get("stellar_radius_solar")
+        ),
+        stellar_mass_solar=_optional_float(
+            metadata.get("stellar_mass_solar")
+        ),
+    )
     result, arrays = search_transits(
         cleaned_time,
         cleaned_flux,
-        min_period_days=args.min_period,
-        max_period_days=args.max_period,
+        min_period_days=search_grid_plan.period.min_period_days,
+        max_period_days=search_grid_plan.period.max_search_days,
+        durations_hours=search_grid_plan.duration_hours,
+    )
+    searched_duration_grid = arrays.get(
+        "duration_grid_hours",
+        search_grid_plan.duration_hours,
+    )
+    requested_duration_grid = arrays.get(
+        "requested_duration_grid_hours",
+        search_grid_plan.duration_hours,
+    )
+    grid_flags = grid_rail_flags(
+        period_days=result.period_days,
+        duration_hours=result.duration_hours,
+        searched_periods_days=arrays["period_grid"],
+        searched_durations_hours=searched_duration_grid,
+    )
+    best_period_in_overscan = search_grid_plan.period.in_overscan(
+        result.period_days
     )
     alias_checks = harmonic_diagnostics(
         arrays["period_grid"], arrays["power"], result.period_days
@@ -1690,6 +1729,14 @@ def _hunt_from_light_curve(
         rejection_reasons.append("the fitted transit duty cycle exceeds 15 percent")
     if screening_flags["transit_depth_over_5_percent"]:
         rejection_reasons.append("the fitted transit depth exceeds 5 percent")
+    if best_period_in_overscan:
+        rejection_reasons.append(
+            "the best-fit period is in the search-grid overscan zone"
+        )
+    if grid_flags["grid_rail"]:
+        rejection_reasons.append(
+            "the best-fit period or duration is pinned to a search-grid rail"
+        )
     if strong_harmonic_ambiguity:
         rejection_reasons.append("a simple harmonic retains at least 80% of the peak power")
     if unmaskable_periods:
@@ -1787,6 +1834,15 @@ def _hunt_from_light_curve(
             "period_samples": int(len(arrays["period_grid"])),
             "effective_frequency_factor": float(arrays["effective_frequency_factor"]),
             "capped_for_long_baseline": bool(arrays["period_grid_was_capped"]),
+            **search_grid_plan.to_dict(),
+            "requested_duration_grid_hours": [
+                float(value) for value in requested_duration_grid
+            ],
+            "duration_grid_hours": [
+                float(value) for value in searched_duration_grid
+            ],
+            "best_period_in_overscan": best_period_in_overscan,
+            **grid_flags,
         },
         "top_period_peaks": independent_period_peaks(
             arrays["period_grid"], arrays["power"]
@@ -2071,8 +2127,21 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     hunt.add_argument("--cadence-seconds", type=float, default=120.0)
-    hunt.add_argument("--min-period", type=float, default=0.5)
-    hunt.add_argument("--max-period", type=float, default=30.0)
+    hunt.add_argument(
+        "--min-period",
+        type=float,
+        default=0.5,
+        help="Minimum searched period, subject to the configured physical floor.",
+    )
+    hunt.add_argument(
+        "--max-period",
+        type=float,
+        default=30.0,
+        help=(
+            "Maximum reportable period; the search adds a diagnostic overscan "
+            "zone whose fits cannot pass triage."
+        ),
+    )
     hunt.add_argument(
         "--mask-width",
         type=float,
@@ -2104,8 +2173,21 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     batch.add_argument("--cadence-seconds", type=float, default=120.0)
-    batch.add_argument("--min-period", type=float, default=0.5)
-    batch.add_argument("--max-period", type=float, default=20.0)
+    batch.add_argument(
+        "--min-period",
+        type=float,
+        default=0.5,
+        help="Minimum searched period, subject to the configured physical floor.",
+    )
+    batch.add_argument(
+        "--max-period",
+        type=float,
+        default=20.0,
+        help=(
+            "Maximum reportable period; the search adds a diagnostic overscan "
+            "zone whose fits cannot pass triage."
+        ),
+    )
     batch.add_argument("--mask-width", type=float, default=1.5)
     batch.add_argument("--allow-no-known", action="store_true")
     batch.add_argument(

@@ -678,12 +678,22 @@ def _batch_target_spec(
     tic_id = int(row["tic_id"])
     sectors = [int(value) for value in row["sectors"].split(";") if value]
     stem = cli_module._artifact_stem(target, tic_id, sectors)
+    stellar_parameters = {
+        key: value
+        for key in (
+            "stellar_radius_solar",
+            "stellar_mass_solar",
+        )
+        if (value := cli_module._optional_float(row.get(key))) is not None
+        and value > 0
+    }
     return {
         "index": index,
         "target": target,
         "tic_id": tic_id,
         "sectors": sectors,
         "expected_report": output_dir / f"{stem}.json",
+        **stellar_parameters,
     }
 
 
@@ -1194,7 +1204,11 @@ def _analyze_downloaded_batch_target(
         output_dir=str(output_dir),
         quiet=True,
     )
-    time_values, flux_values, metadata = downloaded
+    time_values, flux_values, downloaded_metadata = downloaded
+    metadata = dict(downloaded_metadata)
+    for key in ("stellar_radius_solar", "stellar_mass_solar"):
+        if spec.get(key) is not None:
+            metadata[key] = spec[key]
     for attempt in range(1, 4):
         try:
             cli_module._hunt_from_light_curve(

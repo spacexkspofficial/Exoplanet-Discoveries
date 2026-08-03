@@ -9,11 +9,14 @@ import numpy as np
 import pytest
 from filelock import FileLock
 
+import exohunt.campaign as campaign_module
 import exohunt.cli as cli_module
 from exohunt.cli import (
     LEGACY_COMMON_MODE_REASON,
     LEGACY_COMMON_MODE_REASONS,
+    _analyze_downloaded_batch_target,
     _batch_hunt,
+    _batch_target_spec,
     _campaign_settings,
     _download_batch_target,
     _is_transient_search_error,
@@ -39,6 +42,64 @@ def _args(output_dir: Path) -> argparse.Namespace:
         mask_width=1.5,
         allow_no_known=True,
     )
+
+
+def test_batch_target_spec_preserves_optional_stellar_parameters(
+    tmp_path: Path,
+) -> None:
+    spec = _batch_target_spec(
+        1,
+        {
+            "target": "TIC 42",
+            "tic_id": "42",
+            "sectors": "100",
+            "stellar_radius_solar": "0.3",
+            "stellar_mass_solar": "0.25",
+        },
+        tmp_path,
+    )
+
+    assert spec["stellar_radius_solar"] == 0.3
+    assert spec["stellar_mass_solar"] == 0.25
+
+
+def test_batch_analysis_passes_stellar_parameters_into_hunt_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_hunt(args, _time, _flux, metadata):
+        captured.update(metadata)
+        report_path = tmp_path / "report.json"
+        report_path.write_text("{}", encoding="utf-8")
+        args.generated_report_path = str(report_path)
+        return 0
+
+    monkeypatch.setattr(cli_module, "_hunt_from_light_curve", fake_hunt)
+    monkeypatch.setattr(
+        campaign_module,
+        "_result_row_from_report",
+        lambda *_args, **_kwargs: {"status": "rejected"},
+    )
+    spec = {
+        "target": "TIC 42",
+        "tic_id": 42,
+        "sectors": [100],
+        "expected_report": tmp_path / "expected.json",
+        "stellar_radius_solar": 0.3,
+        "stellar_mass_solar": 0.25,
+    }
+
+    _analyze_downloaded_batch_target(
+        spec,
+        _args(tmp_path),
+        (np.arange(100, dtype=float), np.ones(100), {"tic_id": 42}),
+        tmp_path,
+    )
+
+    assert captured["stellar_radius_solar"] == 0.3
+    assert captured["stellar_mass_solar"] == 0.25
 
 
 def test_common_mode_midpoint_density_never_rejects_targets() -> None:

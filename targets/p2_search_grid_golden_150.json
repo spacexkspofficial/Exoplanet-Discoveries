@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "scope": "same ordered TIC/sector identities as the first 150 frozen golden targets, enriched only from saved context metadata",
+  "source_csv": "targets\\sector100_expansion_5000.csv",
+  "source_csv_sha256": "43a13ce57a2d35a52861312e69e888c71718bfe679c81efe2f66a181def936e0",
+  "context_dir": "results/vetting/all_campaigns/context",
+  "output_csv": "targets\\p2_search_grid_golden_150.csv",
+  "output_csv_sha256": "66b5f1e0228495fbbd23fdcda5003c70cc064b1437172f12af41b97b9f8bf065",
+  "cohort_rows": 150,
+  "cohort_identity_sha256": "8af13d49789e5ea5a15dd8f35673b314ee531df8a7f07f6444ab99009df4041b",
+  "complete_mass_and_radius": 69,
+  "solar_density_fallback": 81,
+  "missing_context": 81,
+  "incomplete_context": 0
+}

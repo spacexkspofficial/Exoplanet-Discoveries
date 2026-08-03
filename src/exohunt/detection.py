@@ -316,6 +316,15 @@ def search_transits(
     ]
     if durations_days.size == 0:
         raise ValueError("No transit duration is shorter than the minimum period.")
+    # Astropy's fast BLS bins durations at min(duration) / oversample and
+    # returns that effective, quantized value. Keep the actual evaluated grid
+    # for endpoint checks instead of comparing against the unquantized request.
+    duration_oversample = 10
+    duration_bin_days = float(np.min(durations_days)) / duration_oversample
+    effective_durations_days = np.unique(
+        np.floor(durations_days / duration_bin_days + 0.5)
+        * duration_bin_days
+    )
 
     # Astropy's default grid density scales with baseline squared. Sparse
     # sectors separated by years can otherwise request hundreds of millions
@@ -339,6 +348,7 @@ def search_transits(
         minimum_period=min_period_days,
         maximum_period=max_period_days,
         frequency_factor=effective_frequency_factor,
+        oversample=duration_oversample,
     )
     best = int(np.nanargmax(power.power))
     period = float(power.period[best])
@@ -368,6 +378,14 @@ def search_transits(
         "time": t,
         "flux": y,
         "period_grid": np.asarray(power.period, dtype=float),
+        "duration_grid_hours": np.asarray(
+            effective_durations_days * 24.0,
+            dtype=float,
+        ),
+        "requested_duration_grid_hours": np.asarray(
+            durations_days * 24.0,
+            dtype=float,
+        ),
         "power": np.asarray(power.power, dtype=float),
         "effective_frequency_factor": np.asarray(effective_frequency_factor),
         "period_grid_was_capped": np.asarray(required_factor > frequency_factor),

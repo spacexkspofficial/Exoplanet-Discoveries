@@ -2,7 +2,7 @@
 
 Tracks execution of [MASTER_PLAN.md](MASTER_PLAN.md) against its own gates.
 Started 2026-07-27 after owner approval of all seven §10 decisions.
-Test suite at last update: **216 passed** (114 pre-existing + 102 new), bare
+Test suite at last update: **228 passed** (114 pre-existing + 114 new), bare
 `pytest` from a clean checkout.
 
 ## Phase status
@@ -64,7 +64,7 @@ record was written; `origin/main` and the research branch are synchronized at
 |---|---|---|
 | Config module (HANDOFF 6.6) | Done | Every Appendix-A threshold named with rationale in `config.py`; AST tripwire test proves the drift literals (7.1, 13.7, 21.0, 0.15) exist only there (kernel modules; cli.py joins at rewiring) |
 | Detrending v2 | Built synthetically; two real-data edge mechanisms rejected | `detrend.py` still provides biweight, two prepared fluxes, support weighting, and a transit-masked second pass, but it is not wired into production. Support weighting failed the locked artifact gate (correction 10). The owner-selected quarter-window guard plus two-sided event-support lane also failed (correction 13): 83.584% retention, 1.142× artifact enrichment, and 3 artifact-aligned survivors versus production's 1. Both experiments were reverted; the production half-window guard remains. |
-| Search grids | Done | `search.py`: density-derived duration grids (M dwarf max <3 h — the 6 h rail cannot exist), period overscan so the reporting ceiling is not a grid boundary |
+| Search grids | Wired and measured through shipping path | `search.py` now plans baseline/minimum-transit period ceilings, 8% diagnostic overscan, density-derived duration grids with a named fallback, and endpoint flags. `batch-hunt` carries TIC mass/radius into the hunt, passes the actual grids to BLS, records requested and Astropy-effective duration grids, and rejects overscan/rail fits. Locked 150-target A/B: exact cohort and input identity; all 81 fallback targets science-identical; all changes isolated to 69 density-backed targets; 0 overscan or rail fits pass. Important limitation: 124/120 fallback/density fits still choose an effective rail. Full evidence: `P2_SEARCH_GRIDS.md`. |
 | Alias adjudication | Done | Ratio-ladder scoring with significance-gated event fractions and a 1.1× change margin; TOI-700 c half-period case recovered in tests; measured corrections documented in the commit |
 | T3 vetoes | Done | `vetoes.py`: duration-density (pass/flag/kill), depth physicality → EB lane, folded odd/even at 3+1 events, full-phase secondary scan (finds a phase-0.3 secondary the old screen missed), per-event support, dip-window veto |
 | Dip registry | Done | `population.py`; noise calibration measured in tests moved σ 2→3 and cohort floor 5%→10% (at σ=2, ~5% of pure-noise star-bins tripped) |
@@ -77,7 +77,7 @@ record was written; `origin/main` and the research branch are synchronized at
 | CLI decomposition: target-list construction | Done; A/B equivalence passed | Official-target-list reading, observing-sector subset choice, curated catalog selection, small-planet host ranking, and the three `make-*-targets` commands moved from `cli.py` to a new `targets.py`; 9 of 10 definitions moved byte-identical and only `_make_sector_targets` changed, to reach `_atomic_write_json` on the live CLI module. `cli.py` 2,919 → 2,389 lines (3,607 → 2,389 across both of today's slices, −34%). **The pinned 150-target rerun cannot gate this slice** — `batch-hunt` reads a pre-built CSV and never calls target-list construction — so equivalence was proven by direct A/B: the pre-move tree (`3d1c283`, via `git archive`) and the post-move tree were driven through identical inputs with identical deterministic stubs for the network collaborators, and their canonical JSON dumps hash to the same SHA-256 (`6be34854…`). That covers 675 pure-function cases plus all five command paths, including `make-sector-targets` run twice (round-robin and small-star ranking) against the real 13,000-row official Sector 100 list and the real 12,168-entry exclusion ledger, selecting 750 stars each time. Only `created_utc` and the harness's own per-run temp-directory name were normalized. Focused target/pixel/campaign/retention/lease/checkpoint tests: 33 passed. The 150-target rerun still ran as a regression check on the untouched campaign path and again produced 150/150 byte-identical reports, 35/115/0 counts, no temp files, and published artifacts identical to both `golden_v0` and the prior slice |
 | Catalog ephemeris masking | Done; bounded real-data gate passed | NASA period/epoch uncertainties are now propagated linearly to the complete observation window. Safe masks widen by the accumulated error; missing or >1-duration uncertainty removes zero cadences, is explicitly reported as unmaskable, forces recovery-only labeling, and blocks promotion. Injection-recovery and sector-vetting paths refuse unsafe masks. On the locked 28-product cohort: 30/37 catalog signals safely masked, 7/37 explicitly unmaskable, 0 silent/unsafe masks, 0 execution errors; a second shipping-path execution reproduced all 28 strongest signals, triage verdicts, and classifications. Full evidence: `P2_CATALOG_MASKING.md`. |
 | Catalog ephemeris matching | Exact, half-, double-, and triple-period rules wired and replayed; one-third held | After masking was isolated in commit `9f9a860`, the shipping path gained the separately measured exact-period event-window rule. Both frozen 28-product outputs reproduce 4 phase-distinct exact relations, 1 mask-overlap control, and 4 untrustworthy recovery cases. The later harmonic production replay matches the independent diagnostic on 19/19 controlled relations: 12 zero-overlap cases continue, while 3 consistent and 4 controlled partial cases remain rejected. The one under-controlled one-third case remains period-only. Full evidence: `P2_CATALOG_MATCHING.md` and `P2_HARMONIC_MATCHING.md`. |
-| **Not yet done** | — | Remaining structure-only extraction (the single-target `_hunt_from_light_curve` analysis path and the context/vetting commands), then separately measured rewiring onto `detrend.py`/`search.py`/`vetoes.py`/`population.py` and first-class signature/evidence records; real-data artifact regression; known-planet campaign cohort; monotransit detector; TLS integration into T2; cli.py AST tripwire |
+| **Not yet done** | — | Remaining structure-only extraction (the single-target `_hunt_from_light_curve` analysis path and the context/vetting commands), then separately measured rewiring onto `detrend.py`/`vetoes.py`/`population.py` and first-class signature/evidence records; a viable detrending mechanism; known-planet campaign cohort; monotransit detector; TLS integration into T2; cli.py AST tripwire |
 
 ### P3–P5: **not started** (gated behind P2 exit, per plan)
 
@@ -384,6 +384,45 @@ record was written; `origin/main` and the research branch are synchronized at
     **216 passed**. No campaign or download was run. Raw replay:
     `results/p2_gates/harmonic_epoch_production_replay/p2_harmonic_matching.json`.
     See `P2_HARMONIC_MATCHING.md`.
+
+18. **Physical search grids are now wired and isolated by a locked
+    shipping-path A/B.** The production hunt derives the reportable period
+    ceiling from the observation baseline and minimum-transit rule, searches
+    8% beyond that ceiling, derives its duration grid from stellar density
+    when both mass and radius are available, and records a named solar fallback
+    otherwise. Fits in the overscan zone or on either actual grid endpoint are
+    diagnostics and cannot pass automated triage. Target-list construction and
+    `batch-hunt` now preserve mass/radius into the analysis metadata.
+
+    The authorized 150-target TESScut gate used the exact frozen golden
+    identity hash. The first new arm applied the fallback grid to all targets;
+    the second used 69 complete catalog density pairs and 81 fallbacks. Both
+    produced 150 reports with zero errors. All 150 observation windows and
+    normalized extraction payloads match. More importantly, all 81 fallback
+    targets are exact in strongest signal, triage, grid, and the complete
+    science payload between new arms. Every changed result is therefore
+    isolated to the 69 density-backed targets.
+
+    A final-review correction changed the gate result before commit. Astropy's
+    fast BLS quantizes durations to `minimum_duration / oversample`; the first
+    implementation compared its returned fit to the unquantized requested
+    endpoint and under-counted rails as 5/4. Production now records the
+    requested and effective grids, compares against the effective endpoint, and
+    includes a search-policy version in checkpoint identity. Fresh arms
+    reproduce all 150 fallback fitted signals exactly.
+
+    Corrected golden/fallback/density survivor counts are **35/5/6**. The new
+    grids do not make rail-seeking fits disappear: fallback/density arms contain
+    **124/120 total rail fits** (123/119 duration rails), plus 20/14 overscan
+    fits. The hard safety rule does work--**zero rail or overscan fits pass**--
+    but sensitivity cost remains an explicit injection/known-planet calibration
+    question. Inside the isolated density subgroup, passes move 3 to 4: one
+    survivor-to-rejected and two rejected-to-survivor transitions. The density
+    grid still changes the BLS objective broadly; 43/69 recovered periods move
+    by more than 1% and are not a simple harmonic.
+
+    Full suite: **228 passed**. See `P2_SEARCH_GRIDS.md`; raw corrected A/B:
+    `results/p2_gates/search_grid_shipping_ab_150.json`.
 
 ## Owner notes
 

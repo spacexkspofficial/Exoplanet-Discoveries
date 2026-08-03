@@ -8,8 +8,10 @@ import pytest
 from exohunt.detection import inject_box_transit
 from exohunt.search import (
     adjudicate_alias,
+    build_search_grid,
     duration_grid_hours,
     expected_duration_hours,
+    grid_rail_flags,
     period_grid,
     stellar_density_solar,
 )
@@ -67,6 +69,84 @@ def test_period_grid_bounds_and_overscan() -> None:
     assert not grid.in_overscan(8.9)
     single = period_grid(baseline_days=27.0, single_sector=True)
     assert single.max_report_days == pytest.approx(13.5)
+
+
+def test_requested_ceiling_is_report_boundary_not_search_rail() -> None:
+    grid = period_grid(
+        baseline_days=27.0,
+        single_sector=True,
+        requested_min_period_days=1.0,
+        requested_max_period_days=10.0,
+    )
+
+    assert grid.min_period_days == 1.0
+    assert grid.max_report_days == 10.0
+    assert grid.max_search_days == pytest.approx(10.8)
+    assert grid.in_overscan(10.4)
+
+
+def test_complete_search_grid_records_density_and_fallback() -> None:
+    physical = build_search_grid(
+        baseline_days=27.0,
+        single_sector=True,
+        requested_min_period_days=0.5,
+        requested_max_period_days=20.0,
+        stellar_radius_solar=0.3,
+        stellar_mass_solar=0.3,
+    )
+    fallback = build_search_grid(
+        baseline_days=27.0,
+        single_sector=True,
+        requested_min_period_days=0.5,
+        requested_max_period_days=20.0,
+        stellar_radius_solar=0.3,
+        stellar_mass_solar=None,
+    )
+
+    assert physical.stellar_density_solar == pytest.approx(11.11, abs=0.01)
+    assert physical.density_source == "catalog_stellar_mass_and_radius"
+    assert physical.duration_hours.max() < 3.0
+    assert fallback.stellar_density_solar == 1.0
+    assert fallback.density_source.startswith("solar_density_fallback")
+    assert fallback.duration_hours.max() > physical.duration_hours.max()
+
+
+def test_grid_rail_flags_detect_either_fit_boundary() -> None:
+    periods = np.array([0.5, 1.0, 1.5])
+    durations = np.array([0.5, 1.0, 2.0])
+
+    interior = grid_rail_flags(
+        period_days=1.0,
+        duration_hours=1.0,
+        searched_periods_days=periods,
+        searched_durations_hours=durations,
+    )
+    duration_rail = grid_rail_flags(
+        period_days=1.0,
+        duration_hours=2.0,
+        searched_periods_days=periods,
+        searched_durations_hours=durations,
+    )
+
+    assert interior == {
+        "period_at_grid_rail": False,
+        "duration_at_grid_rail": False,
+        "grid_rail": False,
+    }
+    assert duration_rail["duration_at_grid_rail"] is True
+    assert duration_rail["grid_rail"] is True
+
+
+def test_grid_rail_flags_use_effective_quantized_duration_endpoint() -> None:
+    flags = grid_rail_flags(
+        period_days=1.0,
+        duration_hours=1.95,
+        searched_periods_days=np.array([0.5, 1.0, 1.5]),
+        searched_durations_hours=np.array([0.5, 0.6, 1.95]),
+    )
+
+    assert flags["duration_at_grid_rail"] is True
+    assert flags["grid_rail"] is True
 
 
 def _quiet_curve_with_transits(

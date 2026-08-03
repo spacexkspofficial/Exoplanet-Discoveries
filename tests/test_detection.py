@@ -55,6 +55,27 @@ def test_recovers_synthetic_transit():
     assert result.depth_snr > 20
 
 
+def test_search_reports_astropys_effective_duration_grid():
+    rng = np.random.default_rng(142)
+    time = np.arange(0.0, 10.0, 20.0 / (24 * 60))
+    flux = 1.0 + rng.normal(0.0, 5e-4, time.size)
+    requested = np.array([0.5, 0.6081379778620153, 1.9687694146144834])
+
+    _, arrays = search_transits(
+        time,
+        flux,
+        min_period_days=0.5,
+        max_period_days=4.0,
+        durations_hours=requested,
+    )
+
+    assert np.allclose(arrays["requested_duration_grid_hours"], requested)
+    assert np.allclose(
+        arrays["duration_grid_hours"],
+        np.array([0.5, 0.6, 1.95]),
+    )
+
+
 def test_masking_known_planet_reveals_second_planet():
     rng = np.random.default_rng(7)
     time = np.arange(0.0, 80.0, 20.0 / (24 * 60))

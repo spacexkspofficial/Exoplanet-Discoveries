@@ -1,15 +1,17 @@
 # Codex handoff 2: P2 rewiring after measured rejections
 
-Supersedes `CODEX_HANDOFF.md` for **state and work queue**. That document's
-§1 step 2 (structure-only extraction) is now complete. Its first detrending
+Supersedes `CODEX_HANDOFF.md` for **state and work queue**. The initial
+structure-only orchestration slices are complete; the single-target analysis
+path and context/vetting commands still need extraction. The first detrending
 rewiring and the later owner-selected narrow-guard/event-support fallback were
-both measured and rejected. Everything else in it
+both measured and rejected. Everything else in the earlier handoff
 — the P2 exit gates, the P3 plan, the monotransit detector, the claim ceiling —
 remains current and you should read it.
 
-**Are we ready for science? Still no.** The catalog-mask correctness bug is now
-fixed and measured in the working tree, but the detrending behavior remains
-blocked and the downstream kernel rewiring/calibration gates remain open.
+**Are we ready for science? Still no.** Catalog masking, event-aware catalog
+matching, and physical search grids are fixed and measured in the working tree,
+but detrending remains blocked and downstream veto/calibration gates remain
+open.
 
 ---
 
@@ -18,7 +20,7 @@ blocked and the downstream kernel rewiring/calibration gates remain open.
 ```powershell
 cd "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries\.codex-pr-staging\p2-catalog-matching-2"
 & "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries\.venv\Scripts\python.exe" -m pytest -q
-# expect: 216 passed
+# expect: 228 passed
 ```
 
 - Branch `codex/p2-catalog-matching` lives in
@@ -28,12 +30,13 @@ cd "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries\.codex-pr-stagin
   there mid-session and pushed. That commit contains only
   `targets/p2_artifact_regression_cohort.{csv,json}`. It is merged into the
   branch; there was no conflict.
-- 216 tests pass from the staging checkout.
-- `cli.py` is **2,468 lines**, down from 3,607 (−32%).
+- 228 tests pass from the staging checkout.
+- `cli.py` is **2,550 lines**, down from 3,607 (−29%).
 - **No behaviour change has shipped to `main`.** The branch contains three
-  separately measured behavior changes: uncertainty-propagated catalog
-  masking, exact-period epoch matching, and controlled harmonic matching. The
-  two detrending mechanisms and the earlier invalid catalog-matching attempts
+  previously committed behavior changes plus the measured search-grid change
+  in this commit: uncertainty-propagated catalog masking, exact-period epoch
+  matching, controlled harmonic matching, and physical search grids. The two
+  detrending mechanisms and the earlier invalid catalog-matching attempts
   remain reverted.
 
 ### Commits
@@ -50,21 +53,39 @@ cd "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries\.codex-pr-stagin
 | `9f9a860` | uncertainty-aware catalog masking |
 | `b29f6e2` | locked P2 matching and detrending diagnostics |
 | `223854b` | exact-period transit-epoch adjudication |
-| latest branch commit | half/double/triple event-number adjudication; one-third held |
+| `f90138f` | half/double/triple event-number adjudication; one-third held |
+| this commit | physical search grids, locked 150-target shipping A/B, and evidence |
 
-`PROGRESS.md` corrections 9–17 are the substance. Read them before the code.
+`PROGRESS.md` corrections 9–18 are the substance. Read them before the code.
 
 ---
 
 ## What is done
 
-The **structure-only decomposition is complete**. `cli.py` no longer owns
-photometry, screening, campaign orchestration, campaign support, or target-list
-construction. Each slice was equivalence-gated: the first three by byte-identical
-per-target JSON on the pinned 150-target cohort, the campaign-support slice
-additionally by diffing the campaign-published artifacts, and the target-list
-slice by a direct A/B against the pre-move tree (the 150-target rerun cannot gate
-it — `batch-hunt` never calls target-list code).
+The **structure-only orchestration slices are complete**. `cli.py` no longer
+owns photometry, screening, campaign orchestration, campaign support, or
+target-list construction. Each slice was equivalence-gated: the first three by
+byte-identical per-target JSON on the pinned 150-target cohort, the
+campaign-support slice additionally by diffing the campaign-published
+artifacts, and the target-list slice by a direct A/B against the pre-move tree
+(the 150-target rerun cannot gate it — `batch-hunt` never calls target-list
+code). The single-target analysis path and context/vetting commands remain.
+
+The **physical search-grid rewiring is complete and measured**. The shipping
+hunt now uses baseline/minimum-transit period ceilings, an 8% diagnostic
+overscan, stellar-density duration grids with a named solar fallback, and
+explicit period/duration rail rejection. Target builders and `batch-hunt`
+preserve stellar mass/radius into the analysis metadata.
+
+The locked 150-target TESScut A/B produced 150 reports and zero errors in both
+new arms. All 150 normalized inputs match; all 81 fallback targets are exact in
+the complete science payload; every changed result is confined to the 69
+density-backed targets. Golden/fallback/density passes are **35/5/6**. No
+overscan or rail fit passes, but 124/120 fallback/density fits choose an
+effective rail: the gate safely demotes them without proving sensitivity. The
+first A/B under-counted rails because Astropy quantizes durations; the
+corrected arms reproduce every fitted fallback signal and compare against the
+effective grid. See `P2_SEARCH_GRIDS.md`.
 
 ---
 
@@ -200,6 +221,10 @@ takes the "already running" early return and fails spuriously.
 | `results/p2_gates/harmonic_epoch_diagnostic/` | event-number diagnostic over 20 frozen historical harmonic relations |
 | `results/p2_gates/harmonic_epoch_production_replay/` | production-helper replay over the frozen harmonic cohort |
 | `targets/p2_harmonic_matching_*` | 6 SPOC + 14 TESScut harmonic regression targets and manifest |
+| `targets/p2_search_grid_golden_150.{csv,json}` | frozen 150-target identity with 69 complete density pairs and 81 fallbacks |
+| `results/p2_gates/search_grid_shipping_railfix_150/` | corrected shipping fallback-grid arm, 150 reports |
+| `results/p2_gates/search_grid_shipping_density_railfix_150/` | corrected shipping density-grid arm, 150 reports |
+| `results/p2_gates/search_grid_shipping_ab_150.json` | three-arm input, transition, invariance, and boundary measurement |
 | `results/p2_gates/catalog_epoch_after/` | 12-target rerun that exposed the stale-mask bug |
 | `results/equivalence/campaign_support_extract_v4/` | structure-slice equivalence + manifest |
 | `results/equivalence/target_list_extract_v5/` | structure-slice equivalence + manifest |
@@ -230,10 +255,9 @@ equivalence cohort and its golden baseline are unchanged; see
 
 ## Suggested next work, in order
 
-1. The remaining kernel rewirings — search grids from
-   `search.py`, alias adjudication, T3 vetoes from `vetoes.py`, dip registry
-   from `population.py`. Each is its own behaviour commit with its own measured
-   effect. None depends on the detrending question.
+1. The remaining kernel rewirings — T3 vetoes from `vetoes.py` and the dip
+   registry from `population.py`. Each is its own behaviour commit with its
+   own measured effect. Neither depends on the detrending question.
 2. **Detrending remains blocked**: support weighting and the owner-selected
    narrow-guard/event-support fallback are both ruled out. Any next proposal
    must address trend-model bias directly or require agreement across genuinely
@@ -250,5 +274,5 @@ equivalence cohort and its golden baseline are unchanged; see
 - No other campaign-scale runs, injection runs, or science downloads without
   explicit owner approval (`REFACTOR_REVIEW.md` stop condition).
 - Behaviour changes ship in their own commit with their measurement. Structure
-  changes ship byte-identical. The 216 tests stay green; if one must change,
+  changes ship byte-identical. The 228 tests stay green; if one must change,
   say in the commit whether it pinned a constant or behaviour.

@@ -233,7 +233,8 @@ def curated_cool_single_hosts(
 
     query = (
         "select toi,tid,tfopwg_disp,pl_pnum,pl_orbper,pl_tranmid,pl_trandurh,"
-        "pl_trandep,st_tmag,st_teff,st_rad,st_dist,rowupdate from toi where "
+        "pl_trandep,st_tmag,st_teff,st_rad,st_mass,st_dist,rowupdate "
+        "from toi where "
         "(tfopwg_disp='CP' or tfopwg_disp='KP') "
         "and pl_pnum=1 "
         f"and st_tmag<={max_tmag} "

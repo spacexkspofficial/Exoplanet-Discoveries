@@ -101,28 +101,150 @@ class PeriodGrid:
         return period_days <= self.min_period_days * (1 + tolerance)
 
 
+@dataclass(frozen=True, slots=True)
+class SearchGridPlan:
+    """Complete physical grid plan for one light curve."""
+
+    period: PeriodGrid
+    duration_hours: np.ndarray
+    stellar_density_solar: float
+    density_source: str
+    single_sector: bool
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "minimum_period_days": self.period.min_period_days,
+            "maximum_reportable_period_days": self.period.max_report_days,
+            "maximum_searched_period_days": self.period.max_search_days,
+            "period_overscan_fraction": (
+                self.period.max_search_days / self.period.max_report_days
+                - 1.0
+            ),
+            "duration_grid_hours": [
+                float(value) for value in self.duration_hours
+            ],
+            "stellar_density_solar": self.stellar_density_solar,
+            "density_source": self.density_source,
+            "single_sector": self.single_sector,
+        }
+
+
 def period_grid(
     *,
     baseline_days: float,
     single_sector: bool,
+    requested_min_period_days: float | None = None,
+    requested_max_period_days: float | None = None,
     config: SearchConfig | None = None,
 ) -> PeriodGrid:
-    """Period bounds from the observing baseline and the transit-count rule."""
+    """Period bounds from user rails, baseline, and the transit-count rule."""
 
     cfg = config or CURRENT_CONFIG.search
     if baseline_days <= 0:
         raise ValueError("Baseline must be positive.")
+    minimum = (
+        cfg.min_period_days
+        if requested_min_period_days is None
+        else max(cfg.min_period_days, float(requested_min_period_days))
+    )
+    if minimum <= 0:
+        raise ValueError("Minimum period must be positive.")
+    requested_maximum = (
+        None
+        if requested_max_period_days is None
+        else float(requested_max_period_days)
+    )
+    if requested_maximum is not None and requested_maximum <= minimum:
+        raise ValueError("Requested period bounds must satisfy min < max.")
     min_transits = (
         cfg.min_transits_single_sector
         if single_sector
         else cfg.min_transits_multisector
     )
-    max_report = max(cfg.min_period_days * 2, baseline_days / min_transits)
+    baseline_maximum = max(minimum * 2, baseline_days / min_transits)
+    max_report = (
+        baseline_maximum
+        if requested_maximum is None
+        else min(baseline_maximum, requested_maximum)
+    )
     return PeriodGrid(
-        min_period_days=cfg.min_period_days,
+        min_period_days=minimum,
         max_report_days=max_report,
         max_search_days=max_report * (1.0 + cfg.period_overscan_fraction),
     )
+
+
+def build_search_grid(
+    *,
+    baseline_days: float,
+    single_sector: bool,
+    requested_min_period_days: float,
+    requested_max_period_days: float,
+    stellar_radius_solar: float | None,
+    stellar_mass_solar: float | None,
+    config: SearchConfig | None = None,
+) -> SearchGridPlan:
+    """Build and label the physical BLS grid used by the shipping path."""
+
+    cfg = config or CURRENT_CONFIG.search
+    periods = period_grid(
+        baseline_days=baseline_days,
+        single_sector=single_sector,
+        requested_min_period_days=requested_min_period_days,
+        requested_max_period_days=requested_max_period_days,
+        config=cfg,
+    )
+    density = stellar_density_solar(
+        stellar_radius_solar,
+        stellar_mass_solar,
+    )
+    density_source = (
+        "catalog_stellar_mass_and_radius"
+        if density is not None
+        else "solar_density_fallback_missing_stellar_mass_or_radius"
+    )
+    effective_density = density if density is not None else 1.0
+    durations = duration_grid_hours(
+        min_period_days=periods.min_period_days,
+        max_period_days=periods.max_search_days,
+        density_solar=effective_density,
+        config=cfg,
+    )
+    return SearchGridPlan(
+        period=periods,
+        duration_hours=durations,
+        stellar_density_solar=effective_density,
+        density_source=density_source,
+        single_sector=single_sector,
+    )
+
+
+def grid_rail_flags(
+    *,
+    period_days: float,
+    duration_hours: float,
+    searched_periods_days: np.ndarray,
+    searched_durations_hours: np.ndarray,
+) -> dict[str, bool]:
+    """Return whether the best BLS fit is pinned to either grid boundary."""
+
+    periods = np.asarray(searched_periods_days, dtype=float)
+    durations = np.asarray(searched_durations_hours, dtype=float)
+    if periods.size == 0 or durations.size == 0:
+        raise ValueError("Grid-rail checks require non-empty grids.")
+    period_at_rail = bool(
+        np.isclose(period_days, periods[0], rtol=1e-6, atol=1e-10)
+        or np.isclose(period_days, periods[-1], rtol=1e-6, atol=1e-10)
+    )
+    duration_at_rail = bool(
+        np.isclose(duration_hours, durations[0], rtol=1e-6, atol=1e-10)
+        or np.isclose(duration_hours, durations[-1], rtol=1e-6, atol=1e-10)
+    )
+    return {
+        "period_at_grid_rail": period_at_rail,
+        "duration_at_grid_rail": duration_at_rail,
+        "grid_rail": period_at_rail or duration_at_rail,
+    }
 
 
 def _significant_event_fraction(
