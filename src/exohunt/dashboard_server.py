@@ -65,6 +65,11 @@ def _live_campaigns(root: Path) -> list[dict[str, Any]]:
         counts = progress.get("counts")
         results = progress.get("results")
         results = results if isinstance(results, list) else []
+        runtime = progress.get("runtime") or {}
+        raw_in_flight = runtime.get("in_flight")
+        in_flight = [
+            row for row in raw_in_flight if isinstance(row, dict)
+        ] if isinstance(raw_in_flight, list) else []
         # The frontend expects the exporter's shape. Omitting `runtime`,
         # `updated_at_utc` or `sectors` does not degrade gracefully -- the
         # throughput readouts render as "--/h" and the freshness label as
@@ -86,7 +91,13 @@ def _live_campaigns(root: Path) -> list[dict[str, Any]]:
                 "total_targets": total,
                 "completed_targets": done,
                 "counts": counts if isinstance(counts, dict) else {},
-                "runtime": progress.get("runtime") or {},
+                "runtime": runtime,
+                # Promoted out of `runtime` so the panel has a stable place
+                # to look. Campaigns started before stage tracking existed
+                # simply report an empty list, which renders as no panel
+                # rather than a broken one.
+                "in_flight": in_flight,
+                "stages": runtime.get("stages") or [],
                 "started_at_utc": progress.get("started_at_utc"),
                 "updated_at_utc": progress.get("updated_at_utc"),
                 # Extras beyond the exporter's shape; harmless to consumers

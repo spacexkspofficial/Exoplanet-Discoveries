@@ -332,3 +332,72 @@ def test_no_results_directory_is_not_an_error(tmp_path):
     from exohunt.dashboard_server import _live_campaigns
 
     assert _live_campaigns(tmp_path) == []
+
+
+def test_in_flight_targets_are_forwarded_from_the_checkpoint(tmp_path):
+    import json as _json
+
+    from exohunt.dashboard_server import _live_campaigns
+
+    campaign = tmp_path / "results" / "campaign" / "run_b"
+    campaign.mkdir(parents=True)
+    (campaign / "batch_progress.json").write_text(
+        _json.dumps(
+            {
+                "state": "running",
+                "total_targets": 100,
+                "completed_targets": 10,
+                "runtime": {
+                    "analysis_workers": 4,
+                    "stages": ["queued", "downloading", "searching"],
+                    "in_flight": [
+                        {
+                            "tic_id": 42,
+                            "target": "TIC 42",
+                            "stage": "searching",
+                            "module": "search.py",
+                            "stage_index": 2,
+                            "stage_count": 3,
+                            "elapsed_seconds": 12.5,
+                            "stage_elapsed_seconds": 3.1,
+                        },
+                        "not a dict",
+                    ],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    live = _live_campaigns(tmp_path)[0]
+    assert live["stages"] == ["queued", "downloading", "searching"]
+    assert len(live["in_flight"]) == 1  # the malformed row is dropped
+    assert live["in_flight"][0]["tic_id"] == 42
+    assert live["in_flight"][0]["module"] == "search.py"
+    # runtime is still forwarded whole for the throughput readouts
+    assert live["runtime"]["analysis_workers"] == 4
+
+
+def test_campaigns_without_stage_tracking_report_no_in_flight(tmp_path):
+    # A run started before stage tracking existed must not render a broken
+    # panel; it simply has nothing in flight to show.
+    import json as _json
+
+    from exohunt.dashboard_server import _live_campaigns
+
+    campaign = tmp_path / "results" / "campaign" / "legacy"
+    campaign.mkdir(parents=True)
+    (campaign / "batch_progress.json").write_text(
+        _json.dumps(
+            {
+                "state": "running",
+                "total_targets": 50,
+                "completed_targets": 5,
+                "runtime": {"analysis_workers": 4},
+            }
+        ),
+        encoding="utf-8",
+    )
+    live = _live_campaigns(tmp_path)[0]
+    assert live["in_flight"] == []
+    assert live["stages"] == []

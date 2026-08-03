@@ -32,6 +32,7 @@ from .lease import (
     holder_description,
 )
 from .paths import path_is_within, resolve_cache_dir
+from .progress import STAGES, TRACKER
 from .screening import _classify_screening_result, _sensitivity_depth_at_period
 
 # The dashboard defines "a campaign is running" as the age of this lease's
@@ -454,7 +455,13 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             "total_targets": len(rows),
             "completed_targets": len(results),
             "settings": _campaign_settings(args),
-            "runtime": runtime_state,
+            "runtime": {
+                **runtime_state,
+                # Which targets are being worked on right now, and on what.
+                # Provenance only: it never enters a report or the ledger.
+                "in_flight": TRACKER.snapshot(),
+                "stages": list(STAGES),
+            },
             "counts": _campaign_counts(results),
             "results": results,
         }
@@ -1362,6 +1369,11 @@ def _download_batch_target(
         f"TIC_{int(spec['tic_id'])}_s"
         + "-".join(str(value) for value in spec["sectors"])
     )
+    TRACKER.begin(
+        int(spec["tic_id"]),
+        target=str(spec["target"]),
+        stage="downloading",
+    )
     for attempt in range(1, 4):
         try:
             return cli_module._download_light_curve(
@@ -1373,6 +1385,9 @@ def _download_batch_target(
             )
         except Exception as exc:
             if attempt >= 3 or not _is_transient_search_error(exc):
+                # A target that never reaches analysis must not linger in the
+                # in-flight panel for the rest of the run.
+                TRACKER.finish(int(spec["tic_id"]))
                 raise
             try:
                 cache_root = resolve_cache_dir(
@@ -1423,22 +1438,28 @@ def _analyze_downloaded_batch_target(
     for key in ("stellar_radius_solar", "stellar_mass_solar", "camera", "ccd"):
         if spec.get(key) is not None:
             metadata[key] = spec[key]
-    for attempt in range(1, 4):
-        try:
-            cli_module._hunt_from_light_curve(
-                hunt_args, time_values, flux_values, metadata
-            )
-            break
-        except Exception as exc:
-            if attempt >= 3 or not _is_transient_search_error(exc):
-                raise
-            delay = 2 ** (attempt - 1)
-            print(
-                f"{spec['target']}: transient catalog/analysis failure "
-                f"(attempt {attempt}/3: {exc}); retrying in {delay}s",
-                file=sys.stderr,
-            )
-            time.sleep(delay)
+    TRACKER.stage(int(spec["tic_id"]), "preparing")
+    try:
+        for attempt in range(1, 4):
+            try:
+                cli_module._hunt_from_light_curve(
+                    hunt_args, time_values, flux_values, metadata
+                )
+                break
+            except Exception as exc:
+                if attempt >= 3 or not _is_transient_search_error(exc):
+                    raise
+                delay = 2 ** (attempt - 1)
+                print(
+                    f"{spec['target']}: transient catalog/analysis failure "
+                    f"(attempt {attempt}/3: {exc}); retrying in {delay}s",
+                    file=sys.stderr,
+                )
+                time.sleep(delay)
+    finally:
+        # Clears on success and on failure alike, so the panel shows work in
+        # progress rather than accumulating ghosts.
+        TRACKER.finish(int(spec["tic_id"]))
     report_path = Path(hunt_args.generated_report_path)
     report = json.loads(report_path.read_text(encoding="utf-8"))
     return _result_row_from_report(

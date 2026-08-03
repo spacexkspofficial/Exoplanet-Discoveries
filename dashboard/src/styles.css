@@ -1299,3 +1299,103 @@ button {
     flex-wrap: wrap;
   }
 }
+
+/* Live "now processing" panel: the ~6 targets in flight at any moment.
+   Sits between the metric tiles and the meta row, and collapses to nothing
+   when a campaign predates stage tracking. */
+.inflight {
+  border-top: 1px solid var(--line);
+  padding: 7px 10px 8px;
+}
+
+.inflight-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  color: var(--green);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.inflight-count {
+  color: #718894;
+  letter-spacing: 0;
+}
+
+.inflight-rows {
+  display: grid;
+  gap: 3px;
+}
+
+.inflight-row {
+  display: grid;
+  grid-template-columns: minmax(88px, auto) minmax(72px, auto) minmax(92px, auto) 1fr minmax(84px, auto);
+  align-items: center;
+  gap: 8px;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.inflight-tic {
+  font-family: var(--font-geist-mono), monospace;
+  color: #cfe4ec;
+  white-space: nowrap;
+}
+
+.inflight-stage {
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+/* Downloading is I/O-bound and can sit for a while; colouring it apart
+   stops a slow archive fetch from reading as a stalled analysis. */
+.inflight-stage[data-stage="downloading"] {
+  color: #ffc75a;
+}
+
+.inflight-module {
+  color: #718894;
+  font-family: var(--font-geist-mono), monospace;
+  white-space: nowrap;
+}
+
+.inflight-bar {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  min-width: 60px;
+}
+
+.inflight-bar b {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: #27404d;
+}
+
+.inflight-bar b.done {
+  background: var(--green);
+}
+
+.inflight-elapsed {
+  color: #8da1aa;
+  font-family: var(--font-geist-mono), monospace;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.inflight-elapsed em {
+  color: #55707d;
+  font-style: normal;
+}
+
+@media (max-width: 1100px) {
+  .inflight-module,
+  .inflight-elapsed em {
+    display: none;
+  }
+}

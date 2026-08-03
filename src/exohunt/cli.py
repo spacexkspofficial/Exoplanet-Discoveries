@@ -117,6 +117,7 @@ from .population import (
     registry_windows,
     star_bin_dips,
 )
+from .progress import TRACKER
 from .tce import check_tces
 from .vetoes import evaluate_t3_vetoes
 
@@ -1643,6 +1644,7 @@ def _hunt_from_light_curve(
         raise RuntimeError(
             "No catalogued TOI/confirmed transit ephemerides were available to mask."
         )
+    TRACKER.stage(tic_id, "masking")
     if ephemerides:
         cleaned_time, cleaned_flux, mask_records = mask_periodic_events(
             time, flux, ephemerides, width_factor=args.mask_width
@@ -1676,6 +1678,7 @@ def _hunt_from_light_curve(
     searched_sectors = _sector_values(
         metadata.get("downloaded_sectors") or args.sector
     )
+    TRACKER.stage(tic_id, "searching")
     search_grid_plan = build_search_grid(
         baseline_days=float(
             np.nanmax(cleaned_time) - np.nanmin(cleaned_time)
@@ -1783,6 +1786,7 @@ def _hunt_from_light_curve(
         star_bin_dips(cleaned_time, cleaned_flux)
     )
     dip_windows = _dip_registry_windows(args, population_cohort)
+    TRACKER.stage(tic_id, "vetting")
     t3_vetoes = evaluate_t3_vetoes(
         cleaned_time,
         cleaned_flux,
@@ -1980,6 +1984,7 @@ def _hunt_from_light_curve(
     _replace_with_retry(temporary_plot, plot_path)
     # The report is the completion marker and is published only after its plot
     # is durable. Resume validation requires both artifacts.
+    TRACKER.stage(tic_id, "writing")
     _atomic_write_json(report_path, report)
     args.generated_report_path = str(report_path)
     args.generated_plot_path = str(plot_path)

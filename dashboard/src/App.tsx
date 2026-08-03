@@ -94,6 +94,17 @@ type PhaseCurve = {
   measurements_in_range: number;
 };
 
+type InFlightTarget = {
+  tic_id: number;
+  target: string;
+  stage: string;
+  module: string;
+  stage_index: number;
+  stage_count: number;
+  elapsed_seconds: number;
+  stage_elapsed_seconds: number;
+};
+
 type ActiveCampaign = {
   name: string;
   workflow?: "batch_hunt" | "context_vet" | "science_vet";
@@ -103,6 +114,9 @@ type ActiveCampaign = {
   total_targets: number;
   completed_targets: number;
   counts: Record<string, number>;
+  /** Absent for campaigns started before stage tracking existed. */
+  in_flight?: InFlightTarget[];
+  stages?: string[];
   runtime: {
     analysis_workers?: number;
     download_workers?: number;
@@ -571,6 +585,76 @@ const SPRITE_CACHE = new Map<
  * map and its legend drift apart, which is worse than being slow: the reader
  * would be looking at symbols that no longer mean what the key says.
  */
+/**
+ * The handful of stars being worked on right now.
+ *
+ * Aggregate counters say four analyses are running; this says *which* stars
+ * and what each is doing, which is the difference between knowing the run is
+ * alive and being able to see it work. Rows appear when a target starts and
+ * disappear when it finishes, so the panel is always the present tense.
+ *
+ * It renders nothing at all when the campaign predates stage tracking, so an
+ * older run shows the metrics it always did rather than an empty frame.
+ */
+function InFlightPanel({ campaign }: { campaign?: ActiveCampaign }) {
+  const rows = campaign?.in_flight || [];
+  if (!campaign || rows.length === 0) return null;
+  const stages = campaign.stages && campaign.stages.length
+    ? campaign.stages
+    : ["queued", "downloading", "preparing", "masking", "searching", "vetting", "writing"];
+  return (
+    <div className="inflight">
+      <div className="inflight-head">
+        <InfoTerm description="The targets this campaign is processing right now, and which module is handling each one. Progress detail only; it is not a scientific result.">
+          NOW PROCESSING
+        </InfoTerm>
+        <span className="inflight-count">
+          {rows.length} in flight · {stages.length} stages
+        </span>
+      </div>
+      <div className="inflight-rows">
+        {rows.map((row) => {
+          const index = Math.max(0, Math.min(row.stage_index, stages.length - 1));
+          const percent = ((index + 1) / stages.length) * 100;
+          return (
+            <div className="inflight-row" key={row.tic_id}>
+              <span className="inflight-tic" title={row.target || `TIC ${row.tic_id}`}>
+                TIC {row.tic_id}
+              </span>
+              <span className="inflight-stage" data-stage={row.stage}>
+                {row.stage}
+              </span>
+              <span className="inflight-module">{row.module}</span>
+              <span className="inflight-bar" aria-hidden="true">
+                <i style={{ "--inflight-progress": `${percent}%` } as React.CSSProperties} />
+                {stages.map((stage, position) => (
+                  <b
+                    key={stage}
+                    className={position <= index ? "done" : ""}
+                    title={stage}
+                  />
+                ))}
+              </span>
+              <span className="inflight-elapsed">
+                {fmtElapsed(row.stage_elapsed_seconds)}
+                <em> / {fmtElapsed(row.elapsed_seconds)}</em>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function fmtElapsed(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "—";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${Math.round(seconds % 60)}s`;
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
 const ATLAS_TILE_CSS = 26;
 
 function buildStatusAtlas(dpr: number) {
@@ -2481,6 +2565,7 @@ export default function App() {
               color="#77ff9f"
             />
           </div>
+          <InFlightPanel campaign={activeCampaign} />
           <div className="metric-meta">
             <InfoTerm description={HELP.coverage}>Display scale 0–150 pc</InfoTerm>
             {activeCampaign ? (
