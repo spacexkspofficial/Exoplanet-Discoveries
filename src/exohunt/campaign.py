@@ -684,6 +684,7 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
     }
     summary_path = output_dir / "batch_summary.json"
     _atomic_write_json(summary_path, summary)
+    _publish_dip_registries(output_dir, results)
     csv_path = output_dir / "batch_summary.csv"
     fieldnames = sorted({key for row in results for key in row})
     temporary_csv = csv_path.with_name(csv_path.name + ".tmp")
@@ -699,6 +700,119 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
     print(f"\nSaved {summary_path} and {csv_path}")
     print(f"Metrics snapshot: {json.dumps(stats, sort_keys=True)}")
     return 1 if summary["counts"]["error"] else 0
+
+
+# Cohort registries are not about one star, but the evidence table is keyed
+# by star. A sentinel id keeps them in the same append-only store the
+# dashboard already reads without inventing a fake star row: the rows carry
+# no verdict and never vote, so `star_state` and the star table are
+# untouched.
+COHORT_EVIDENCE_TIC_ID = 0
+
+
+def _publish_dip_registries(
+    output_dir: Path,
+    results: list[dict[str, object]],
+) -> dict[str, object]:
+    """Build and publish this campaign's absolute-time dip registries.
+
+    Derived from the per-target reports rather than in-memory state, so a
+    resumed campaign publishes the same registry a fresh one would, and the
+    result stays re-derivable later without photometry (T4 is defined as pure
+    post-processing).
+
+    Publication never fails a finished campaign: the science is already on
+    disk, and a control-plane problem must not turn a completed cohort into
+    an error.
+    """
+
+    from . import cli as cli_module
+    from .population import registries_from_reports
+
+    payload: dict[str, object] = {"schema_version": 1, "cohorts": {}}
+    try:
+        keyed: list[tuple[str, object]] = []
+        for row in results:
+            report_path = row.get("report")
+            if not report_path:
+                continue
+            # Result rows record the report relative to the workspace root,
+            # which is what the dashboard exporter also assumes; fall back to
+            # the campaign directory so an absolute or relocated path still
+            # resolves.
+            path = Path(str(report_path))
+            if not path.is_absolute() and not path.exists():
+                path = output_dir / path.name
+            try:
+                report = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            bins = report.get("population_bins")
+            if not isinstance(bins, dict):
+                continue
+            keyed.append((str(bins.get("cohort") or "unknown"), bins))
+        payload["cohorts"] = registries_from_reports(keyed)
+        payload["stars_contributing"] = len(keyed)
+        payload["scope"] = (
+            "Absolute-time windows where an improbable fraction of stars "
+            "observed on the same detector dipped together. A window marks "
+            "an observatory event; its absence does not make an event "
+            "astrophysical."
+        )
+        cli_module._atomic_write_json(output_dir / "dip_registry.json", payload)
+    except Exception as exc:  # pragma: no cover - defensive
+        print(f"warning: could not build the dip registry ({exc})", file=sys.stderr)
+        return payload
+
+    _record_dip_registry_evidence(output_dir, payload)
+    return payload
+
+
+def _record_dip_registry_evidence(
+    output_dir: Path,
+    payload: dict[str, object],
+) -> None:
+    """Append each cohort registry to the ledger for the systematics view."""
+
+    cohorts = payload.get("cohorts")
+    if not isinstance(cohorts, dict) or not cohorts:
+        return
+    try:
+        from . import ledger
+        from .config import CURRENT_CONFIG
+
+        # Section 3.6 wants the window list versioned like a catalog
+        # snapshot. The config hash is that version: it changes exactly when
+        # a threshold that could change the windows changes.
+        signature = f"dip-registry:{CURRENT_CONFIG.config_hash()}"
+    except Exception:
+        return
+    conn = None
+    try:
+        conn = ledger.connect()
+        for key, registry in sorted(cohorts.items()):
+            ledger.append_evidence(
+                conn,
+                tic_id=COHORT_EVIDENCE_TIC_ID,
+                kind="dip_registry",
+                source=f"dip_registry:{output_dir.name}:{key}",
+                payload=dict(registry),
+                verdict=None,
+                affects_state=False,
+                signature=signature,
+            )
+        conn.commit()
+    except Exception as exc:  # pragma: no cover - defensive
+        print(
+            f"warning: could not record dip registry evidence ({exc})",
+            file=sys.stderr,
+        )
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 def _read_target_rows(path: Path) -> list[dict[str, str]]:
@@ -779,6 +893,14 @@ def _batch_target_spec(
         if (value := cli_module._optional_float(row.get(key))) is not None
         and value > 0
     }
+    # Detector identity decides which stars can share an observatory event,
+    # so it has to reach the report the T4 registry is built from. Target
+    # lists that omit these columns leave the cohort at sector scope, which
+    # the registry records explicitly rather than guessing a detector.
+    for key in ("camera", "ccd"):
+        value = cli_module._optional_float(row.get(key))
+        if value is not None and value > 0:
+            stellar_parameters[key] = int(value)
     return {
         "index": index,
         "target": target,
@@ -1298,7 +1420,7 @@ def _analyze_downloaded_batch_target(
     )
     time_values, flux_values, downloaded_metadata = downloaded
     metadata = dict(downloaded_metadata)
-    for key in ("stellar_radius_solar", "stellar_mass_solar"):
+    for key in ("stellar_radius_solar", "stellar_mass_solar", "camera", "ccd"):
         if spec.get(key) is not None:
             metadata[key] = spec[key]
     for attempt in range(1, 4):

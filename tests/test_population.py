@@ -315,3 +315,58 @@ def test_decode_star_bins_tolerates_malformed_payloads() -> None:
     assert decode_star_bins({"observed_spans": [[5, 1]]}) == {}
     assert decode_star_bins({"observed_spans": [["a", "b"]]}) == {}
     assert decode_star_bins({"observed_spans": [[1, 2, 3]]}) == {}
+
+
+# --------------------------------------------------------------------------
+# Cohort registries live in a star-keyed evidence table under a sentinel id.
+# The risk of that design is polluting the star projection, so pin it.
+# --------------------------------------------------------------------------
+
+
+def test_cohort_registry_evidence_never_becomes_a_star(tmp_path, monkeypatch):
+    monkeypatch.setenv("EXOHUNT_DB_PATH", str(tmp_path / "ledger.db"))
+    from exohunt import ledger
+    from exohunt.campaign import COHORT_EVIDENCE_TIC_ID, _record_dip_registry_evidence
+    from exohunt.dashboard_api import systematics_payload
+
+    cohort = _cohort(40, shared_dip_fraction=0.5, shared_dip_at=1.0, span=2.0, seed=79)
+    registries = CohortDipRegistries()
+    for _tic, time, flux in cohort:
+        registries.add_curve(time, flux, sector=100, camera=1, ccd=1)
+    payload = {"schema_version": 1, "cohorts": registries.build()}
+
+    out = tmp_path / "campaign_x"
+    out.mkdir()
+    _record_dip_registry_evidence(out, payload)
+
+    conn = ledger.connect()
+    try:
+        rows = conn.execute(
+            "SELECT tic_id, verdict, affects_state FROM evidence "
+            "WHERE kind = 'dip_registry'"
+        ).fetchall()
+        assert rows, "the registry should have been recorded"
+        for row in rows:
+            assert row["tic_id"] == COHORT_EVIDENCE_TIC_ID
+            assert row["verdict"] is None
+            assert row["affects_state"] == 0
+
+        # The sentinel must not manufacture a star or a status.
+        assert conn.execute("SELECT COUNT(*) FROM star").fetchone()[0] == 0
+        ledger.rebuild_star_state(conn)
+        assert conn.execute("SELECT COUNT(*) FROM star_state").fetchone()[0] == 0
+
+        # Re-publishing the same campaign is idempotent, not duplicated.
+        before = len(rows)
+        _record_dip_registry_evidence(out, payload)
+        after = conn.execute(
+            "SELECT COUNT(*) FROM evidence WHERE kind = 'dip_registry'"
+        ).fetchone()[0]
+        assert after == before
+
+        # And the dashboard surfaces it.
+        view = systematics_payload(conn)
+        assert view["dip_registries"], "systematics view should expose registries"
+        assert view["dip_registries"][0]["signature"].startswith("dip-registry:")
+    finally:
+        conn.close()
