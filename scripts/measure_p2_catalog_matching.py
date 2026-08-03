@@ -9,42 +9,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 from pathlib import Path
 
-
-PERIOD_ONLY_REJECTION = (
-    "the strongest period is within 5% of a catalogued transit period or "
-    "simple harmonic"
+from exohunt.screening import (
+    CATALOG_PERIOD_REJECTION_REASON as PERIOD_ONLY_REJECTION,
+    _adjudicate_catalog_relation,
+    _folded_center_offset_days as _folded_offset_days,
+    _predicted_transit_centers as _predicted_centers,
 )
-
-
-def _predicted_centers(
-    *,
-    period_days: float,
-    transit_time: float,
-    start_btjd: float,
-    end_btjd: float,
-) -> list[float]:
-    first = math.ceil((start_btjd - transit_time) / period_days)
-    last = math.floor((end_btjd - transit_time) / period_days)
-    return [
-        transit_time + number * period_days
-        for number in range(first, last + 1)
-    ]
-
-
-def _folded_offset_days(
-    epoch: float,
-    *,
-    period_days: float,
-    transit_time: float,
-) -> float:
-    return abs(
-        (epoch - transit_time + period_days / 2) % period_days
-        - period_days / 2
-    )
-
 
 def _matching_mask(
     report: dict[str, object],
@@ -99,78 +71,20 @@ def diagnose_relation(
         return {
             **base,
             "epoch_verdict": "not_evaluable_missing_mask_record",
+            "catalog_match_rejects": True,
         }
-    if relation.get("mask_status") != "masked":
-        return {
-            **base,
-            "epoch_verdict": "not_evaluable_untrustworthy_mask",
-            "mask_reason": mask.get("mask_reason"),
-        }
-    if relation.get("relation") != "exact":
-        return {
-            **base,
-            "epoch_verdict": "not_evaluated_non_exact_relation",
-            "note": (
-                "harmonic identity needs an event-number model; period ratio "
-                "alone is not a phase comparison"
-            ),
-        }
-
-    recovered_centers = _predicted_centers(
-        period_days=float(signal["period_days"]),
-        transit_time=float(signal["transit_time"]),
+    adjudication = _adjudicate_catalog_relation(
+        relation,
+        mask,
+        recovered_period_days=float(signal["period_days"]),
+        recovered_transit_time_btjd=float(signal["transit_time"]),
+        recovered_duration_hours=float(signal["duration_hours"]),
         start_btjd=float(observation["start_btjd"]),
         end_btjd=float(observation["end_btjd"]),
     )
-    known_period = float(mask["period_days"])
-    known_epoch = float(mask["propagated_epoch_in_light_curve_time"])
-    # `mask_width_hours` stores the complete uncertainty-expanded width.
-    known_mask_half_width_days = float(mask["mask_width_hours"]) / 48.0
-    recovered_half_duration_days = float(signal["duration_hours"]) / 48.0
-    overlap_tolerance_days = (
-        known_mask_half_width_days + recovered_half_duration_days
-    )
-    offsets = [
-        _folded_offset_days(
-            center,
-            period_days=known_period,
-            transit_time=known_epoch,
-        )
-        for center in recovered_centers
-    ]
-    overlaps = [offset <= overlap_tolerance_days for offset in offsets]
-    overlap_count = sum(overlaps)
-    if recovered_centers and overlap_count == len(recovered_centers):
-        verdict = "consistent_with_masked_known_signal"
-    elif overlap_count == 0:
-        verdict = "phase_distinct_from_masked_known_signal"
-    else:
-        verdict = "ambiguous_partial_epoch_overlap"
-
     return {
         **base,
-        "epoch_verdict": verdict,
-        "known_period_days": known_period,
-        "known_propagated_epoch_btjd": known_epoch,
-        "known_mask_half_width_hours": known_mask_half_width_days * 24.0,
-        "recovered_half_duration_hours": recovered_half_duration_days * 24.0,
-        "overlap_tolerance_hours": overlap_tolerance_days * 24.0,
-        "predicted_recovered_events": len(recovered_centers),
-        "overlapping_event_windows": overlap_count,
-        "overlap_fraction": (
-            overlap_count / len(recovered_centers)
-            if recovered_centers
-            else None
-        ),
-        "minimum_center_offset_hours": (
-            min(offsets) * 24.0 if offsets else None
-        ),
-        "maximum_center_offset_hours": (
-            max(offsets) * 24.0 if offsets else None
-        ),
-        "event_center_offsets_hours": [
-            round(offset * 24.0, 5) for offset in offsets
-        ],
+        **adjudication,
     }
 
 
@@ -185,10 +99,40 @@ def measure(results_dirs: list[Path]) -> dict[str, object]:
         raise RuntimeError("No per-target reports found.")
 
     diagnoses: list[dict[str, object]] = []
+    projected_reports: list[dict[str, object]] = []
     for report in reports:
+        report_diagnoses: list[dict[str, object]] = []
         for relation in report.get("relations_to_known_periods", []):
             if isinstance(relation, dict):
-                diagnoses.append(diagnose_relation(report, relation))
+                diagnosis = diagnose_relation(report, relation)
+                diagnoses.append(diagnosis)
+                report_diagnoses.append(diagnosis)
+        original_reasons = list(
+            report["automated_triage"]["rejection_reasons"]
+        )
+        projected_reasons = list(original_reasons)
+        if (
+            PERIOD_ONLY_REJECTION in projected_reasons
+            and report_diagnoses
+            and not any(
+                bool(row["catalog_match_rejects"])
+                for row in report_diagnoses
+            )
+        ):
+            projected_reasons.remove(PERIOD_ONLY_REJECTION)
+        projected_reports.append(
+            {
+                "tic_id": int(report["data"]["tic_id"]),
+                "author": report["data"].get("author"),
+                "original_triage_passes": bool(
+                    report["automated_triage"]["passes"]
+                ),
+                "projected_triage_passes": not projected_reasons,
+                "original_rejection_reasons": original_reasons,
+                "projected_rejection_reasons": projected_reasons,
+                "period_relations": len(report_diagnoses),
+            }
+        )
 
     exact_masked = [
         row
@@ -210,8 +154,8 @@ def measure(results_dirs: list[Path]) -> dict[str, object]:
     return {
         "schema_version": 1,
         "scope": (
-            "diagnostic exact-period adjudication after uncertainty-aware "
-            "catalog masking; no production behavior change"
+            "production-helper replay of exact-period adjudication after "
+            "uncertainty-aware catalog masking"
         ),
         "input_directories": [str(path.resolve()) for path in results_dirs],
         "product_reports": len(reports),
@@ -226,12 +170,33 @@ def measure(results_dirs: list[Path]) -> dict[str, object]:
             bool(row["would_pass_without_period_only_rejection"])
             for row in phase_distinct
         ),
+        "original_triage_passes": sum(
+            bool(row["original_triage_passes"])
+            for row in projected_reports
+        ),
+        "projected_triage_passes": sum(
+            bool(row["projected_triage_passes"])
+            for row in projected_reports
+        ),
+        "new_projected_triage_passes": sum(
+            bool(row["projected_triage_passes"])
+            and not bool(row["original_triage_passes"])
+            for row in projected_reports
+        ),
+        "reports_losing_period_only_rejection": sum(
+            PERIOD_ONLY_REJECTION in row["original_rejection_reasons"]
+            and PERIOD_ONLY_REJECTION
+            not in row["projected_rejection_reasons"]
+            for row in projected_reports
+        ),
         "decision": (
-            "Exact-period matching should include epoch-window overlap. "
-            "The current cohort justifies that narrow change, but harmonic "
-            "relations remain uncalibrated and must not inherit this verdict."
+            "The production exact-period helper reproduces the locked "
+            "event-window verdicts. Only safely masked, zero-overlap exact "
+            "relations lose the catalog rejection; harmonic, ambiguous, and "
+            "untrustworthy relations remain rejected."
         ),
         "relations": diagnoses,
+        "projected_reports": projected_reports,
         "source_reports": source_reports,
     }
 
@@ -252,7 +217,11 @@ def main() -> int:
             {
                 key: value
                 for key, value in measured.items()
-                if key not in {"relations", "source_reports"}
+                if key not in {
+                    "relations",
+                    "projected_reports",
+                    "source_reports",
+                }
             },
             indent=2,
         )

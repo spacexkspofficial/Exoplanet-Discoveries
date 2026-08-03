@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
+from pathlib import Path
 
 from scripts.measure_p2_catalog_matching import (
     PERIOD_ONLY_REJECTION,
     diagnose_relation,
+    measure,
 )
 
 
@@ -104,3 +107,29 @@ def test_untrustworthy_and_harmonic_relations_are_not_overinterpreted() -> None:
     assert harmonic_diagnosis["epoch_verdict"] == (
         "not_evaluated_non_exact_relation"
     )
+
+
+def test_replay_projects_only_phase_distinct_exact_report_to_pass(
+    tmp_path: Path,
+) -> None:
+    distinct = _report()
+    distinct["strongest_residual_signal"]["transit_time"] = 100.5
+    distinct["relations_to_known_periods"] = [_relation()]
+    overlapping = deepcopy(_report())
+    overlapping["data"]["tic_id"] = 43
+    overlapping["relations_to_known_periods"] = [_relation()]
+    (tmp_path / "TIC_42_s100_residual.json").write_text(
+        json.dumps(distinct),
+        encoding="utf-8",
+    )
+    (tmp_path / "TIC_43_s100_residual.json").write_text(
+        json.dumps(overlapping),
+        encoding="utf-8",
+    )
+
+    result = measure([tmp_path])
+
+    assert result["original_triage_passes"] == 0
+    assert result["projected_triage_passes"] == 1
+    assert result["new_projected_triage_passes"] == 1
+    assert result["reports_losing_period_only_rejection"] == 1

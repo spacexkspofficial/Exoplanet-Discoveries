@@ -17,7 +17,7 @@ blocked and the downstream kernel rewiring/calibration gates remain open.
 
 ```powershell
 cd "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries"
-& ".venv\Scripts\python.exe" -m pytest -q          # expect: 199 passed
+& ".venv\Scripts\python.exe" -m pytest -q          # expect: 207 passed
 git log --oneline -1 main                          # a45403a
 ```
 
@@ -27,9 +27,9 @@ git log --oneline -1 main                          # a45403a
   there mid-session and pushed. That commit contains only
   `targets/p2_artifact_regression_cohort.{csv,json}`. It is merged into the
   branch; there was no conflict.
-- 199 tests pass from the current worktree (180 inherited + 6 masking tests +
-  4 exact-matching diagnostic tests + 4 harmonic-cohort tests + 5
-  harmonic-matching diagnostic tests).
+- 207 tests pass from the current worktree (180 inherited + 6 masking tests +
+  12 exact-matching implementation/diagnostic tests + 4 harmonic-cohort tests
+  + 5 harmonic-matching diagnostic tests).
 - `cli.py` is **2,389 lines**, down from 3,607 (−34%).
 - **No behaviour change has shipped to `main`.** The worktree contains one
   measured behavior patch: uncertainty-propagated catalog masking. The two
@@ -115,13 +115,15 @@ A second fresh-output execution reproduced all 28 strongest signals, triage
 verdicts, and classifications. The two TESScut survivors remain diagnostic
 only. See `P2_CATALOG_MASKING.md`.
 
-The exact-period diagnostic is also complete, without changing production behavior.
+The exact-period rule is now wired as a separate behavior change after masking
+commit `9f9a860`.
 Of five safely masked exact-period relations, one recovered signal overlaps the
 known mask at every fitted event and remains known-signal leakage; four have
 zero event-window overlap and are phase-distinct. Two of those four are rejected
-solely by the current period-only rule. That justifies a narrow exact-period
-epoch matcher after masking is committed separately. See
-`P2_CATALOG_MATCHING.md`.
+solely by the old period-only rule. The production helper reproduces all five
+safely masked exact verdicts on both frozen outputs; four reports lose the
+catalog reason, and projected automated passes move 2 → 4, exactly the two
+predeclared cases. Harmonics remain unchanged. See `P2_CATALOG_MATCHING.md`.
 
 A separate frozen historical cohort now covers harmonic identity without a
 campaign rerun: 20 cached product-targets, 20 safely masked historical
@@ -192,6 +194,7 @@ takes the "already running" early return and fails spuriously.
 | `results/p2_gates/artifact_biweight_alpha5/` | biweight arm, 371 targets |
 | `results/p2_gates/artifact_narrow_guard_edge_diagnostic/` | owner-selected fallback, 371 targets, **rejected** |
 | `results/p2_gates/catalog_matching_epoch_diagnostic/` | exact-period epoch diagnostic over 28 trustworthy-mask reports |
+| `results/p2_gates/catalog_matching_epoch_production_replay/` | shipping-helper replay over both frozen 28-product outputs |
 | `results/p2_gates/harmonic_epoch_diagnostic/` | event-number diagnostic over 20 frozen historical harmonic relations |
 | `targets/p2_harmonic_matching_*` | 6 SPOC + 14 TESScut harmonic regression targets and manifest |
 | `results/p2_gates/catalog_epoch_after/` | 12-target rerun that exposed the stale-mask bug |
@@ -224,21 +227,16 @@ equivalence cohort and its golden baseline are unchanged; see
 
 ## Suggested next work, in order
 
-1. **Commit the masking behavior patch separately**, then wire the measured
-   exact-period epoch-overlap rule as its own behavior change. Locked
-   expectation: one mask-edge leakage control remains rejected, four
-   phase-distinct exact relations lose the catalog reason, and only two become
-   triage passes.
-2. In a later behavior commit, replay the pure harmonic adjudicator over the
+1. In a later behavior commit, replay the pure harmonic adjudicator over the
    frozen 20-relation cohort. Allow only zero-overlap half-, double-, and
    triple-period relations to continue; retain the three consistent and five
    ambiguous rejections. Keep one-third behavior unchanged until real positive
    and partial controls exist.
-3. **Independent of that**: the remaining kernel rewirings — search grids from
+2. **Independent of that**: the remaining kernel rewirings — search grids from
    `search.py`, alias adjudication, T3 vetoes from `vetoes.py`, dip registry
    from `population.py`. Each is its own behaviour commit with its own measured
    effect. None depends on the detrending question.
-4. **Detrending remains blocked**: support weighting and the owner-selected
+3. **Detrending remains blocked**: support weighting and the owner-selected
    narrow-guard/event-support fallback are both ruled out. Any next proposal
    must address trend-model bias directly or require agreement across genuinely
    independent preparations; do not sweep either rejected mechanism.
@@ -254,5 +252,5 @@ equivalence cohort and its golden baseline are unchanged; see
 - No other campaign-scale runs, injection runs, or science downloads without
   explicit owner approval (`REFACTOR_REVIEW.md` stop condition).
 - Behaviour changes ship in their own commit with their measurement. Structure
-  changes ship byte-identical. The 199 tests stay green; if one must change,
+  changes ship byte-identical. The 207 tests stay green; if one must change,
   say in the commit whether it pinned a constant or behaviour.

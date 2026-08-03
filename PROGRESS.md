@@ -2,7 +2,7 @@
 
 Tracks execution of [MASTER_PLAN.md](MASTER_PLAN.md) against its own gates.
 Started 2026-07-27 after owner approval of all seven §10 decisions.
-Test suite at last update: **199 passed** (114 pre-existing + 85 new), bare
+Test suite at last update: **207 passed** (114 pre-existing + 93 new), bare
 `pytest` from a clean checkout.
 
 ## Phase status
@@ -76,7 +76,7 @@ record was written; `origin/main` and the research branch are synchronized at
 | CLI decomposition: campaign support helpers | Done; equivalence passed | Target-CSV ingestion and per-target spec construction, campaign settings/identity and checkpoint-resume reuse, result-row and error-row construction, per-target download/analysis with transient-failure retry, and the campaign-published counts, vetting coverage, throughput snapshot, common-mode quarantine, and follow-up queue moved from `cli.py` to `campaign.py`. `cli.py` 3,607 → 2,919 lines; every non-import change is a deletion, and the scheduler `run_batch_hunt` is byte-identical (AST-diffed, 540 lines). Of 19 moved definitions, 10 moved byte-identical and 9 changed only to resolve CLI-side collaborators at call time. Generic IO (`_atomic_write_json`, `_replace_with_retry`) and search-identity helpers (`_scientific_settings`, `_artifact_stem`) deliberately stayed in `cli.py`: they have many non-campaign callers, and moving them would point the analysis kernel back at campaign orchestration. Focused campaign/retention/lease/checkpoint tests: 29 passed. The full 150-target rerun produced the identical filename set and **150/150 byte-identical per-target JSON files** (SHA-256), with 35/115/0 counts and no temp files. Because the per-target reports exercise the analysis path rather than the helpers this slice moved, the gate was extended to the campaign-published artifacts: `batch_summary.json` settings, counts, vetting coverage, common-mode screen and **all 150 result rows**, plus the 74-entry `deep_followup_queue.json`, are identical to both `golden_v0` and the prior slice's rerun |
 | CLI decomposition: target-list construction | Done; A/B equivalence passed | Official-target-list reading, observing-sector subset choice, curated catalog selection, small-planet host ranking, and the three `make-*-targets` commands moved from `cli.py` to a new `targets.py`; 9 of 10 definitions moved byte-identical and only `_make_sector_targets` changed, to reach `_atomic_write_json` on the live CLI module. `cli.py` 2,919 → 2,389 lines (3,607 → 2,389 across both of today's slices, −34%). **The pinned 150-target rerun cannot gate this slice** — `batch-hunt` reads a pre-built CSV and never calls target-list construction — so equivalence was proven by direct A/B: the pre-move tree (`3d1c283`, via `git archive`) and the post-move tree were driven through identical inputs with identical deterministic stubs for the network collaborators, and their canonical JSON dumps hash to the same SHA-256 (`6be34854…`). That covers 675 pure-function cases plus all five command paths, including `make-sector-targets` run twice (round-robin and small-star ranking) against the real 13,000-row official Sector 100 list and the real 12,168-entry exclusion ledger, selecting 750 stars each time. Only `created_utc` and the harness's own per-run temp-directory name were normalized. Focused target/pixel/campaign/retention/lease/checkpoint tests: 33 passed. The 150-target rerun still ran as a regression check on the untouched campaign path and again produced 150/150 byte-identical reports, 35/115/0 counts, no temp files, and published artifacts identical to both `golden_v0` and the prior slice |
 | Catalog ephemeris masking | Done; bounded real-data gate passed | NASA period/epoch uncertainties are now propagated linearly to the complete observation window. Safe masks widen by the accumulated error; missing or >1-duration uncertainty removes zero cadences, is explicitly reported as unmaskable, forces recovery-only labeling, and blocks promotion. Injection-recovery and sector-vetting paths refuse unsafe masks. On the locked 28-product cohort: 30/37 catalog signals safely masked, 7/37 explicitly unmaskable, 0 silent/unsafe masks, 0 execution errors; a second shipping-path execution reproduced all 28 strongest signals, triage verdicts, and classifications. Full evidence: `P2_CATALOG_MASKING.md`. |
-| Catalog ephemeris matching | Exact and harmonic diagnostics complete; production changes held behind masking commit | On the trustworthy 28-product masking cohort, period-only matching produced 9 relations: 4 unmaskable recovery cases, plus 5 safely masked exact-period relations. Conservative event-window comparison found 1 known-mask-overlap control and 4 phase-distinct signals; 2 of the phase-distinct signals are rejected solely by the current period-only rule. A separate frozen historical cohort now covers 20 safely masked harmonic relations: 12 zero-overlap phase-distinct, 3 consistent event-number controls, and 5 partial/ambiguous. Half, double, and triple have real controls; one-third has only one ambiguous example and remains held. Diagnostics only—no second behavior change is stacked on the uncommitted masking patch. Full evidence: `P2_CATALOG_MATCHING.md` and `P2_HARMONIC_MATCHING.md`. |
+| Catalog ephemeris matching | Exact-period rule wired and replayed; harmonic production behavior held | After masking was isolated in commit `9f9a860`, the shipping path gained the separately measured exact-period event-window rule. Both frozen 28-product outputs reproduce 4 phase-distinct exact relations, 1 mask-overlap control, and 4 untrustworthy recovery cases. Four reports lose only the period reason; automated triage passes move 2 → 4, exactly the two predeclared cases. Harmonics remain period-only in production. The separate frozen harmonic cohort contains 12 zero-overlap phase-distinct, 3 consistent, and 5 partial/ambiguous relations; half/double/triple are controlled, while one-third remains held. Full evidence: `P2_CATALOG_MATCHING.md` and `P2_HARMONIC_MATCHING.md`. |
 | **Not yet done** | — | Remaining structure-only extraction (the single-target `_hunt_from_light_curve` analysis path and the context/vetting commands), then separately measured rewiring onto `detrend.py`/`search.py`/`vetoes.py`/`population.py`/epoch-aware adjudication and first-class signature/evidence records; real-data artifact regression; known-planet campaign cohort; monotransit detector; TLS integration into T2; cli.py AST tripwire |
 
 ### P3–P5: **not started** (gated behind P2 exit, per plan)
@@ -337,10 +337,31 @@ record was written; `origin/main` and the research branch are synchronized at
     selected regression set cannot estimate population yield or false-alarm
     rate. Half, double, and triple each have real phase-distinct and consistent
     controls; one-third has only one ambiguous example and no positive or
-    phase-distinct real control, so its production behavior remains held. Four cohort
-    builder tests plus five harmonic diagnostic tests pass; full suite:
+    phase-distinct real control, so its production behavior remains held. Four
+    cohort builder tests plus five harmonic diagnostic tests pass; full suite:
     **199 passed**. No campaign, download, or production behavior change was
     run. See `P2_HARMONIC_MATCHING.md`.
+
+16. **The measured exact-period event-window rule is now wired as its own
+    behavior change.** The masking fix was first isolated in commit `9f9a860`.
+    The shipping hunt now records the epoch verdict, overlap geometry, and
+    `catalog_match_rejects` decision on every known-period relation. It removes
+    the catalog rejection only for safely masked exact-period relations with
+    zero recovered event-window overlap. Harmonics, partial overlaps, and
+    untrustworthy masks preserve the old rejection.
+
+    The production helper was replayed over both locked 28-product masking
+    outputs. Both runs reproduce the same five safely masked exact verdicts and
+    offsets: four phase-distinct and one mask-overlap leakage control. Four
+    reports lose only the catalog reason; two still fail unrelated gates, while
+    TIC 301248781 and TIC 450649506 become the only new automated triage passes.
+    Total passes move **2 → 4**. The four untrustworthy recovery cases remain
+    rejected and non-promotable.
+
+    Five pure adjudicator tests, two tests through shipping
+    `_hunt_from_light_curve`, and one replay-projection test make this permanent.
+    Focused exact/masking suite: **15 passed**; full suite: **207 passed**.
+    No campaign or download was run. See `P2_CATALOG_MATCHING.md`.
 
 ## Owner notes
 

@@ -194,3 +194,138 @@ def test_recovery_only_report_names_the_uncertain_unmasked_signal(
         "sufficiently precise" in reason
         for reason in report["automated_triage"]["rejection_reasons"]
     )
+
+
+def _safe_catalog() -> dict[str, object]:
+    return {
+        "tic_id": 42,
+        "tois": [
+            {
+                "toi": "42.01",
+                "tfopwg_disp": "KP",
+                "pl_orbper": "2.0",
+                "pl_orbpererr1": "0.00001",
+                "pl_orbpererr2": "-0.00001",
+                "pl_tranmid": "2457101.0",
+                "pl_tranmiderr1": "0.00001",
+                "pl_tranmiderr2": "-0.00001",
+                "pl_trandurh": "2.4",
+                "pl_trandurherr1": "0.1",
+                "pl_trandurherr2": "-0.1",
+            }
+        ],
+        "confirmed_planets": [],
+    }
+
+
+def _shipping_exact_report(
+    tmp_path: Path,
+    monkeypatch,
+    *,
+    recovered_transit_time: float,
+) -> dict[str, object]:
+    monkeypatch.setattr(
+        cli_module,
+        "check_tic",
+        lambda *_args, **_kwargs: _safe_catalog(),
+    )
+    result = DetectionResult(
+        period_days=2.0,
+        transit_time=recovered_transit_time,
+        duration_hours=2.4,
+        depth_ppm=10_000.0,
+        depth_snr=20.0,
+        radius_ratio=0.1,
+        observed_transits=5,
+        odd_even_depth_difference_sigma=0.0,
+        secondary_depth_ppm=0.0,
+        secondary_snr=0.0,
+    )
+    arrays = {
+        "period_grid": np.array([1.5, 2.0, 2.5]),
+        "power": np.array([0.1, 1.0, 0.2]),
+        "effective_frequency_factor": 1.0,
+        "period_grid_was_capped": False,
+    }
+    monkeypatch.setattr(
+        cli_module,
+        "search_transits",
+        lambda *_args, **_kwargs: (result, arrays),
+    )
+    monkeypatch.setattr(cli_module, "harmonic_diagnostics", lambda *_args: [])
+    monkeypatch.setattr(
+        cli_module,
+        "signal_vetting_diagnostics",
+        lambda *_args, **_kwargs: {"flags": []},
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "fixed_ephemeris_injection_sensitivity",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(cli_module, "binned_phase_curve", lambda *_args: {})
+    monkeypatch.setattr(
+        cli_module,
+        "independent_period_peaks",
+        lambda *_args: [],
+    )
+
+    def fake_plot(_result, _arrays, destination: Path) -> None:
+        destination.write_bytes(b"test plot")
+
+    monkeypatch.setattr(cli_module, "_plot_result", fake_plot)
+    time = np.linspace(100.0, 110.0, 1_000)
+    args = _args(tmp_path, allow_no_known=False)
+    assert (
+        _hunt_from_light_curve(
+            args,
+            time,
+            np.ones_like(time),
+            {"target": "TIC 42", "tic_id": 42},
+        )
+        == 0
+    )
+    return json.loads(
+        Path(args.generated_report_path).read_text(encoding="utf-8")
+    )
+
+
+def test_shipping_hunt_keeps_exact_mask_overlap_rejected(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    report = _shipping_exact_report(
+        tmp_path,
+        monkeypatch,
+        recovered_transit_time=101.0,
+    )
+
+    relation = report["relations_to_known_periods"][0]
+    assert relation["epoch_verdict"] == (
+        "consistent_with_masked_known_signal"
+    )
+    assert relation["catalog_match_rejects"] is True
+    assert report["automated_triage"]["passes"] is False
+    assert any(
+        "catalogued transit period" in reason
+        for reason in report["automated_triage"]["rejection_reasons"]
+    )
+
+
+def test_shipping_hunt_allows_exact_phase_distinct_signal_to_other_gates(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    report = _shipping_exact_report(
+        tmp_path,
+        monkeypatch,
+        recovered_transit_time=101.5,
+    )
+
+    relation = report["relations_to_known_periods"][0]
+    assert relation["epoch_verdict"] == (
+        "phase_distinct_from_masked_known_signal"
+    )
+    assert relation["catalog_match_rejects"] is False
+    assert report["automated_triage"]["passes"] is True
+    assert report["automated_triage"]["rejection_reasons"] == []

@@ -8,7 +8,15 @@ only in a separately measured behavior commit.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
+
+
+CATALOG_PERIOD_REJECTION_REASON = (
+    "the strongest period is within 5% of a catalogued transit period or "
+    "simple harmonic"
+)
 
 
 def _optional_float(value: object) -> float | None:
@@ -123,6 +131,137 @@ def _known_transiting_periods(catalog: dict[str, object]) -> list[float]:
         if not any(abs(period - known) / known < 0.01 for known in unique):
             unique.append(period)
     return unique
+
+
+def _predicted_transit_centers(
+    *,
+    period_days: float,
+    transit_time: float,
+    start_btjd: float,
+    end_btjd: float,
+) -> list[float]:
+    first = math.ceil((start_btjd - transit_time) / period_days)
+    last = math.floor((end_btjd - transit_time) / period_days)
+    return [
+        transit_time + number * period_days
+        for number in range(first, last + 1)
+    ]
+
+
+def _folded_center_offset_days(
+    epoch: float,
+    *,
+    period_days: float,
+    transit_time: float,
+) -> float:
+    return abs(
+        (epoch - transit_time + period_days / 2) % period_days
+        - period_days / 2
+    )
+
+
+def _adjudicate_catalog_relation(
+    relation: dict[str, object],
+    mask_record: dict[str, object],
+    *,
+    recovered_period_days: float,
+    recovered_transit_time_btjd: float,
+    recovered_duration_hours: float,
+    start_btjd: float,
+    end_btjd: float,
+) -> dict[str, object]:
+    """Decide whether a catalog period relation identifies the same signal.
+
+    Exact-period identity requires event-window overlap with a trustworthy
+    uncertainty-expanded mask. Harmonic behavior deliberately remains the
+    historical period-only rejection until separately calibrated.
+    """
+
+    if relation.get("relation") != "exact":
+        return {
+            "epoch_verdict": "not_evaluated_non_exact_relation",
+            "catalog_match_rejects": True,
+            "note": (
+                "harmonic behavior remains period-only until a separately "
+                "controlled event-number rule ships"
+            ),
+        }
+    if mask_record.get("mask_status") != "masked":
+        return {
+            "epoch_verdict": "not_evaluable_untrustworthy_mask",
+            "catalog_match_rejects": True,
+            "mask_reason": mask_record.get("mask_reason"),
+        }
+
+    try:
+        known_period = float(mask_record["period_days"])
+        known_epoch = float(
+            mask_record["propagated_epoch_in_light_curve_time"]
+        )
+        # `mask_width_hours` is the complete uncertainty-expanded width.
+        known_mask_half_width_days = (
+            float(mask_record["mask_width_hours"]) / 48.0
+        )
+    except (KeyError, TypeError, ValueError):
+        return {
+            "epoch_verdict": "not_evaluable_missing_mask_geometry",
+            "catalog_match_rejects": True,
+        }
+
+    recovered_centers = _predicted_transit_centers(
+        period_days=float(recovered_period_days),
+        transit_time=float(recovered_transit_time_btjd),
+        start_btjd=float(start_btjd),
+        end_btjd=float(end_btjd),
+    )
+    if not recovered_centers:
+        return {
+            "epoch_verdict": "not_evaluable_no_recovered_events",
+            "catalog_match_rejects": True,
+        }
+    recovered_half_duration_days = float(recovered_duration_hours) / 48.0
+    overlap_tolerance_days = (
+        known_mask_half_width_days + recovered_half_duration_days
+    )
+    offsets = [
+        _folded_center_offset_days(
+            center,
+            period_days=known_period,
+            transit_time=known_epoch,
+        )
+        for center in recovered_centers
+    ]
+    overlaps = [offset <= overlap_tolerance_days for offset in offsets]
+    overlap_count = sum(overlaps)
+    if overlap_count == len(recovered_centers):
+        verdict = "consistent_with_masked_known_signal"
+    elif overlap_count == 0:
+        verdict = "phase_distinct_from_masked_known_signal"
+    else:
+        verdict = "ambiguous_partial_epoch_overlap"
+
+    return {
+        "epoch_verdict": verdict,
+        "catalog_match_rejects": verdict
+        != "phase_distinct_from_masked_known_signal",
+        "known_period_days": known_period,
+        "known_propagated_epoch_btjd": known_epoch,
+        "known_mask_half_width_hours": (
+            known_mask_half_width_days * 24.0
+        ),
+        "recovered_half_duration_hours": (
+            recovered_half_duration_days * 24.0
+        ),
+        "overlap_tolerance_hours": overlap_tolerance_days * 24.0,
+        "predicted_recovered_events": len(recovered_centers),
+        "overlapping_event_windows": overlap_count,
+        "overlap_fraction": overlap_count / len(recovered_centers),
+        "minimum_center_offset_hours": min(offsets) * 24.0,
+        "maximum_center_offset_hours": max(offsets) * 24.0,
+        "event_center_offsets_hours": [
+            round(offset * 24.0, 5) for offset in offsets
+        ],
+    }
 
 
 def _screening_flags(result) -> dict[str, bool]:

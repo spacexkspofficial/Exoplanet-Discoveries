@@ -75,6 +75,8 @@ from .photometry import (
 from .pixel import difference_image, target_pixel_from_sky_grid
 from .reporting import create_campaign_report, create_candidate_packet
 from .screening import (
+    CATALOG_PERIOD_REJECTION_REASON,
+    _adjudicate_catalog_relation,
     _catalog_ephemerides,
     _classify_screening_result,
     _known_transiting_periods,
@@ -1630,14 +1632,7 @@ def _hunt_from_light_curve(
     alias_checks = harmonic_diagnostics(
         arrays["period_grid"], arrays["power"], result.period_days
     )
-    known_period_records = [
-        {
-            "label": record["label"],
-            "period_days": float(record["period_days"]),
-            "mask_status": record["mask_status"],
-        }
-        for record in mask_records
-    ]
+    known_period_records = [dict(record) for record in mask_records]
     represented_periods = [
         float(record["period_days"]) for record in mask_records
     ]
@@ -1666,6 +1661,15 @@ def _hunt_from_light_curve(
                     "known_signal": event["label"],
                     "mask_status": event["mask_status"],
                     **relation,
+                    **_adjudicate_catalog_relation(
+                        relation,
+                        event,
+                        recovered_period_days=result.period_days,
+                        recovered_transit_time_btjd=result.transit_time,
+                        recovered_duration_hours=result.duration_hours,
+                        start_btjd=float(np.nanmin(time)),
+                        end_btjd=float(np.nanmax(time)),
+                    ),
                 }
             )
 
@@ -1695,11 +1699,11 @@ def _hunt_from_light_curve(
             "demonstrably masked from the observed cadences; this is an "
             "unmasked recovery-only scan"
         )
-    if known_relations:
-        rejection_reasons.append(
-            "the strongest period is within 5% of a catalogued transit period or "
-            "simple harmonic"
-        )
+    if any(
+        bool(relation["catalog_match_rejects"])
+        for relation in known_relations
+    ):
+        rejection_reasons.append(CATALOG_PERIOD_REJECTION_REASON)
     deeper_vetting = signal_vetting_diagnostics(
         cleaned_time,
         cleaned_flux,
@@ -1789,6 +1793,11 @@ def _hunt_from_light_curve(
         ),
         "harmonic_checks": alias_checks,
         "relations_to_known_periods": known_relations,
+        "catalog_epoch_agreement": [
+            relation
+            for relation in known_relations
+            if relation["relation"] == "exact"
+        ],
         # Retained for backward-compatible consumers; each row now states
         # whether the corresponding catalog period was actually masked.
         "relations_to_masked_periods": known_relations,

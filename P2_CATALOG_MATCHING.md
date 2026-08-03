@@ -1,4 +1,4 @@
-# P2 epoch-aware catalog-matching diagnostic
+# P2 epoch-aware catalog-matching implementation
 
 Measured 2026-07-27 PDT (2026-07-28 UTC) through reports produced by the real
 `batch-hunt` path after uncertainty-aware catalog masking.
@@ -15,9 +15,9 @@ model and were not represented in this fresh 28-product output. A subsequent
 frozen historical-report diagnostic now supplies that model and its separate
 controls; see `P2_HARMONIC_MATCHING.md`.
 
-No production behavior was changed in this diagnostic. The catalog-masking
-patch must be committed separately before the narrow exact-period matcher is
-wired and measured as its own behavior change.
+The rule is now wired into the shipping single-target path after the catalog
+masking behavior was isolated in commit `9f9a860`. This remains a separate
+behavior change. Harmonic production behavior is deliberately unchanged.
 
 ## Locked inputs
 
@@ -72,6 +72,19 @@ The two restored triage passes would remain automated diagnostic survivors, not
 planet candidates or novelty claims. This measurement establishes only that
 they are not the safely masked catalog transits at the same phase.
 
+Production-helper replay over all 28 reports gives:
+
+| Measurement | Before | After |
+|---|---:|---:|
+| Automated triage passes | 2 | **4** |
+| Reports losing the period-only rejection | — | **4** |
+| New automated triage passes | — | **2** |
+
+The two new passes are the already measured TIC 301248781 and TIC 450649506
+cases. The other two phase-distinct reports lose only the catalog reason and
+remain rejected by unrelated gates. No other report changes projected triage
+state.
+
 ## Interpretation
 
 Host identity, period relation, and signal identity are different facts:
@@ -87,16 +100,38 @@ as known-signal leakage. The other four have zero overlapping event windows;
 their offsets cannot be explained by the catalog masks that were actually
 removed.
 
+## Production implementation
+
+Each known-period relation now records:
+
+- an `epoch_verdict`;
+- whether `catalog_match_rejects`;
+- the uncertainty-expanded overlap tolerance;
+- predicted and overlapping event counts; and
+- per-event center offsets.
+
+The period-only rejection is retained when any relation is harmonic,
+untrustworthy, consistent with the known mask, or partially overlapping. It is
+removed only when every applicable relation is safely masked, exact period,
+and phase-distinct. Reports also expose their exact rows through
+`catalog_epoch_agreement`.
+
 ## Verification and evidence
 
-The diagnostic has four synthetic tests covering:
+Five pure adjudicator tests cover:
 
 - an exact phase match;
 - a clearly shifted exact-period signal;
-- conservative mask-boundary overlap; and
-- refusal to overinterpret unmaskable or harmonic relations.
+- conservative partial overlap;
+- unchanged harmonic rejection; and
+- untrustworthy-mask rejection.
 
-Focused suite: **9 passed**. Complete worktree suite: **190 passed**.
+Two additional tests enter the shipping `_hunt_from_light_curve` path and
+prove both the retained leakage rejection and the restored phase-distinct
+pass. The replay projection itself has a two-report regression test.
+
+Focused exact/masking suite: **15 passed**. Complete worktree suite:
+**207 passed**.
 
 Reproducible command:
 
@@ -106,27 +141,25 @@ python scripts/measure_p2_catalog_matching.py `
   --output results/p2_gates/catalog_matching_epoch_diagnostic/p2_catalog_matching_measurement.json
 ```
 
-Raw measurement:
+Raw diagnostic measurement:
 
 `results/p2_gates/catalog_matching_epoch_diagnostic/p2_catalog_matching_measurement.json`
 
-The same diagnostic over the earlier v2 masking outputs reproduced every
-summary count and every safely masked exact-relation verdict and offset. The
-only relation-payload differences were the four unmaskable cases' renamed
-status/reason strings (`unmaskable_ephemeris_drift` versus the final
-`unmasked_ephemeris_uncertainty` wording); all four remain semantically
-non-evaluable and non-promotable.
+Production-helper replay:
+
+`results/p2_gates/catalog_matching_epoch_production_replay/`
+
+The production helper reproduced the complete summary and all five safely
+masked exact-relation verdicts and offsets on both the v2 and execute masking
+outputs. The only underlying relation-payload differences remain the four
+unmaskable cases' renamed status/reason strings
+(`unmaskable_ephemeris_drift` versus
+`unmasked_ephemeris_uncertainty`); all four remain rejected,
+non-evaluable, and non-promotable.
 
 ## Next implementation boundary
 
-After the masking patch is committed separately:
-
-1. Add an exact-period epoch-overlap result to each known relation.
-2. Reject exact relations only when event windows overlap or the mask is
-   untrustworthy; retain phase-distinct relations for the remaining gates.
-3. Re-run this locked 28-product cohort and require the one leakage control to
-   stay rejected, the four phase-distinct relations to lose only the catalog
-   reason, and all unrelated report fields to remain unchanged.
-4. Keep harmonic behavior unchanged until the separate behavior boundary in
-   `P2_HARMONIC_MATCHING.md`: the frozen cohort supports half, double, and
-   triple relations, while one-third period remains under-controlled.
+Keep this exact-period change in its own commit. The next catalog-matching
+behavior slice is the separate boundary in `P2_HARMONIC_MATCHING.md`: the
+frozen cohort supports half, double, and triple relations, while one-third
+period remains under-controlled.
