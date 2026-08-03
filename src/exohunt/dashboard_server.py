@@ -63,20 +63,57 @@ def _live_campaigns(root: Path) -> list[dict[str, Any]]:
         if not isinstance(total, int) or not isinstance(done, int) or total <= 0:
             continue
         counts = progress.get("counts")
+        results = progress.get("results")
+        results = results if isinstance(results, list) else []
+        # The frontend expects the exporter's shape. Omitting `runtime`,
+        # `updated_at_utc` or `sectors` does not degrade gracefully -- the
+        # throughput readouts render as "--/h" and the freshness label as
+        # "NaNh ago", because the arithmetic runs on undefined.
+        sectors = sorted(
+            {
+                int(sector)
+                for result in results
+                if isinstance(result, dict)
+                for sector in _result_sectors(result.get("sectors"))
+            }
+        )
         campaigns.append(
             {
                 "name": path.parent.name,
                 "state": progress.get("state"),
+                "target_list": progress.get("target_list"),
+                "sectors": sectors,
                 "total_targets": total,
                 "completed_targets": done,
-                "fraction": round(min(max(done / total, 0.0), 1.0), 4),
                 "counts": counts if isinstance(counts, dict) else {},
-                "checkpoint_age_seconds": round(age, 1),
+                "runtime": progress.get("runtime") or {},
                 "started_at_utc": progress.get("started_at_utc"),
+                "updated_at_utc": progress.get("updated_at_utc"),
+                # Extras beyond the exporter's shape; harmless to consumers
+                # that ignore them.
+                "fraction": round(min(max(done / total, 0.0), 1.0), 4),
+                "checkpoint_age_seconds": round(age, 1),
             }
         )
     campaigns.sort(key=lambda row: row["checkpoint_age_seconds"])
     return campaigns
+
+
+def _result_sectors(value: Any) -> list[int]:
+    """Coerce a result row's sector field, which may be a list or a scalar."""
+
+    if value is None:
+        return []
+    if isinstance(value, (int, float)):
+        return [int(value)]
+    if isinstance(value, str):
+        return [int(part) for part in value.replace(";", " ").split() if part.isdigit()]
+    if isinstance(value, (list, tuple)):
+        out: list[int] = []
+        for item in value:
+            out.extend(_result_sectors(item))
+        return out
+    return []
 DASHBOARD_DIR = WORKSPACE / "dashboard"
 DIST_DIR = DASHBOARD_DIR / "dist"
 CURRENT_SURVEY_SCHEMA_VERSION = 2
