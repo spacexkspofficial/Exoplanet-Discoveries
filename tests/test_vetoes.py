@@ -7,9 +7,12 @@ import pytest
 
 from exohunt.detection import inject_box_transit
 from exohunt.vetoes import (
+    DEPTH_EB_LANE_REASON,
+    EVENT_SUPPORT_REJECTION_REASON,
     depth_physicality,
     dip_window_veto,
     duration_density_consistency,
+    evaluate_t3_vetoes,
     full_phase_secondary_scan,
     odd_even_difference,
     per_event_support,
@@ -118,6 +121,8 @@ def test_full_phase_secondary_scan_finds_eccentric_secondaries() -> None:
     assert verdict["verdict"] == "kill"
     assert verdict["snr"] > 3
     assert verdict["phase_fraction"] == pytest.approx(0.3, abs=0.05)
+    assert verdict["tested_phase_windows"] > 1
+    assert verdict["family_wise_false_alarm_probability"] < 0.00135
 
 
 def test_full_phase_secondary_scan_passes_a_clean_transit() -> None:
@@ -131,6 +136,25 @@ def test_full_phase_secondary_scan_passes_a_clean_transit() -> None:
         time, flux, period_days=3.0, transit_time=1.0, duration_hours=2.4
     )
     assert verdict["verdict"] == "pass"
+
+
+def test_full_phase_secondary_scan_controls_the_look_elsewhere_effect() -> None:
+    rng = np.random.default_rng(20260728)
+    time = np.arange(0.0, 27.0, _cadence_days())
+    killed = 0
+    draws = 500
+    for _ in range(draws):
+        flux = 1.0 + rng.normal(0.0, 400e-6, time.size)
+        verdict = full_phase_secondary_scan(
+            time,
+            flux,
+            period_days=3.0,
+            transit_time=1.0,
+            duration_hours=2.4,
+        )
+        killed += verdict["verdict"] == "kill"
+
+    assert killed / draws <= 0.01
 
 
 def test_per_event_support_discounts_gap_adjacent_events() -> None:
@@ -157,3 +181,95 @@ def test_dip_window_veto_counts_events_in_registered_windows() -> None:
     assert verdict["events_in_systematic_windows"] == 2
     assert verdict["events_clean"] == 1
     assert verdict["flagged_centers"] == [4074.4, 4080.8]
+
+
+def test_complete_t3_gate_routes_large_companion_to_eb_lane() -> None:
+    time = np.arange(0.0, 27.0, _cadence_days())
+    flux = 1.0 + RNG.normal(0.0, 400e-6, time.size)
+    flux, _, _ = inject_box_transit(
+        time,
+        flux,
+        period_days=3.0,
+        transit_time=1.0,
+        duration_hours=2.4,
+        depth_ppm=50_000.0,
+    )
+
+    verdict = evaluate_t3_vetoes(
+        time,
+        flux,
+        period_days=3.0,
+        transit_time=1.0,
+        duration_hours=2.4,
+        depth_ppm=50_000.0,
+        density_solar=1.0,
+        stellar_radius_solar=1.5,
+        minimum_supported_events=2,
+    )
+
+    assert verdict["passes"] is False
+    assert verdict["routes_to_eb_lane"] is True
+    assert DEPTH_EB_LANE_REASON in verdict["rejection_reasons"]
+    assert verdict["checks"]["depth_physicality"]["verdict"] == "eb_lane"
+    assert verdict["checks"]["event_support"]["supported_events"] >= 2
+
+
+def test_complete_t3_gate_rejects_insufficient_two_sided_event_support() -> None:
+    time = np.arange(0.0, 27.0, _cadence_days())
+    time = time[~((time > 12.8) & (time < 13.6))]
+    flux = 1.0 + RNG.normal(0.0, 400e-6, time.size)
+
+    verdict = evaluate_t3_vetoes(
+        time,
+        flux,
+        period_days=13.0,
+        transit_time=0.0,
+        duration_hours=2.4,
+        depth_ppm=1_000.0,
+        density_solar=None,
+        stellar_radius_solar=None,
+        minimum_supported_events=2,
+    )
+
+    assert verdict["passes"] is False
+    assert EVENT_SUPPORT_REJECTION_REASON in verdict["rejection_reasons"]
+    assert verdict["checks"]["event_support"]["supported_events"] < 2
+
+
+def test_complete_t3_gate_requires_a_positive_event_minimum() -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        evaluate_t3_vetoes(
+            np.arange(100.0),
+            np.ones(100),
+            period_days=3.0,
+            transit_time=1.0,
+            duration_hours=2.4,
+            depth_ppm=1_000.0,
+            density_solar=None,
+            stellar_radius_solar=None,
+            minimum_supported_events=0,
+        )
+
+
+def test_t3_folded_checks_ignore_nonfinite_cadences() -> None:
+    time = np.arange(0.0, 27.0, _cadence_days())
+    flux = 1.0 + RNG.normal(0.0, 400e-6, time.size)
+    flux[::97] = np.nan
+    verdict = evaluate_t3_vetoes(
+        time,
+        flux,
+        period_days=3.0,
+        transit_time=1.0,
+        duration_hours=2.4,
+        depth_ppm=1_000.0,
+        density_solar=None,
+        stellar_radius_solar=None,
+        minimum_supported_events=2,
+    )
+
+    assert verdict["checks"]["odd_even"]["verdict"] in {
+        "pass",
+        "kill",
+        "not_evaluable",
+    }
+    assert np.isfinite(verdict["checks"]["full_phase_secondary"]["snr"])

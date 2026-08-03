@@ -365,6 +365,7 @@ def _classify_screening_result(
     result,
     rejection_reasons: list[str],
     deeper_vetting: dict[str, object] | None = None,
+    t3_vetoes: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Assign a follow-up class without claiming that any star is planet-free."""
 
@@ -377,6 +378,17 @@ def _classify_screening_result(
             else []
         )
     ]
+    t3_review_flags = [
+        str(value)
+        for value in (
+            t3_vetoes.get("review_flags", [])
+            if isinstance(t3_vetoes, dict)
+            else []
+        )
+    ]
+    review_flags = deeper_flags + [
+        value for value in t3_review_flags if value not in deeper_flags
+    ]
     recommended_sources = [
         "alternate TESS reduction (SPOC, QLP, or TGLC)",
         "additional TESS sectors",
@@ -384,9 +396,36 @@ def _classify_screening_result(
         "Kepler or K2 light curves when sky coverage overlaps",
         "ZTF or ASAS-SN variability context when available",
     ]
-    if not rejection_reasons:
+    t3_checks = (
+        t3_vetoes.get("checks", {})
+        if isinstance(t3_vetoes, dict)
+        else {}
+    )
+    event_support = (
+        t3_checks.get("event_support", {})
+        if isinstance(t3_checks, dict)
+        else {}
+    )
+    lacks_required_event_support = bool(
+        isinstance(t3_vetoes, dict)
+        and isinstance(event_support, dict)
+        and int(event_support.get("supported_events", 0))
+        < int(t3_vetoes.get("minimum_supported_events", 0))
+    )
+    if isinstance(t3_vetoes, dict) and bool(
+        t3_vetoes.get("routes_to_eb_lane")
+    ):
+        screening_class = "eclipsing_binary_signal"
+        vetting_tier = "eb_lane"
+        priority = 25
+        followup = [
+            "retain the signal in the eclipsing-binary review lane",
+            "inspect dilution and nearby-star contamination",
+            "do not promote the signal as a planet-like survivor",
+        ]
+    elif not rejection_reasons:
         screening_class = "automated_survivor"
-        if deeper_flags:
+        if review_flags:
             vetting_tier = "needs_manual_review"
             priority = min(79, 55 + int(max(0.0, result.depth_snr - 7.1) / 4.0))
         else:
@@ -405,6 +444,7 @@ def _classify_screening_result(
     elif (
         "fewer than two transit events are represented" in reasons
         and result.depth_snr >= 7.1
+        and not lacks_required_event_support
         and not reasons.intersection(
             {
                 "odd and even transit depths differ by more than 3 sigma",
@@ -415,7 +455,7 @@ def _classify_screening_result(
         )
     ):
         screening_class = "single_event_lead"
-        if deeper_flags:
+        if review_flags:
             vetting_tier = "fragile_single_event"
             priority = min(69, 50 + int(max(0.0, result.depth_snr - 7.1) / 5.0))
         else:
@@ -453,6 +493,7 @@ def _classify_screening_result(
         "followup_reasons": followup,
         "vetting_tier": vetting_tier,
         "deeper_vetting_flags": deeper_flags,
+        "t3_review_flags": t3_review_flags,
         "recommended_data_sources": recommended_sources,
         "planet_free": False,
         "scope_warning": (

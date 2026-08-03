@@ -4,9 +4,9 @@ Three measured problems this module removes:
 
 * **Duration rails.** 4,401 fits pinned to the edges of the fixed
   0.25-6.0 h duration grid, with 6.0 h the modal "duration". The grid now
-  derives from stellar density: no star searches durations it cannot
-  physically produce, so the rail disappears as a class rather than being
-  flagged after the fact.
+  derives from stellar density and endpoint fits cannot pass triage. The
+  fixed 6-hour pile-up is gone, but the locked shipping A/B found that
+  star-specific physical endpoints remain a dominant fit class.
 * **Period rails.** Survivors piled up at the search ceiling (a truncated
   13.70 d spacecraft peak). The grid now extends past the *reporting*
   ceiling; a best fit in the overscan region is a diagnostic, never a

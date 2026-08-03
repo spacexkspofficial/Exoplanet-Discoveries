@@ -57,8 +57,9 @@ class SearchConfig:
     min_period_days: float = 0.5
     period_overscan_fraction: float = 0.08
     # Duration grid from stellar density: [0.3, 1.5] x the b=0 expected
-    # duration, clamped to physical bounds. No star searches durations it
-    # cannot produce; the 6-hour grid rail disappears as a class.
+    # duration, clamped to physical bounds. The fixed 6-hour pile-up is
+    # replaced by star-specific endpoints; measured endpoint fits remain
+    # common and are rejected explicitly.
     duration_grid_span: tuple[float, float] = (0.3, 1.5)
     duration_grid_points: int = 8
     duration_min_hours: float = 0.5
@@ -89,14 +90,20 @@ class SearchConfig:
 class VetoConfig:
     """Cheap physical veto settings (T3)."""
 
+    # Bump when veto semantics change without changing a numeric threshold;
+    # checkpoint reuse compares this complete config.
+    policy_version: str = "t3-family-wise-secondary-v1"
     # Model-fit odd/even difference; 3 sigma continues the historical gate but
     # the estimator works from a two-depth folded fit rather than medians of
     # per-event medians, so it no longer returns None at 3+1 events.
     odd_even_kill_sigma: float = 3.0
     # Secondary eclipses are scanned over the full out-of-transit phase, not
-    # only phase 0.5 (eccentric binaries put secondaries elsewhere), and the
-    # kill is applied on the all-sector stacked fold before any promotion:
-    # TIC 181014443's secondary was 2.3 sigma in one sector, 5.9 stacked.
+    # only phase 0.5 (eccentric binaries put secondaries elsewhere). This is
+    # the global threshold after a family-wise phase-window correction, not a
+    # raw local maximum: the latter killed 30.8% of 500 pure-noise folds at
+    # 3 sigma. The kill is applied on the all-sector stacked fold before any
+    # promotion: TIC 181014443's secondary was 2.3 sigma in one sector, 5.9
+    # stacked.
     secondary_kill_sigma: float = 3.0
     secondary_exclusion_durations: float = 1.5
     # Fitted duration versus the b=0 expectation from stellar density.

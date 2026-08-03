@@ -112,6 +112,7 @@ from .targets import (
     _small_planet_selection_tier,
 )
 from .tce import check_tces
+from .vetoes import evaluate_t3_vetoes
 
 # This command writes PNG files and must also work on headless/portable Python
 # runtimes where Tk is not installed.
@@ -257,6 +258,7 @@ def _scientific_settings(args: argparse.Namespace) -> dict[str, object]:
         # Round-trip through JSON so tuple-valued config fields compare equal
         # after reports are serialized and loaded for checkpoint reuse.
         "search": json.loads(json.dumps(asdict(CURRENT_CONFIG.search))),
+        "vetoes": json.loads(json.dumps(asdict(CURRENT_CONFIG.vetoes))),
         # Detrending decides which cadences BLS ever sees, so it belongs to a
         # result's scientific identity. Without it here a resumed campaign would
         # silently reuse reports produced under a different segmentation rule
@@ -1712,7 +1714,40 @@ def _hunt_from_light_curve(
                 }
             )
 
-    screening_flags = _screening_flags(result)
+    minimum_supported_events = (
+        CURRENT_CONFIG.search.min_transits_single_sector
+        if search_grid_plan.single_sector
+        else CURRENT_CONFIG.search.min_transits_multisector
+    )
+    t3_density = (
+        search_grid_plan.stellar_density_solar
+        if search_grid_plan.density_source
+        == "catalog_stellar_mass_and_radius"
+        else None
+    )
+    t3_vetoes = evaluate_t3_vetoes(
+        cleaned_time,
+        cleaned_flux,
+        period_days=result.period_days,
+        transit_time=result.transit_time,
+        duration_hours=result.duration_hours,
+        depth_ppm=result.depth_ppm,
+        density_solar=t3_density,
+        stellar_radius_solar=_optional_float(
+            metadata.get("stellar_radius_solar")
+        ),
+        minimum_supported_events=minimum_supported_events,
+    )
+    screening_flags = {
+        **_screening_flags(result),
+        "odd_even_mismatch_over_3_sigma": (
+            t3_vetoes["checks"]["odd_even"]["verdict"] == "kill"
+        ),
+        "secondary_eclipse_over_3_sigma": (
+            t3_vetoes["checks"]["full_phase_secondary"]["verdict"]
+            == "kill"
+        ),
+    }
     strong_harmonic_ambiguity = any(
         float(check["relative_power"]) >= 0.8 for check in alias_checks
     )
@@ -1721,10 +1756,6 @@ def _hunt_from_light_curve(
         rejection_reasons.append("white-noise BLS depth S/N is below 7.1")
     if screening_flags["fewer_than_two_observed_transits"]:
         rejection_reasons.append("fewer than two transit events are represented")
-    if screening_flags["odd_even_mismatch_over_3_sigma"]:
-        rejection_reasons.append("odd and even transit depths differ by more than 3 sigma")
-    if screening_flags["secondary_eclipse_over_3_sigma"]:
-        rejection_reasons.append("a secondary eclipse is detected above 3 sigma")
     if screening_flags["transit_duty_cycle_over_15_percent"]:
         rejection_reasons.append("the fitted transit duty cycle exceeds 15 percent")
     if screening_flags["transit_depth_over_5_percent"]:
@@ -1751,6 +1782,7 @@ def _hunt_from_light_curve(
         for relation in known_relations
     ):
         rejection_reasons.append(CATALOG_PERIOD_REJECTION_REASON)
+    rejection_reasons.extend(t3_vetoes["rejection_reasons"])
     deeper_vetting = signal_vetting_diagnostics(
         cleaned_time,
         cleaned_flux,
@@ -1760,6 +1792,7 @@ def _hunt_from_light_curve(
         result,
         rejection_reasons,
         deeper_vetting,
+        t3_vetoes,
     )
     sensitivity = fixed_ephemeris_injection_sensitivity(cleaned_time, cleaned_flux)
 
@@ -1863,6 +1896,7 @@ def _hunt_from_light_curve(
             **screening_flags,
             "harmonic_ambiguity_over_0_8": strong_harmonic_ambiguity,
         },
+        "t3_vetoes": t3_vetoes,
         "sensitivity_probe": sensitivity,
         "deeper_vetting": deeper_vetting,
         "automated_triage": {

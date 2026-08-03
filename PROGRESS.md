@@ -2,7 +2,7 @@
 
 Tracks execution of [MASTER_PLAN.md](MASTER_PLAN.md) against its own gates.
 Started 2026-07-27 after owner approval of all seven §10 decisions.
-Test suite at last update: **228 passed** (114 pre-existing + 114 new), bare
+Test suite at last update: **236 passed** (114 pre-existing + 122 new), bare
 `pytest` from a clean checkout.
 
 ## Phase status
@@ -66,7 +66,7 @@ record was written; `origin/main` and the research branch are synchronized at
 | Detrending v2 | Built synthetically; two real-data edge mechanisms rejected | `detrend.py` still provides biweight, two prepared fluxes, support weighting, and a transit-masked second pass, but it is not wired into production. Support weighting failed the locked artifact gate (correction 10). The owner-selected quarter-window guard plus two-sided event-support lane also failed (correction 13): 83.584% retention, 1.142× artifact enrichment, and 3 artifact-aligned survivors versus production's 1. Both experiments were reverted; the production half-window guard remains. |
 | Search grids | Wired and measured through shipping path | `search.py` now plans baseline/minimum-transit period ceilings, 8% diagnostic overscan, density-derived duration grids with a named fallback, and endpoint flags. `batch-hunt` carries TIC mass/radius into the hunt, passes the actual grids to BLS, records requested and Astropy-effective duration grids, and rejects overscan/rail fits. Locked 150-target A/B: exact cohort and input identity; all 81 fallback targets science-identical; all changes isolated to 69 density-backed targets; 0 overscan or rail fits pass. Important limitation: 124/120 fallback/density fits still choose an effective rail. Full evidence: `P2_SEARCH_GRIDS.md`. |
 | Alias adjudication | Done | Ratio-ladder scoring with significance-gated event fractions and a 1.1× change margin; TOI-700 c half-period case recovered in tests; measured corrections documented in the commit |
-| T3 vetoes | Done | `vetoes.py`: duration-density (pass/flag/kill), depth physicality → EB lane, folded odd/even at 3+1 events, full-phase secondary scan (finds a phase-0.3 secondary the old screen missed), per-event support, dip-window veto |
+| T3 vetoes | Wired and measured through shipping path | Every hunt report now records a versioned T3 block: duration-density (pass/flag/kill), depth physicality → EB lane, folded odd/even, family-wise-corrected full-phase secondary scan, and two-sided per-event support. The naive local 3-sigma secondary maximum falsely killed 30.8% of 500 pure-noise folds; the corrected rule kills 0.2%. Locked 150-target A/B is exact in every pre-T3 science field; passes move 6→1 with five named, auditable losses and no gains. Full evidence: `P2_T3_VETOES.md`. |
 | Dip registry | Done | `population.py`; noise calibration measured in tests moved σ 2→3 and cohort floor 5%→10% (at σ=2, ~5% of pure-noise star-bins tripped) |
 | New dependencies | Installed + pinned | wotan, transitleastsquares (+numba), psutil core; batman/emcee/corner as `[fits]` extra; setuptools pinned for batman's distutils import on py3.12 |
 | Pinned characterization golden | Done | First 150 ordered rows of `targets/sector100_expansion_5000.csv` frozen at commit `709bcc9` under TESScut/158 s: 150 reports, 35 diagnostic survivors, 115 rejected, 0 errors. Full provenance and target/cohort hashes are in `results/equivalence/golden_v0/golden_manifest.json`. The handoff command required one measured correction: `--allow-no-known` is necessary for this uncatalogued expansion cohort |
@@ -77,7 +77,7 @@ record was written; `origin/main` and the research branch are synchronized at
 | CLI decomposition: target-list construction | Done; A/B equivalence passed | Official-target-list reading, observing-sector subset choice, curated catalog selection, small-planet host ranking, and the three `make-*-targets` commands moved from `cli.py` to a new `targets.py`; 9 of 10 definitions moved byte-identical and only `_make_sector_targets` changed, to reach `_atomic_write_json` on the live CLI module. `cli.py` 2,919 → 2,389 lines (3,607 → 2,389 across both of today's slices, −34%). **The pinned 150-target rerun cannot gate this slice** — `batch-hunt` reads a pre-built CSV and never calls target-list construction — so equivalence was proven by direct A/B: the pre-move tree (`3d1c283`, via `git archive`) and the post-move tree were driven through identical inputs with identical deterministic stubs for the network collaborators, and their canonical JSON dumps hash to the same SHA-256 (`6be34854…`). That covers 675 pure-function cases plus all five command paths, including `make-sector-targets` run twice (round-robin and small-star ranking) against the real 13,000-row official Sector 100 list and the real 12,168-entry exclusion ledger, selecting 750 stars each time. Only `created_utc` and the harness's own per-run temp-directory name were normalized. Focused target/pixel/campaign/retention/lease/checkpoint tests: 33 passed. The 150-target rerun still ran as a regression check on the untouched campaign path and again produced 150/150 byte-identical reports, 35/115/0 counts, no temp files, and published artifacts identical to both `golden_v0` and the prior slice |
 | Catalog ephemeris masking | Done; bounded real-data gate passed | NASA period/epoch uncertainties are now propagated linearly to the complete observation window. Safe masks widen by the accumulated error; missing or >1-duration uncertainty removes zero cadences, is explicitly reported as unmaskable, forces recovery-only labeling, and blocks promotion. Injection-recovery and sector-vetting paths refuse unsafe masks. On the locked 28-product cohort: 30/37 catalog signals safely masked, 7/37 explicitly unmaskable, 0 silent/unsafe masks, 0 execution errors; a second shipping-path execution reproduced all 28 strongest signals, triage verdicts, and classifications. Full evidence: `P2_CATALOG_MASKING.md`. |
 | Catalog ephemeris matching | Exact, half-, double-, and triple-period rules wired and replayed; one-third held | After masking was isolated in commit `9f9a860`, the shipping path gained the separately measured exact-period event-window rule. Both frozen 28-product outputs reproduce 4 phase-distinct exact relations, 1 mask-overlap control, and 4 untrustworthy recovery cases. The later harmonic production replay matches the independent diagnostic on 19/19 controlled relations: 12 zero-overlap cases continue, while 3 consistent and 4 controlled partial cases remain rejected. The one under-controlled one-third case remains period-only. Full evidence: `P2_CATALOG_MATCHING.md` and `P2_HARMONIC_MATCHING.md`. |
-| **Not yet done** | — | Remaining structure-only extraction (the single-target `_hunt_from_light_curve` analysis path and the context/vetting commands), then separately measured rewiring onto `detrend.py`/`vetoes.py`/`population.py` and first-class signature/evidence records; a viable detrending mechanism; known-planet campaign cohort; monotransit detector; TLS integration into T2; cli.py AST tripwire |
+| **Not yet done** | — | Remaining structure-only extraction (the single-target `_hunt_from_light_curve` analysis path and the context/vetting commands), then separately measured rewiring onto `detrend.py`/`population.py` and first-class signature/evidence records; a viable detrending mechanism; known-planet campaign cohort; monotransit detector; TLS integration into T2; cli.py AST tripwire |
 
 ### P3–P5: **not started** (gated behind P2 exit, per plan)
 
@@ -423,6 +423,35 @@ record was written; `origin/main` and the research branch are synchronized at
 
     Full suite: **228 passed**. See `P2_SEARCH_GRIDS.md`; raw corrected A/B:
     `results/p2_gates/search_grid_shipping_ab_150.json`.
+
+19. **The T3 kernel is now wired, but the literal full-phase secondary rule
+    failed calibration before commit.** The first shipping arm compared the
+    strongest local out-of-primary phase window directly with 3 sigma. On 500
+    deterministic pure-noise folds it killed **154/500 (30.8%)** because the
+    maximum of many windows is not a global 3-sigma statistic. It also marked
+    97/150 real-cohort signals as secondaries and retained only one of six
+    baseline survivors.
+
+    Production now uses the standard error of a median and a Bonferroni
+    family-wise correction over the actual tested phase windows. The same
+    median-error correction applies to folded odd/even depths. The deterministic
+    noise result becomes **1/500 (0.2%)**, with a permanent 1% regression cap,
+    and the veto policy is versioned in checkpoint identity. Non-finite
+    cadences are removed before folded checks.
+
+    The corrected 150-target shipping arm produced zero errors and is exact to
+    the density-grid baseline in observation window, strongest signal, search
+    grid, and the complete pre-T3 science payload. Passes move **6 → 1**:
+    three lost survivors have family-wise-corrected secondaries at local S/N
+    6.12, 6.961, and 11.278; two have only one or zero transit events with
+    two-sided local support; the S/N 11.278 case also has a fatal
+    duration-density ratio of 2.533. There are no gains. Across all 150
+    reports, corrected T3 records 9 duration-density kills, 56
+    duration-density review flags, 10 odd/even kills, 35 secondary kills, and
+    71 insufficient-support signals. These are reversible signal decisions;
+    they do not calibrate completeness or reliability. Full suite:
+    **236 passed**. See `P2_T3_VETOES.md`; raw corrected A/B:
+    `results/p2_gates/t3_shipping_ab_150.json`.
 
 ## Owner notes
 

@@ -8,6 +8,7 @@ import pytest
 import exohunt.cli as cli_module
 from exohunt.cli import _hunt_from_light_curve
 from exohunt.detection import DetectionResult
+from exohunt.vetoes import DEPTH_EB_LANE_REASON
 
 
 def _stale_catalog() -> dict[str, object]:
@@ -456,3 +457,94 @@ def test_shipping_hunt_rejects_duration_grid_rail(
         "the best-fit period or duration is pinned to a search-grid rail"
         in report["automated_triage"]["rejection_reasons"]
     )
+
+
+def test_shipping_hunt_records_t3_gate_and_routes_eb_lane(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    t3 = {
+        "schema_version": 1,
+        "passes": False,
+        "routes_to_eb_lane": True,
+        "minimum_supported_events": 2,
+        "rejection_reasons": [DEPTH_EB_LANE_REASON],
+        "review_flags": [],
+        "checks": {
+            "duration_density": {"verdict": "pass"},
+            "depth_physicality": {
+                "verdict": "eb_lane",
+                "implied_radius_rjup": 3.2,
+            },
+            "odd_even": {"verdict": "pass", "sigma": 0.0},
+            "full_phase_secondary": {"verdict": "pass", "snr": 0.0},
+            "event_support": {"supported_events": 5},
+        },
+    }
+    monkeypatch.setattr(
+        cli_module,
+        "evaluate_t3_vetoes",
+        lambda *_args, **_kwargs: t3,
+    )
+
+    report = _shipping_catalog_report(
+        tmp_path,
+        monkeypatch,
+        recovered_period=2.0,
+        recovered_transit_time=101.5,
+    )
+
+    assert report["t3_vetoes"] == t3
+    assert DEPTH_EB_LANE_REASON in (
+        report["automated_triage"]["rejection_reasons"]
+    )
+    assert report["followup_classification"]["screening_class"] == (
+        "eclipsing_binary_signal"
+    )
+    assert report["followup_classification"]["vetting_tier"] == "eb_lane"
+    assert "vetoes" in report["search_configuration"]
+
+
+def test_shipping_hunt_routes_t3_review_flag_to_manual_review(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    review_flag = "duration-density review"
+    t3 = {
+        "schema_version": 1,
+        "passes": True,
+        "routes_to_eb_lane": False,
+        "minimum_supported_events": 2,
+        "rejection_reasons": [],
+        "review_flags": [review_flag],
+        "checks": {
+            "duration_density": {"verdict": "flag"},
+            "depth_physicality": {"verdict": "pass"},
+            "odd_even": {"verdict": "pass", "sigma": 0.0},
+            "full_phase_secondary": {"verdict": "pass", "snr": 0.0},
+            "event_support": {"supported_events": 5},
+        },
+    }
+    monkeypatch.setattr(
+        cli_module,
+        "evaluate_t3_vetoes",
+        lambda *_args, **_kwargs: t3,
+    )
+
+    report = _shipping_catalog_report(
+        tmp_path,
+        monkeypatch,
+        recovered_period=2.0,
+        recovered_transit_time=101.5,
+    )
+
+    assert report["automated_triage"]["passes"] is True
+    assert report["followup_classification"]["screening_class"] == (
+        "automated_survivor"
+    )
+    assert report["followup_classification"]["vetting_tier"] == (
+        "needs_manual_review"
+    )
+    assert report["followup_classification"]["t3_review_flags"] == [
+        review_flag
+    ]

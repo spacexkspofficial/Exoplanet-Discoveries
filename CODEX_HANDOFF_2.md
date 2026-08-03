@@ -9,9 +9,9 @@ both measured and rejected. Everything else in the earlier handoff
 remains current and you should read it.
 
 **Are we ready for science? Still no.** Catalog masking, event-aware catalog
-matching, and physical search grids are fixed and measured in the working tree,
-but detrending remains blocked and downstream veto/calibration gates remain
-open.
+matching, physical search grids, and single-target T3 vetoes are fixed and
+measured in the working tree, but detrending remains blocked and the population
+veto plus calibration gates remain open.
 
 ---
 
@@ -20,7 +20,7 @@ open.
 ```powershell
 cd "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries\.codex-pr-staging\p2-catalog-matching-2"
 & "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries\.venv\Scripts\python.exe" -m pytest -q
-# expect: 228 passed
+# expect: 236 passed
 ```
 
 - Branch `codex/p2-catalog-matching` lives in
@@ -30,12 +30,12 @@ cd "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries\.codex-pr-stagin
   there mid-session and pushed. That commit contains only
   `targets/p2_artifact_regression_cohort.{csv,json}`. It is merged into the
   branch; there was no conflict.
-- 228 tests pass from the staging checkout.
-- `cli.py` is **2,550 lines**, down from 3,607 (−29%).
-- **No behaviour change has shipped to `main`.** The branch contains three
-  previously committed behavior changes plus the measured search-grid change
-  in this commit: uncertainty-propagated catalog masking, exact-period epoch
-  matching, controlled harmonic matching, and physical search grids. The two
+- 236 tests pass from the staging checkout.
+- `cli.py` is **2,584 lines**, down from 3,607 (−28%).
+- **No behaviour change has shipped to `main`.** The branch contains five
+  committed behavior changes plus the measured T3 change in this working tree:
+  uncertainty-propagated catalog masking, exact-period epoch matching,
+  controlled harmonic matching, physical search grids, and T3 vetoes. The two
   detrending mechanisms and the earlier invalid catalog-matching attempts
   remain reverted.
 
@@ -54,9 +54,10 @@ cd "C:\Users\alexa\OneDrive\Desktop\Codex\Exoplanet Discoveries\.codex-pr-stagin
 | `b29f6e2` | locked P2 matching and detrending diagnostics |
 | `223854b` | exact-period transit-epoch adjudication |
 | `f90138f` | half/double/triple event-number adjudication; one-third held |
-| this commit | physical search grids, locked 150-target shipping A/B, and evidence |
+| `f400039` | physical search grids, locked 150-target shipping A/B, and evidence |
+| this commit | T3 veto wiring, family-wise secondary correction, and locked 150-target A/B |
 
-`PROGRESS.md` corrections 9–18 are the substance. Read them before the code.
+`PROGRESS.md` corrections 9–19 are the substance. Read them before the code.
 
 ---
 
@@ -86,6 +87,25 @@ effective rail: the gate safely demotes them without proving sensitivity. The
 first A/B under-counted rails because Astropy quantizes durations; the
 corrected arms reproduce every fitted fallback signal and compare against the
 effective grid. See `P2_SEARCH_GRIDS.md`.
+
+The **single-target T3 veto rewiring is complete and measured**. Every shipping
+report now records a versioned T3 evidence block for duration-density
+consistency, implied companion radius/EB routing, folded odd/even depths,
+full-phase secondaries, and two-sided event support. Missing catalog stellar
+parameters make only the dependent physical checks non-evaluable.
+
+The first literal full-phase implementation was rejected before commit: taking
+the strongest local phase window above 3 sigma killed 154/500 deterministic
+pure-noise folds (30.8%) and marked 97/150 cohort signals as secondaries.
+Production now uses median standard errors plus a family-wise correction over
+the actual tested phase windows; the same noise gate becomes 1/500 (0.2%).
+
+The corrected 150-target arm is exact to the density-grid baseline in every
+pre-T3 science field and has zero errors. Passes move **6 → 1** with no gains.
+Three losses have corrected secondaries at local S/N 6.12, 6.961, and 11.278;
+two have only one or zero events with two-sided support; the S/N 11.278 case
+also has a fatal duration-density ratio. The sole survivor is TIC 54147357 and
+remains manual-review-only. See `P2_T3_VETOES.md`.
 
 ---
 
@@ -225,6 +245,9 @@ takes the "already running" early return and fails spuriously.
 | `results/p2_gates/search_grid_shipping_railfix_150/` | corrected shipping fallback-grid arm, 150 reports |
 | `results/p2_gates/search_grid_shipping_density_railfix_150/` | corrected shipping density-grid arm, 150 reports |
 | `results/p2_gates/search_grid_shipping_ab_150.json` | three-arm input, transition, invariance, and boundary measurement |
+| `results/p2_gates/t3_shipping_naive_secondary_150/` | rejected naive local-secondary T3 arm, 150 reports |
+| `results/p2_gates/t3_shipping_150/` | corrected family-wise T3 arm, 150 reports |
+| `results/p2_gates/t3_shipping_ab_150.json` | T3 transition, exact-invariance, and per-check measurement |
 | `results/p2_gates/catalog_epoch_after/` | 12-target rerun that exposed the stale-mask bug |
 | `results/equivalence/campaign_support_extract_v4/` | structure-slice equivalence + manifest |
 | `results/equivalence/target_list_extract_v5/` | structure-slice equivalence + manifest |
@@ -255,9 +278,9 @@ equivalence cohort and its golden baseline are unchanged; see
 
 ## Suggested next work, in order
 
-1. The remaining kernel rewirings — T3 vetoes from `vetoes.py` and the dip
-   registry from `population.py`. Each is its own behaviour commit with its
-   own measured effect. Neither depends on the detrending question.
+1. The remaining kernel rewiring — campaign construction of the dip registry
+   from `population.py` plus its per-event window veto. Keep it as its own
+   behavior commit with a measured effect; it does not depend on detrending.
 2. **Detrending remains blocked**: support weighting and the owner-selected
    narrow-guard/event-support fallback are both ruled out. Any next proposal
    must address trend-model bias directly or require agreement across genuinely
@@ -274,5 +297,5 @@ equivalence cohort and its golden baseline are unchanged; see
 - No other campaign-scale runs, injection runs, or science downloads without
   explicit owner approval (`REFACTOR_REVIEW.md` stop condition).
 - Behaviour changes ship in their own commit with their measurement. Structure
-  changes ship byte-identical. The 228 tests stay green; if one must change,
+  changes ship byte-identical. The 236 tests stay green; if one must change,
   say in the commit whether it pinned a constant or behaviour.
