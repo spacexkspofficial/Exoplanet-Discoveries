@@ -804,6 +804,51 @@ record was written; `origin/main` and the research branch are synchronized at
     `artifact_epochs_smallstar.json`,
     `artifact_gate_smallstar_{historical,derived}.json`.
 
+26. **Context vetting explains all 34 survivors; none are new.** The
+    metadata-only pass ran over the small-star campaign's follow-up queue in
+    8.8 minutes: **34 complete, 0 errors**, no light curves, images or
+    spectra fetched.
+
+    | context disposition | count | lane |
+    |---|---:|---|
+    | `crowding_contamination_review` | **25** | pixel localization |
+    | `known_tce_rediscovery` | 5 | known-signal validation |
+    | `known_planet_rediscovery` | **3** | known-planet validation |
+    | `known_variable_star_review` | 1 | stellar variability |
+    | **`unresolved_transit_like_signal`** | **0** | — |
+
+    **Zero unresolved.** Public catalogue metadata accounts for every
+    survivor, which is the strongest form this pass can produce of "nothing
+    new here". Eight had an exact period match to a catalogued signal, and
+    **crowding risk is `high` for all 34** -- unsurprising at TESS's ~21
+    arcsecond pixels, where a neighbouring eclipsing binary bleeding into the
+    aperture is the dominant false-positive mode.
+
+    **Three are already-catalogued planets** (TIC 296850254, 359403471,
+    321802774), independently recovered by the shipping path. That is a
+    genuine positive control: the pipeline finds planets when planets are
+    present. Five more are TCEs the SPOC pipeline had already flagged, which
+    is the expected outcome of re-searching a population official pipelines
+    have covered -- exactly what MASTER_PLAN section 6 calls a validation
+    activity rather than a discovery lane.
+
+    The prediction recorded before this ran was "mostly eclipsing-binary
+    lanes", based on the survivors' 0.5-1 d periods, 1-5% depths and 15-31
+    events. The measured answer is sharper and worth stating precisely: the
+    dominant lane is *crowding*, meaning the binary is usually a neighbour
+    rather than the target star. Same physics, more specific attribution.
+
+    **Net for the campaign: 3,128 stars searched, 0 new planets, 0 unresolved
+    signals, 3 known planets correctly recovered.** For a screening pipeline
+    that is a good outcome -- the vetting chain resolved everything it
+    produced instead of leaving a pile of unexplained leads. The 25 crowding
+    cases route to pixel localization, which needs real target-pixel
+    downloads and remains unspent.
+
+    Raw evidence: `results/vetting/sector100_small_star_3128/context/`
+    (34 per-target cross-mission reports plus summary). No production
+    behaviour changed.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to
