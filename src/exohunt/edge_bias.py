@@ -62,10 +62,12 @@ Nothing here changes production behaviour: this is an instrument.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
 import numpy as np
+
+from .detrending import DetrendingPlan, edge_safe_mask
 
 # Deterministic permutation seed, in the style of the other P2 gates.
 DEFAULT_SEED = 20260804
@@ -450,6 +452,34 @@ def full_support_floor_ppm(samples: EdgeBiasSamples) -> float:
         return float("nan")
     deepest = samples.offset == samples.offset.max()
     return _robust_rms(samples.observed_ppm[deepest])
+
+
+def guard_retention(
+    time: np.ndarray, plan: DetrendingPlan, guard_cadences: int
+) -> float:
+    """Fraction of cadences a guard of ``guard_cadences`` would keep.
+
+    This is the other half of the guard trade-off: :func:`sufficient_guard_cadences`
+    says how wide a guard has to be to hold trend bias within a tolerance, and
+    this says what that width costs against §2.3's retention criterion.
+
+    It defers to the shipping :func:`exohunt.detrending.edge_safe_mask` with
+    only ``edge_guard_days`` substituted, so the segmentation, the strict
+    monotonicity check and the "segment shorter than twice the guard drops
+    entirely" behaviour are production's rather than a reimplementation's. A
+    guard of 0 is not the same as no guard at all: non-finite samples are still
+    excluded.
+    """
+
+    if guard_cadences < 0:
+        raise ValueError("Guard width cannot be negative.")
+    adjusted = replace(
+        plan, edge_guard_days=guard_cadences * plan.cadence_days
+    )
+    keep, _ = edge_safe_mask(np.asarray(time, dtype=float), adjusted)
+    if keep.size == 0:
+        return float("nan")
+    return float(np.count_nonzero(keep) / keep.size)
 
 
 def sufficient_guard_cadences(

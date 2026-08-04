@@ -16,6 +16,7 @@ from exohunt.edge_bias import (
     biweight_trend_estimator,
     concatenate_samples,
     full_support_floor_ppm,
+    guard_retention,
     measure_segment_edge_bias,
     profile_by_offset,
     savgol_trend_estimator,
@@ -247,6 +248,33 @@ def test_biweight_estimator_returns_a_finite_trend() -> None:
     trend = biweight_trend_estimator(0.2)(time, flux)
     assert trend.shape == flux.shape
     assert np.all(np.isfinite(trend))
+
+
+def test_guard_retention_falls_as_the_guard_widens() -> None:
+    """Retention must reproduce the shipping mask, not a parallel rule."""
+
+    from exohunt.detrending import DEFAULT_DETRENDING, build_detrending_plan
+
+    # Two segments separated by a gap well past the 0.10 d split threshold.
+    cadence = 2.0 / 1440.0
+    first = np.arange(3000, dtype=float) * cadence
+    second = first[-1] + 0.5 + np.arange(3000, dtype=float) * cadence
+    time = np.concatenate([first, second])
+    plan = build_detrending_plan(time, DEFAULT_DETRENDING)
+
+    assert guard_retention(time, plan, 0) == pytest.approx(1.0)
+    wide = guard_retention(time, plan, 500)
+    wider = guard_retention(time, plan, 1000)
+    assert 0.0 < wider < wide < 1.0
+    # Each segment loses the guard from both ends, so the loss is two guards
+    # per segment against 6000 cadences total.
+    assert wide == pytest.approx(1.0 - (4 * 500) / 6000, abs=0.01)
+
+    # A guard wider than half a segment drops that segment entirely.
+    assert guard_retention(time, plan, 2000) == pytest.approx(0.0)
+
+    with pytest.raises(ValueError, match="negative"):
+        guard_retention(time, plan, -1)
 
 
 def test_pooling_requires_a_common_half_window() -> None:

@@ -920,6 +920,47 @@ record was written; `origin/main` and the research branch are synchronized at
     See `P2_EDGE_BIAS.md`; raw evidence
     `results/p2_gates/edge_trend_bias_120.json`.
 
+28. **Section 2.3's retention and depth-bias criteria cannot both be satisfied
+    for shallow transits, by any guard width.** Correction 27 measured what a
+    guard buys in trend bias. This measures what it costs in retention, on the
+    same 120 stars, by substituting `edge_guard_days` into the shipping
+    `detrending.edge_safe_mask` so segmentation and the drop-short-segment rule
+    are production's rather than a reimplementation's.
+
+    **The pass validates against production exactly: median retention
+    0.67006 versus the documented 0.669.**
+
+    | guard (cadences) | retention | remaining bias | shallowest depth within a 5% budget |
+    |---:|---:|---:|---:|
+    | 0 | 1.000 | 458 ppm | 9,200 ppm |
+    | 200 | 0.908 | ~217 ppm | 4,300 ppm |
+    | **300** | **0.863** | **~191 ppm** | **3,800 ppm** |
+    | **626** | **0.714** | **~102 ppm** | **2,000 ppm** |
+    | 720 (ships) | 0.670 | ~102 ppm | 2,000 ppm |
+
+    Retention >= 85% caps the guard near 300 cadences, leaving ~191 ppm of
+    trend bias, which meets the 5% depth-bias budget only for transits deeper
+    than ~3,800 ppm. Protecting a 2,000 ppm transit needs ~626 cadences and
+    retention 0.714, which fails the 85% floor. The small-star campaign's
+    survivors ran 2,320-49,657 ppm deep, so its shallowest members fall below
+    that line.
+
+    **This is why the detrending question kept stalling.** The two criteria are
+    jointly unsatisfiable in the shallow regime, and that is a property of
+    estimator bias rather than of any edge policy -- so no support weight, no
+    floor, no window shape and no narrower guard was ever going to satisfy both.
+    Corrections 10 and 13 were measuring mechanisms against a target that had no
+    solution. Section 2.3 needs its acceptance numbers re-derived per depth
+    regime; deep lanes can afford a narrow guard and high retention, shallow
+    lanes cannot.
+
+    Incidentally the production guard is better calibrated than its provenance
+    suggests: 720 cadences holds bias to ~102 ppm, 5% of ~2,000 ppm, close to
+    the shallowest depth the pipeline actually claims.
+
+    Full suite: **293 passed**. No production behaviour changed. Raw evidence:
+    `results/p2_gates/edge_guard_retention_120.json`; see `P2_EDGE_BIAS.md`.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to

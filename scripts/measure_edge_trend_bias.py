@@ -35,12 +35,14 @@ from exohunt.detrend import segment_boundaries  # noqa: E402
 from exohunt.detrending import (  # noqa: E402
     DEFAULT_DETRENDING,
     build_detrending_plan,
+    edge_safe_mask,
 )
 from exohunt.edge_bias import (  # noqa: E402
     DEFAULT_SEED,
     biweight_trend_estimator,
     concatenate_samples,
     full_support_floor_ppm,
+    guard_retention,
     measure_segment_edge_bias,
     profile_by_offset,
     savgol_trend_estimator,
@@ -221,6 +223,39 @@ def measure_one(
     return result
 
 
+def measure_retention(
+    path: Path, guard_grid: list[int]
+) -> dict[str, Any]:
+    """Retention a guard would leave, on one star's prepared time axis.
+
+    Cheap by comparison with the bias pass: no trend is fitted at all. The
+    production entry is computed from the unmodified plan, so it should
+    reproduce the documented 0.669 median and is the check that this pass and
+    the shipping detrender agree.
+    """
+
+    curve = load_normalized(path)
+    time = np.asarray(curve.time.value, dtype=float)
+    time = time[np.isfinite(time)]
+    if time.size < 500:
+        raise ValueError("Too few finite cadences.")
+    plan = build_detrending_plan(time, DEFAULT_DETRENDING)
+    keep, segments = edge_safe_mask(time, plan)
+    return {
+        "path": str(path),
+        "cadences": int(time.size),
+        "segments": int(segments),
+        "production_guard_days": plan.edge_guard_days,
+        "production_retention": round(
+            float(np.count_nonzero(keep) / keep.size), 5
+        ),
+        "retention_by_guard": {
+            str(guard): round(guard_retention(time, plan, guard), 5)
+            for guard in guard_grid
+        },
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cache-dir", type=Path, required=True)
@@ -233,6 +268,23 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         choices=["savgol", "biweight"],
         help="Repeatable; defaults to both.",
+    )
+    parser.add_argument(
+        "--retention-only",
+        action="store_true",
+        help=(
+            "Skip the bias fits and measure only what each guard width costs "
+            "in retention. Minutes rather than tens of minutes."
+        ),
+    )
+    parser.add_argument(
+        "--guard-cadences",
+        type=int,
+        action="append",
+        help=(
+            "Repeatable guard width for the retention pass. Defaults to a "
+            "grid spanning zero to the production half-window."
+        ),
     )
     parser.add_argument(
         "--quiet-ppm",
@@ -273,6 +325,68 @@ def main(argv: list[str] | None = None) -> int:
     selected = paths[::stride][: args.max_stars]
 
     started = clock.monotonic()
+
+    if args.retention_only:
+        guard_grid = sorted(
+            set(
+                args.guard_cadences
+                or [0, 100, 200, 297, 300, 400, 500, 600, 626, 700, 720]
+            )
+        )
+        measured: list[dict[str, Any]] = []
+        failures = []
+        for index, path in enumerate(selected, start=1):
+            try:
+                measured.append(measure_retention(path, guard_grid))
+            except Exception as error:  # noqa: BLE001 - recorded, not swallowed
+                failures.append({"path": str(path), "error": repr(error)})
+                print(f"[{index}/{len(selected)}] FAILED {path.name}: {error}")
+                continue
+            print(f"[{index}/{len(selected)}] {path.name}")
+        report = {
+            "mode": "retention",
+            "cache_dir": str(cache_dir),
+            "measured_stars": len(measured),
+            "failures": failures,
+            "guard_cadences": guard_grid,
+            "runtime_seconds": round(clock.monotonic() - started, 1),
+            "median_production_retention": round(
+                float(
+                    np.median([row["production_retention"] for row in measured])
+                ),
+                5,
+            )
+            if measured
+            else None,
+            "median_retention_by_guard": {
+                str(guard): round(
+                    float(
+                        np.median(
+                            [
+                                row["retention_by_guard"][str(guard)]
+                                for row in measured
+                            ]
+                        )
+                    ),
+                    5,
+                )
+                for guard in guard_grid
+            }
+            if measured
+            else {},
+            "stars": measured,
+        }
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        print(f"\nWrote {args.output}")
+        print(
+            "median production retention: "
+            f"{report['median_production_retention']}"
+        )
+        for guard, value in report["median_retention_by_guard"].items():
+            print(f"  guard {guard:>4} cadences -> retention {value}")
+        return 0
+
     pooled: dict[str, list[Any]] = {name: [] for name in estimators}
     stars: list[dict[str, Any]] = []
     failures: list[dict[str, str]] = []

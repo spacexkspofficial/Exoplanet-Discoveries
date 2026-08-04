@@ -174,6 +174,53 @@ weight nor a fixed narrower guard, but a guard sized by the shallowest depth a
 given lane intends to claim. **Nothing here ships that** — it would be a
 behaviour change needing its own commit and the §2.3 gates.
 
+### What each guard width costs, and why §2.3 cannot be satisfied
+
+The guard widths above are only half a trade-off. The other half is retention,
+§2.3's second acceptance number. Measured on the same 120 stars by substituting
+`edge_guard_days` into the shipping `detrending.edge_safe_mask`, so the
+segmentation and the drop-short-segments behaviour are production's:
+
+**Median production retention reproduces the documented value exactly: 0.67006
+against 0.669.** That is the check that this pass and the shipping detrender
+agree, and it is what makes the rest of the table trustworthy.
+
+| guard (cadences) | retention | remaining SavGol bias | shallowest depth within a 5% budget |
+|---:|---:|---:|---:|
+| 0 | 1.000 | 458 ppm | 9,200 ppm |
+| 100 | 0.952 | ~300 ppm | 6,000 ppm |
+| 200 | 0.908 | ~217 ppm | 4,300 ppm |
+| **300** | **0.863** | **~191 ppm** | **3,800 ppm** |
+| 500 | 0.772 | ~180 ppm | 3,600 ppm |
+| **626** | **0.714** | **~102 ppm** | **2,000 ppm** |
+| 720 (production) | 0.670 | ~102 ppm | 2,000 ppm |
+
+Read against §2.3 this is decisive, and it is not a statement about any
+mechanism:
+
+- **Retention ≥ 85% caps the guard at ~300 cadences**, which leaves ~191 ppm of
+  trend bias. Under §2.3's own 5% depth-bias budget that is acceptable only for
+  transits **deeper than ~3,800 ppm**.
+- **Protecting a 2,000 ppm transit** at 5% needs ~100 ppm, hence a guard near
+  **626 cadences and retention 0.714** — which fails the 85% floor.
+
+So §2.3's criterion 2 (retention ≥ 85%) and criterion 3 (depth bias ≤ 5%)
+**cannot both be met for shallow transits by any guard width**. That is a
+property of the estimator's bias, not of the guard policy, which is why every
+attempt to satisfy both by re-shaping the edge rule failed. The small-star
+campaign's survivors ran 2,320–49,657 ppm deep, so its shallowest members sit
+below the line.
+
+One incidental validation: the production guard of 720 cadences holds bias to
+~102 ppm, which is 5% of ~2,000 ppm — close to the shallowest depth the
+pipeline actually claims. The current setting is better calibrated than its
+provenance suggests.
+
+The honest conclusion is that the acceptance criteria need re-deriving per
+depth regime rather than a new mechanism being found. Deep lanes can afford a
+narrow guard and high retention; shallow lanes cannot, and no exponent, floor
+or window shape changes that.
+
 ### The shipping estimator is not local
 
 Biweight reads a **0.0 ppm floor with 100% exact zeros**: wotan's trend at a
