@@ -743,6 +743,67 @@ record was written; `origin/main` and the research branch are synchronized at
     arms; the historical values in correction 10 reproduce exactly. Full
     suite: **265 passed**. No production behaviour changed.
 
+25. **A detector-balanced cohort repairs the artifact gate and confirms a
+    real observatory event.** 3,128 unsearched small stars in Sector 100
+    (`targets/sector100_small_star_balanced_3128.csv`, SHA-256
+    `4dbdee3e…`), SPOC 120 s, run through the shipping `batch-hunt` in 12.05
+    hours: **34 survivors, 3,091 rejected, 3 errors** (the three have no SPOC
+    light curve at all, a data-availability fact rather than a failure).
+    Ledger parity re-passed at 15,296 stars with zero differences.
+
+    **The registry now works at the granularity section 3.6 specifies.** All
+    16 sector-camera-CCD cohorts clear the 20-star floor and **zero stars are
+    stranded**, against 8 of 16 usable and 71 stranded on the artifact
+    cohort. Windows again collapse with coarsening — 14 at per-CCD, 0 at
+    per-camera, 0 sector-wide — independently reproducing correction 21's
+    45 → 1 → 0.
+
+    **The BTJD 4092 event is real and now solidly measured.** Correction 21
+    saw 22 of 370 stars dipping together near BTJD 4092.4 and could say
+    little about it. This cohort gives **146 of 3,114 stars (4.69%) at BTJD
+    4092.354, p = 7.3e-11, spanning five 30-minute bins**, plus a second at
+    4092.958 (134 of 3,119, p = 6.9e-08). Two independently selected cohorts,
+    the same epoch: this is an observatory systematic, not a selection
+    artifact.
+
+    **The gate discriminates once its epochs come from the right reduction.**
+    Measured on the same 3,125 reports, changing only which epochs are tested:
+
+    | epochs | aligned | null | enrichment | p |
+    |---|---:|---:|---:|---:|
+    | historical, TESScut-derived (4074.4, 4080.8) | 939 | 928.8 | **1.011** | 0.368 |
+    | derived from this cohort (4092.354, 4092.958) | 995 | 928.8 | **1.071** | **0.029** |
+
+    The historical epochs measure **nothing** on a neutral cohort. That is
+    the control corrections 23 and 24 lacked, and it explains their finding:
+    the 371-target artifact cohort was *selected* on shared common-mode
+    evidence at those epochs, so it was enriched by construction. Enrichment
+    of 1.137-1.15 there was largely a property of the cohort, not of the
+    detrending arm being tested.
+
+    Counting error on enrichment is now `sqrt(995)/928.8 ≈ 0.034` (analytic,
+    not bootstrapped), roughly half correction 23's 0.0704, because the null
+    rests on 929 expected alignments rather than 136. That is still far
+    coarser than the 0.005 the historical arms differed by, so **enrichment
+    remains unusable for separating those particular arms** — but it is now a
+    statistic that responds to real artifacts, which it previously was not.
+
+    **Seven of the 34 survivors align with a derived artifact epoch**, about
+    20%. That is a screening flag for the follow-up queue, not a verdict.
+
+    Survivor rate is 1.09%, double the 0.54% extrapolated from the artifact
+    cohort, consistent with small stars giving deeper transits. The survivor
+    population itself looks eclipsing-binary-heavy on its face — depths 2,320
+    to 49,657 ppm against a 5% rejection cap, many at 0.5-1 d periods with
+    15-31 events, and a median red-noise-adjusted S/N of 6.70 below the 7.1
+    white-noise threshold. T5 catalog adjudication and pixel vetting decide
+    that; none of these are candidates, and the claim ceiling is unchanged.
+
+    Full suite: **278 passed**. Raw evidence:
+    `results/p2_gates/dip_registry_smallstar_3128.json`,
+    `artifact_epochs_smallstar.json`,
+    `artifact_gate_smallstar_{historical,derived}.json`.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to
