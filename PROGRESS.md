@@ -849,6 +849,77 @@ record was written; `origin/main` and the research branch are synchronized at
     (34 per-target cross-mission reports plus summary). No production
     behaviour changed.
 
+27. **Edge trend-model bias is measured directly for the first time, and it is
+    ~89% of the edge error at every offset — which is why no support weighting
+    could ever have worked.** `P2_EDGE_DIAGNOSTIC.md` required that any next
+    edge design "measure or avoid trend-model bias itself". The diagnosis it
+    recorded was inferred from downstream survivor counts, and correction 24
+    later showed that criterion barely resolves anything. The quantity itself
+    had never been measured.
+
+    New instrument (`exohunt/edge_bias.py`): fit the trend over a full
+    contiguous segment, truncate so a chosen cadence sits `k` samples from a
+    synthetic segment start, refit with identical settings, and difference the
+    two trends at that cadence. Paired per cadence of a single star, so flux,
+    noise realization and stellar variability cancel exactly — correction 24's
+    lesson applied to the estimator instead of the survivors. A **white null**
+    (residuals permuted, constant true trend) supplies the pure-variance term,
+    which is exactly what an uncertainty inflation `1/f**alpha` can price.
+
+    Measured on 120 cached SPOC Sector 100 stars, 24 truncations each, 0
+    failures, 1,127 s, strictly offline. Only the **37 stars with
+    point-to-point scatter at or below 10,000 ppm** are interpretable; the
+    cache's median star is at 38,243 ppm, where every edge error is variance.
+    Median across those 37:
+
+    | estimator | edge excess bias | obs/white at edge | obs/white at 0.88 support | floor |
+    |---|---:|---:|---:|---:|
+    | Savitzky-Golay (ships, 2.0 d window) | 458.3 ppm | 3.11 | 3.33 | 30.4 ppm |
+    | biweight (candidate, 1.0 d window) | 549.1 ppm | 2.99 | 3.16 | **0.0 ppm** |
+
+    **`observed / white null` is ~3 across the whole half-window**, a factor 9
+    in error power: the variance term is ~11% of the edge error and ~89% is
+    trend structure the estimator mis-extrapolates. The ratio is roughly *flat
+    in support fraction*, so the error never becomes variance-like as support
+    improves and no exponent can make a variance model track it. Correction
+    10's result that no `(window, floor, alpha)` combination works is exactly
+    what a flat ratio of 3 predicts. Separately, an inflated error bar cannot
+    remove a *coherent* displacement: neighbouring edge cadences share most of
+    their window, so their biases correlate and survive the averaging BLS does.
+
+    **The guard width now has a number, and it is depth-dependent.** Smallest
+    guard holding excess bias within a tolerance (median across stars):
+    Savitzky-Golay needs **626 cadences at 100 ppm** and **0 at 500 ppm**;
+    biweight needs 297 and 32. Since the small-star survivors ran 2,320–49,657
+    ppm deep, holding §2.3's 5% depth-bias budget for a 2,000 ppm transit means
+    a 100 ppm tolerance — **626 of the production guard's 720 cadences**. So for
+    shallow transits the existing guard is approximately right and its 33%
+    cadence cost is largely earned, which reverses MASTER_PLAN §2.2's framing of
+    that 33% as recoverable. What is recoverable depends on the shallowest depth
+    a lane intends to claim.
+
+    **The shipping estimator is not local.** Biweight returns a 0.0 ppm floor
+    with 100% exact zeros. Savitzky-Golay returns exactly zero in only 8.3% of
+    truncations, because lightkurve's 3-sigma clip is computed over the whole
+    series and shortening it can reclassify a distant sample;
+    `scipy.signal.savgol_filter` itself is exactly local. The leakage is small
+    on quiet stars (30.4 ppm, a fifteenth of the edge bias) but non-zero, so
+    removing a segment's edge half-window does not fully remove that boundary's
+    influence.
+
+    Two defects were found and fixed while building the instrument, both of
+    which would have produced confident wrong numbers. The first null preserved
+    the fitted trend, so it would have cancelled the bias it was meant to
+    isolate. And passing `break_tolerance = series length` to lightkurve to stop
+    it re-splitting a contiguous segment also trips its *minimum segment length*
+    rule, replacing the whole trend with the segment median — visible as an
+    identical 10,711 ppm error at every offset, including offsets whose true
+    error is zero. Both are pinned by regression tests.
+
+    Full suite: **292 passed** (279 + 13). No production behaviour changed.
+    See `P2_EDGE_BIAS.md`; raw evidence
+    `results/p2_gates/edge_trend_bias_120.json`.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to

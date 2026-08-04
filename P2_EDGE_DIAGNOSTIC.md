@@ -92,3 +92,10 @@ The next edge-recovery design must measure or avoid trend-model bias itself
 on agreement across genuinely independent reductions). Until such a design is
 approved and passes the locked gates, the production half-window guard remains
 the honest choice.
+
+**Followed up 2026-08-04 — see `P2_EDGE_BIAS.md`.** That bias is now measured
+directly rather than inferred from survivor counts: it is roughly 89% of the
+edge error at every offset, and the ratio to a pure-variance null is flat in
+support fraction, which is why no `(window, floor, alpha)` combination could
+have worked. The measurement also gives the guard width a number for the first
+time, and it turns out to depend on the shallowest depth being claimed.
