@@ -2,6 +2,8 @@ import json
 import os
 from pathlib import Path
 
+import pytest
+
 from exohunt.retention import (
     directory_size_bytes,
     prune_fits_cache,
@@ -36,6 +38,46 @@ def test_prune_fits_cache_deletes_oldest_and_preserves_other_files(tmp_path: Pat
     assert not files[1].exists()
     assert files[2].exists()
     assert note.exists()
+
+
+def test_prune_fits_cache_protects_recently_written_files(tmp_path: Path) -> None:
+    """A campaign prunes while downloads are in flight; those must survive.
+
+    Without this the pipeline had to drain to quiescence before it could prune,
+    which emptied its read-ahead buffer on a fixed cycle.
+    """
+
+    import time as clock
+
+    cache = tmp_path / "data" / "lightkurve"
+    cache.mkdir(parents=True)
+    stale = cache / "old.fits"
+    stale.write_bytes(b"x" * 10)
+    os.utime(stale, (100, 100))
+    in_flight = cache / "downloading-now.fits"
+    in_flight.write_bytes(b"y" * 10)
+    now = clock.time()
+    os.utime(in_flight, (now, now))
+
+    # Both are over budget, but only the stale one may be taken.
+    report = prune_fits_cache(cache, max_bytes=0, min_age_seconds=300.0)
+    assert report["files_deleted"] == 1
+    assert report["files_protected"] == 1
+    assert report["bytes_protected"] == 10
+    assert not stale.exists()
+    assert in_flight.exists()
+    # Protected bytes still count as present, so the caller can see the ceiling
+    # was not reached rather than believing the cache is empty.
+    assert report["bytes_before"] == 20
+    assert report["bytes_after"] == 10
+
+    # With no protection window the emergency path can still take everything.
+    emergency = prune_fits_cache(cache, max_bytes=0)
+    assert emergency["files_deleted"] == 1
+    assert not in_flight.exists()
+
+    with pytest.raises(ValueError, match="min_age_seconds"):
+        prune_fits_cache(cache, max_bytes=0, min_age_seconds=-1.0)
 
 
 def test_directory_size_bytes_can_measure_workspace_root(tmp_path: Path) -> None:

@@ -44,6 +44,17 @@ from .screening import _classify_screening_result, _sensitivity_depth_at_period
 # campaign is indistinguishable from no campaign at all.
 COORDINATOR_LEASE_NAME = "coordinator"
 
+# Upper bound on targets staged in memory at once. Each holds one sector's
+# time and flux arrays, so the ceiling is about a hundred megabytes rather than
+# anything that competes with the search itself.
+MAX_PREFETCH_TARGETS = 256
+
+# A cache prune runs while downloads are in flight, so it must not delete a
+# file a download is still writing. Files touched inside this window are never
+# pruned on the normal path; a download that takes longer than this is already
+# a failure by any other measure.
+IN_FLIGHT_CACHE_PROTECTION_SECONDS = 900.0
+
 
 class _CoordinatorHeartbeat:
     """Publish campaign liveness to the ledger, or stay silent if it cannot.
@@ -265,12 +276,23 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
     if workers > 8:
         raise ValueError("At most 8 analysis workers are supported.")
     prefetch_arg = getattr(args, "prefetch", None)
+    # `prefetch` bounds everything staged in memory at once -- downloads in
+    # flight, downloaded-and-waiting, and analyses running -- so the read-ahead
+    # buffer actually sitting in front of the analysers is `prefetch - workers`.
+    # The old default of `workers * 2` therefore bought a buffer only as deep as
+    # the worker count, which empties as fast as the analysers can drain it.
+    # A staged target holds two float64 arrays of one sector's cadences, roughly
+    # 300 KB, so a much deeper queue costs tens of megabytes and is the cheapest
+    # part of this pipeline.
     prefetch = max(
         workers,
-        int(prefetch_arg) if prefetch_arg is not None else workers * 2,
+        int(prefetch_arg) if prefetch_arg is not None else workers * 6,
     )
-    if prefetch > 64:
-        raise ValueError("At most 64 targets may be staged for download-ahead.")
+    if prefetch > MAX_PREFETCH_TARGETS:
+        raise ValueError(
+            f"At most {MAX_PREFETCH_TARGETS} targets may be staged for "
+            "download-ahead."
+        )
     download_workers_arg = getattr(args, "download_workers", None)
     download_workers = (
         int(download_workers_arg)
@@ -394,7 +416,11 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
                 if workspace_max_bytes is not None
                 else None
             )
-            report = prune_fits_cache(cache_dir, max_bytes=cache_max_bytes)
+            report = prune_fits_cache(
+                cache_dir,
+                max_bytes=cache_max_bytes,
+                min_age_seconds=IN_FLIGHT_CACHE_PROTECTION_SECONDS,
+            )
             effective_cache_max = cache_max_bytes
             if workspace_max_bytes is not None:
                 workspace_after_initial = max(
@@ -420,6 +446,7 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
                     second_report = prune_fits_cache(
                         cache_dir,
                         max_bytes=effective_cache_max,
+                        min_age_seconds=IN_FLIGHT_CACHE_PROTECTION_SECONDS,
                     )
                     report["files_deleted"] = int(report["files_deleted"]) + int(
                         second_report["files_deleted"]
@@ -439,6 +466,10 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
                 and workspace_after is not None
                 and workspace_after > workspace_max_bytes
             ):
+                # Deliberately unprotected: this is the last valve before the
+                # workspace cap is breached, so disk safety outranks losing an
+                # in-flight download, which the campaign records as one failed
+                # target rather than a corrupted run.
                 emergency_report = prune_fits_cache(cache_dir, max_bytes=0)
                 report["files_deleted"] = int(report["files_deleted"]) + int(
                     emergency_report["files_deleted"]
@@ -602,8 +633,13 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
         )
 
     def submit_downloads(executor: ThreadPoolExecutor) -> None:
-        if cache_prune_due:
-            return
+        # A pending cache prune deliberately does *not* stop new downloads.
+        # It used to: the flag was set every ten completions and this returned
+        # early until the whole pipeline had drained to zero in-flight work, so
+        # the read-ahead buffer collapsed to empty every ten targets and the
+        # analysers then waited on a cold download queue. `roll_cache` now
+        # protects recently written files instead, which makes it safe to prune
+        # while downloads are in flight.
         staged = (
             len(download_futures)
             + len(downloaded_waiting)
@@ -672,17 +708,17 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             or downloaded_waiting
             or analysis_futures
         ):
+            if cache_prune_due:
+                # Runs inline while both executors keep working; the prune
+                # protects in-flight writes by age rather than by quiescence.
+                roll_cache()
+                completed_since_prune = 0
+                cache_prune_due = False
             submit_analyses(analysis_executor)
             submit_downloads(download_executor)
             refresh_runtime()
             active_futures = set(download_futures) | set(analysis_futures)
             if not active_futures:
-                if cache_prune_due:
-                    roll_cache()
-                    completed_since_prune = 0
-                    cache_prune_due = False
-                    submit_downloads(download_executor)
-                    continue
                 raise RuntimeError("Parallel batch scheduler stalled without active work.")
             done, _ = wait(active_futures, return_when=FIRST_COMPLETED)
             for future in done:
@@ -997,7 +1033,7 @@ def _campaign_settings(args: argparse.Namespace) -> dict[str, object]:
         else min(2, workers)
     )
     prefetch = getattr(args, "prefetch", None)
-    prefetch = max(workers, int(prefetch) if prefetch is not None else workers * 2)
+    prefetch = max(workers, int(prefetch) if prefetch is not None else workers * 6)
     return {
         **cli_module._scientific_settings(args),
         "execution": {

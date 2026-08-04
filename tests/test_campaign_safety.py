@@ -315,6 +315,128 @@ def test_performance_snapshot_reports_average_recent_rate_and_eta() -> None:
     assert performance["eta_hours"] == pytest.approx(3.33, abs=0.01)
 
 
+def test_cache_prune_does_not_drain_the_download_pipeline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A pending prune must not empty the read-ahead buffer.
+
+    The prune flag is raised every ten completions. It used to suppress every
+    new download until the pipeline had drained to zero in-flight work, so with
+    more than ten targets the buffer in front of the analysers collapsed to
+    empty on a fixed cycle and they then waited on a cold queue. This asserts
+    the observable consequence: downloads keep being submitted across the prune
+    boundary, and at no point after start-up does the pipeline go idle.
+    """
+
+    target_count = 40
+    target_path = tmp_path / "targets.csv"
+    target_path.write_text(
+        "target,tic_id,sectors\n"
+        + "".join(f"TIC {tic},{tic},105\n" for tic in range(1, target_count + 1)),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "campaign"
+    activity_lock = threading.Lock()
+    active_downloads = 0
+    completed = 0
+    prune_calls = 0
+    # Sampled whenever a prune runs: how much work was in flight at that moment.
+    in_flight_at_prune: list[int] = []
+
+    def fake_download(spec, args):
+        nonlocal active_downloads
+        with activity_lock:
+            active_downloads += 1
+        try:
+            time.sleep(0.01)
+            values = np.arange(20, dtype=float)
+            return values, np.ones_like(values), {"tic_id": spec["tic_id"]}
+        finally:
+            with activity_lock:
+                active_downloads -= 1
+
+    def fake_analysis(spec, args, downloaded, destination):
+        nonlocal completed
+        time.sleep(0.02)
+        with activity_lock:
+            completed += 1
+        return {
+            "target": spec["target"],
+            "tic_id": spec["tic_id"],
+            "sectors": "105",
+            "run_state": "completed",
+            "status": "rejected",
+            "screening_class": "no_transit_detected",
+            "followup_priority": 5,
+            "followup_reasons": "deprioritize for this TESS window",
+            "planet_free": False,
+            "period_days": 3.0,
+            "depth_ppm": 500.0,
+            "depth_snr": 4.0,
+            "observed_transits": 5,
+            "transit_time": 1.0,
+            "duration_hours": 2.0,
+            "rejection_reasons": "white-noise BLS depth S/N is below 7.1",
+        }
+
+    def fake_prune(*args, **kwargs):
+        nonlocal prune_calls
+        with activity_lock:
+            prune_calls += 1
+            in_flight_at_prune.append(active_downloads)
+        return {
+            "files_deleted": 0,
+            "bytes_deleted": 0,
+            "bytes_after": 0,
+            "files_protected": 0,
+            "bytes_protected": 0,
+        }
+
+    monkeypatch.setattr(cli_module, "_download_batch_target", fake_download)
+    monkeypatch.setattr(
+        cli_module, "_analyze_downloaded_batch_target", fake_analysis
+    )
+    monkeypatch.setattr(cli_module, "prune_fits_cache", fake_prune)
+    monkeypatch.setattr(
+        cli_module,
+        "record_campaign",
+        lambda *args, **kwargs: (None, {"campaign_runs_logged": 1}),
+    )
+    monkeypatch.chdir(tmp_path)
+
+    args = argparse.Namespace(
+        targets=str(target_path),
+        output_dir=str(output_dir),
+        max_targets=None,
+        force=False,
+        author="TESScut",
+        cadence_seconds=158.0,
+        min_period=0.5,
+        max_period=13.0,
+        mask_width=1.5,
+        allow_no_known=True,
+        cache_max_gb=10.0,
+        retain_rejected_plots=True,
+        workers=4,
+        download_workers=4,
+        prefetch=24,
+    )
+    assert _run_batch_hunt(args) == 0
+
+    progress = json.loads(
+        (output_dir / "batch_progress.json").read_text(encoding="utf-8")
+    )
+    assert progress["completed_targets"] == target_count
+    # Every ten completions raises the flag, so the run must have pruned
+    # several times rather than once at the end.
+    assert prune_calls >= 3
+    # The point of the change: at least one prune happened while downloads were
+    # still in flight. Under the drain-first behaviour this list would be all
+    # zeroes, because quiescence was a precondition for pruning.
+    assert max(in_flight_at_prune) > 0
+
+
 def test_parallel_batch_uses_bounded_download_ahead_and_ordered_checkpoint(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 from typing import Iterable
 
@@ -35,15 +36,26 @@ def prune_fits_cache(
     *,
     max_bytes: int,
     dry_run: bool = False,
+    min_age_seconds: float = 0.0,
 ) -> dict[str, object]:
     """Delete the oldest re-downloadable astronomy files under ``max_bytes``.
 
     TESScut retains the downloaded ZIP as well as the extracted FITS product,
     so both formats must count toward the same rolling cache ceiling.
+
+    ``min_age_seconds`` protects files modified more recently than that from
+    deletion. It exists so a campaign can prune *while downloads are still in
+    flight* instead of draining its pipeline first: an in-flight download is
+    writing a file whose mtime is seconds old, and deleting it underneath the
+    writer would fail the target. Protected bytes still count toward
+    ``bytes_before``, so the caller can see when the ceiling could not be met
+    because too much of the cache was too new.
     """
 
     if max_bytes < 0:
         raise ValueError("max_bytes must be non-negative")
+    if min_age_seconds < 0:
+        raise ValueError("min_age_seconds must be non-negative")
     root = _validated_root(cache_dir, label="cache")
     if not root.exists():
         return {
@@ -55,9 +67,14 @@ def prune_fits_cache(
             "files_considered": 0,
             "files_deleted": 0,
             "bytes_deleted": 0,
+            "files_protected": 0,
+            "bytes_protected": 0,
         }
 
+    protect_after = time.time() - min_age_seconds if min_age_seconds > 0 else None
     files: list[tuple[float, str, Path, int]] = []
+    protected_files = 0
+    protected_bytes = 0
     for candidate in root.rglob("*"):
         if not candidate.is_file() or candidate.suffix.casefold() not in {
             ".fits",
@@ -69,9 +86,13 @@ def prune_fits_cache(
         if not _within(resolved, root):
             continue
         stat = resolved.stat()
+        if protect_after is not None and stat.st_mtime > protect_after:
+            protected_files += 1
+            protected_bytes += stat.st_size
+            continue
         files.append((stat.st_mtime, str(resolved).casefold(), resolved, stat.st_size))
 
-    bytes_before = sum(item[3] for item in files)
+    bytes_before = sum(item[3] for item in files) + protected_bytes
     bytes_to_remove = max(0, bytes_before - max_bytes)
     selected: list[tuple[Path, int]] = []
     selected_bytes = 0
@@ -116,6 +137,8 @@ def prune_fits_cache(
         "files_considered": len(files),
         "files_deleted": deleted_files,
         "bytes_deleted": deleted_bytes,
+        "files_protected": protected_files,
+        "bytes_protected": protected_bytes,
         "extensions": [".fit", ".fits", ".zip"],
     }
 
