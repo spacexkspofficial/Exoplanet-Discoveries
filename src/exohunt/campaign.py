@@ -55,6 +55,12 @@ MAX_PREFETCH_TARGETS = 256
 # a failure by any other measure.
 IN_FLIGHT_CACHE_PROTECTION_SECONDS = 900.0
 
+# A prune walks the cache and sizes the whole workspace, so it is far too
+# expensive to run once per ten completions on a large workspace. The count
+# still triggers it; this floor keeps the I/O from competing with the
+# downloads it is meant to make room for.
+MINIMUM_PRUNE_INTERVAL_SECONDS = 120.0
+
 
 class _CoordinatorHeartbeat:
     """Publish campaign liveness to the ledger, or stay silent if it cannot.
@@ -387,11 +393,17 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
     }
     last_progress_publish = 0.0
 
-    def roll_cache() -> None:
+    def roll_cache(results_snapshot: list[dict[str, object]] | None = None) -> None:
+        # Runs on a maintenance thread during a campaign, so it must never read
+        # results_by_index directly -- the scheduler mutates it concurrently and
+        # iterating it here would raise "dictionary changed size during
+        # iteration". The caller passes a snapshot taken on its own thread.
+        if results_snapshot is None:
+            results_snapshot = list(results_by_index.values())
         if not getattr(args, "retain_rejected_plots", False):
             try:
                 plot_report = prune_rejected_plots(
-                    results_by_index.values(),
+                    results_snapshot,
                     results_root=output_dir,
                     workspace_root=workspace_root,
                 )
@@ -691,6 +703,9 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             )
         )
 
+    maintenance_future: Future | None = None
+    last_prune_finished = time.monotonic()
+
     with (
         ThreadPoolExecutor(
             max_workers=download_workers,
@@ -700,6 +715,10 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             max_workers=workers,
             thread_name_prefix="exohunt-analysis",
         ) as analysis_executor,
+        ThreadPoolExecutor(
+            max_workers=1,
+            thread_name_prefix="exohunt-maintenance",
+        ) as maintenance_executor,
     ):
         submit_downloads(download_executor)
         while (
@@ -708,10 +727,27 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             or downloaded_waiting
             or analysis_futures
         ):
-            if cache_prune_due:
-                # Runs inline while both executors keep working; the prune
-                # protects in-flight writes by age rather than by quiescence.
-                roll_cache()
+            # A finished prune reports here. Storage failures are fatal by
+            # design, so the exception has to surface on this thread rather
+            # than being swallowed by the executor.
+            if maintenance_future is not None and maintenance_future.done():
+                maintenance_future.result()
+                maintenance_future = None
+                last_prune_finished = time.monotonic()
+            if (
+                cache_prune_due
+                and maintenance_future is None
+                and time.monotonic() - last_prune_finished
+                >= MINIMUM_PRUNE_INTERVAL_SECONDS
+            ):
+                # Off the scheduler thread. roll_cache walks the whole cache and
+                # sizes the entire workspace twice; measured at 68,803 workspace
+                # files that is about 15 s, and running it here stalled every
+                # submission for that long once per ten completions. It also got
+                # slower as the workspace grew, so throughput decayed over a run.
+                maintenance_future = maintenance_executor.submit(
+                    roll_cache, list(results_by_index.values())
+                )
                 completed_since_prune = 0
                 cache_prune_due = False
             submit_analyses(analysis_executor)
@@ -719,6 +755,13 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             refresh_runtime()
             active_futures = set(download_futures) | set(analysis_futures)
             if not active_futures:
+                if maintenance_future is not None:
+                    # Nothing left to schedule until the prune frees headroom.
+                    maintenance_future.result()
+                    maintenance_future = None
+                    last_prune_finished = time.monotonic()
+                    submit_downloads(download_executor)
+                    continue
                 raise RuntimeError("Parallel batch scheduler stalled without active work.")
             done, _ = wait(active_futures, return_when=FIRST_COMPLETED)
             for future in done:
@@ -735,10 +778,12 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
                     except Exception as exc:
                         result_row = _batch_error_row(spec, exc)
                     record_result(spec, result_row)
-            if cache_prune_due and not download_futures:
-                roll_cache()
-                completed_since_prune = 0
-                cache_prune_due = False
+
+        # Settle any prune still running so a storage failure raises here
+        # rather than being swallowed by the executor shutdown below.
+        if maintenance_future is not None:
+            maintenance_future.result()
+            maintenance_future = None
 
     roll_cache()
     results = ordered_results()

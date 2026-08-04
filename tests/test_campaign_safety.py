@@ -327,7 +327,14 @@ def test_cache_prune_does_not_drain_the_download_pipeline(
     empty on a fixed cycle and they then waited on a cold queue. This asserts
     the observable consequence: downloads keep being submitted across the prune
     boundary, and at no point after start-up does the pipeline go idle.
+
+    The prune interval is forced to zero here because a real run throttles
+    prunes to one every two minutes: a prune walks the whole cache and sizes
+    the entire workspace, which is far too expensive to run once per ten
+    completions on a workspace of any size.
     """
+
+    monkeypatch.setattr(campaign_module, "MINIMUM_PRUNE_INTERVAL_SECONDS", 0.0)
 
     target_count = 40
     target_path = tmp_path / "targets.csv"
