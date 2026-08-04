@@ -90,6 +90,8 @@ uniform vec2 uSkyPixelsPerDegree;
 out float vTile;
 
 const float PI = 3.141592653589793;
+// Keep in step with GALACTIC_FLATTENING in App.tsx.
+const float GALACTIC_FLATTENING = 0.74;
 
 vec2 projectGalactic() {
   float cosY = cos(uRotation.y);
@@ -104,9 +106,15 @@ vec2 projectGalactic() {
   float z2 = aPosition.y * sinX + z1 * cosX;
 
   float perspective = 1.0 / (1.0 + (z2 / uMaxDistance) * 0.22);
+  // The 0.74 vertical flattening must match projectGalacticPoint in App.tsx.
+  // The canvas renderer applies it to the grid, the rings, the sector
+  // footprint, the selection markers and the click hit-test; without it here
+  // the GPU drew the stars at a different vertical scale from everything
+  // meant to line up with them, so stars grew steadily less clickable away
+  // from the horizontal axis and sector outlines never traced the field.
   return uCentre + vec2(
     (x1 / uMaxDistance) * uMapRadius * perspective,
-    (y1 / uMaxDistance) * uMapRadius * perspective
+    (y1 / uMaxDistance) * uMapRadius * perspective * GALACTIC_FLATTENING
   );
 }
 

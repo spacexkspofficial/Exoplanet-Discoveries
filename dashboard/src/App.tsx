@@ -247,6 +247,12 @@ const TESS_SECTOR_GEOMETRY = tessSectorGeometry as unknown as {
   sectors: Record<string, TessSectorFootprint>;
 };
 
+// Vertical squash that gives the galactic view its disc-like look. The GPU
+// star layer must apply exactly the same factor -- see GALACTIC_FLATTENING in
+// starfield.ts. When the two disagreed, the stars were drawn at one vertical
+// scale while the hit-test, grid and sector footprints used another.
+const GALACTIC_FLATTENING = 0.74;
+
 const UNKNOWN_STATUS_HELP =
   "This classification was produced by a newer exporter than the loaded dashboard bundle. Rebuild the dashboard to see its full description.";
 
@@ -1059,7 +1065,9 @@ function StarMap({
       const perspective = 1 / (1 + (z2 / maxDistance) * 0.22);
       return {
         x: cx + (x1 / maxDistance) * mapRadius * perspective,
-        y: cy + (y1 / maxDistance) * mapRadius * perspective * 0.74,
+        y:
+          cy +
+          (y1 / maxDistance) * mapRadius * perspective * GALACTIC_FLATTENING,
         depth: z2,
       };
     };
@@ -1493,9 +1501,20 @@ function StarMap({
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    return [...pointsRef.current]
-      .reverse()
-      .find((point) => Math.hypot(point.x - x, point.y - y) <= point.r);
+    // Pick the *nearest* star within its hit radius, not merely the first one
+    // found. At survey density the 8 px hit discs overlap several deep, so
+    // taking the first match selected whichever star happened to sit latest in
+    // the array rather than the one under the cursor.
+    let best: { star: Star; x: number; y: number; r: number } | undefined;
+    let bestDistance = Infinity;
+    for (const point of pointsRef.current) {
+      const distance = Math.hypot(point.x - x, point.y - y);
+      if (distance <= point.r && distance < bestDistance) {
+        best = point;
+        bestDistance = distance;
+      }
+    }
+    return best;
   };
 
   const changeZoom = (factor: number, anchor?: { x: number; y: number }) => {
