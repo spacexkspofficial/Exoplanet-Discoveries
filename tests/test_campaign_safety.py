@@ -444,6 +444,112 @@ def test_cache_prune_does_not_drain_the_download_pipeline(
     assert max(in_flight_at_prune) > 0
 
 
+def test_buffered_targets_report_staged_rather_than_downloading(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A downloaded target waiting for a worker must not read as downloading.
+
+    `_download_batch_target` registers a target as "downloading" and only
+    clears it on failure, so on success the stage persisted while the target
+    sat in the read-ahead buffer. At a buffer depth of forty that left dozens
+    of targets apparently downloading for many minutes, which reads as a
+    download bottleneck when the downloads have in fact already finished.
+    """
+
+    from exohunt.progress import STAGES, TRACKER
+
+    target_count = 12
+    target_path = tmp_path / "targets.csv"
+    target_path.write_text(
+        "target,tic_id,sectors\n"
+        + "".join(f"TIC {tic},{tic},105\n" for tic in range(1, target_count + 1)),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "campaign"
+    seen_stages: set[str] = set()
+
+    def fake_download(spec, args):
+        TRACKER.begin(
+            int(spec["tic_id"]), target=str(spec["target"]), stage="downloading"
+        )
+        values = np.arange(20, dtype=float)
+        return values, np.ones_like(values), {"tic_id": spec["tic_id"]}
+
+    def fake_analysis(spec, args, downloaded, destination):
+        # Sample what the panel would show while this one is being analysed.
+        for row in TRACKER.snapshot():
+            seen_stages.add(str(row["stage"]))
+        time.sleep(0.03)
+        TRACKER.finish(int(spec["tic_id"]))
+        return {
+            "target": spec["target"],
+            "tic_id": spec["tic_id"],
+            "sectors": "105",
+            "run_state": "completed",
+            "status": "rejected",
+            "screening_class": "no_transit_detected",
+            "followup_priority": 5,
+            "followup_reasons": "deprioritize for this TESS window",
+            "planet_free": False,
+            "period_days": 3.0,
+            "depth_ppm": 500.0,
+            "depth_snr": 4.0,
+            "observed_transits": 5,
+            "transit_time": 1.0,
+            "duration_hours": 2.0,
+            "rejection_reasons": "white-noise BLS depth S/N is below 7.1",
+        }
+
+    monkeypatch.setattr(cli_module, "_download_batch_target", fake_download)
+    monkeypatch.setattr(
+        cli_module, "_analyze_downloaded_batch_target", fake_analysis
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "prune_fits_cache",
+        lambda *args, **kwargs: {
+            "files_deleted": 0,
+            "bytes_deleted": 0,
+            "bytes_after": 0,
+            "files_protected": 0,
+            "bytes_protected": 0,
+        },
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "record_campaign",
+        lambda *args, **kwargs: (None, {"campaign_runs_logged": 1}),
+    )
+    monkeypatch.chdir(tmp_path)
+    TRACKER.clear()
+
+    args = argparse.Namespace(
+        targets=str(target_path),
+        output_dir=str(output_dir),
+        max_targets=None,
+        force=False,
+        author="TESScut",
+        cadence_seconds=158.0,
+        min_period=0.5,
+        max_period=13.0,
+        mask_width=1.5,
+        allow_no_known=True,
+        cache_max_gb=10.0,
+        retain_rejected_plots=True,
+        workers=1,
+        download_workers=2,
+        prefetch=12,
+    )
+    assert _run_batch_hunt(args) == 0
+
+    assert "staged" in STAGES
+    # With one analysis worker and a prefetch of twelve, targets certainly sat
+    # in the buffer; every one of them must have reported "staged".
+    assert "staged" in seen_stages
+    TRACKER.clear()
+
+
 def test_parallel_batch_uses_bounded_download_ahead_and_ordered_checkpoint(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

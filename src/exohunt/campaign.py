@@ -623,15 +623,43 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
 
     download_futures: dict[Future, dict[str, object]] = {}
     analysis_futures: dict[Future, dict[str, object]] = {}
+    # Service times, so "are we download-bound?" is answerable from measurement
+    # rather than inferred from queue depths. Queue depth alone is ambiguous:
+    # a full buffer can mean downloads are fast or that the prefetch ceiling is
+    # holding them back.
+    future_started: dict[Future, float] = {}
+    download_seconds: deque[float] = deque(maxlen=200)
+    analysis_seconds: deque[float] = deque(maxlen=200)
     downloaded_waiting: deque[
         tuple[dict[str, object], tuple[np.ndarray, np.ndarray, dict[str, object]]]
     ] = deque()
     completed_since_prune = 0
     cache_prune_due = False
 
+    def _median(values: deque[float]) -> float | None:
+        if not values:
+            return None
+        return round(float(np.median(np.fromiter(values, dtype=float))), 2)
+
     def refresh_runtime() -> None:
+        # Per-target service times against worker counts say which side is the
+        # limit: the throughput a stage can sustain alone is workers/median.
+        download_median = _median(download_seconds)
+        analysis_median = _median(analysis_seconds)
         runtime_state.update(
             {
+                "download_seconds_median": download_median,
+                "analysis_seconds_median": analysis_median,
+                "download_capacity_per_hour": (
+                    round(3600.0 * download_workers / download_median)
+                    if download_median
+                    else None
+                ),
+                "analysis_capacity_per_hour": (
+                    round(3600.0 * workers / analysis_median)
+                    if analysis_median
+                    else None
+                ),
                 "downloads_in_flight": len(download_futures),
                 "analyses_in_flight": len(analysis_futures),
                 "downloaded_waiting": len(downloaded_waiting),
@@ -665,6 +693,7 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             spec = pending_specs.popleft()
             future = executor.submit(_download_batch_target, spec, args)
             download_futures[future] = spec
+            future_started[future] = time.monotonic()
             staged += 1
 
     def submit_analyses(executor: ThreadPoolExecutor) -> None:
@@ -678,6 +707,7 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
                 output_dir,
             )
             analysis_futures[future] = spec
+            future_started[future] = time.monotonic()
 
     def record_result(spec: dict[str, object], result_row: dict[str, object]) -> None:
         nonlocal completed_since_prune, cache_prune_due
@@ -767,12 +797,21 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             for future in done:
                 if future in download_futures:
                     spec = download_futures.pop(future)
+                    started = future_started.pop(future, None)
+                    if started is not None:
+                        download_seconds.append(time.monotonic() - started)
                     try:
                         downloaded_waiting.append((spec, future.result()))
                     except Exception as exc:
                         record_result(spec, _batch_error_row(spec, exc))
+                    else:
+                        # It is downloaded and queued, not still downloading.
+                        TRACKER.stage(int(spec["tic_id"]), "staged")
                 else:
                     spec = analysis_futures.pop(future)
+                    started = future_started.pop(future, None)
+                    if started is not None:
+                        analysis_seconds.append(time.monotonic() - started)
                     try:
                         result_row = future.result()
                     except Exception as exc:

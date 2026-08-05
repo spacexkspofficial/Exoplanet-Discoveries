@@ -60,6 +60,12 @@ def _directory_bytes(path: object) -> int | None:
 STAGES: tuple[str, ...] = (
     "queued",
     "downloading",
+    # Downloaded and held in the read-ahead buffer, waiting for a free analysis
+    # worker. Without this the panel left every buffered target reading
+    # "downloading" until an analyser picked it up, which at a buffer depth of
+    # forty meant dozens of targets appearing to download for many minutes and
+    # made the pipeline look download-bound when it was not.
+    "staged",
     "preparing",
     "masking",
     "searching",
@@ -72,6 +78,7 @@ STAGES: tuple[str, ...] = (
 STAGE_MODULES: dict[str, str] = {
     "queued": "campaign.py",
     "downloading": "photometry.py",
+    "staged": "campaign.py",
     "preparing": "detrending.py",
     "masking": "catalogs.py",
     "searching": "search.py",
