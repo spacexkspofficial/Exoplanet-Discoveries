@@ -977,6 +977,15 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
                     started = future_started.pop(future, None)
                     if started is not None:
                         analysis_seconds.append(time.monotonic() - started)
+                    # Clear the in-flight entry here, in the coordinator.
+                    # `_analyze_downloaded_batch_target` also calls finish, but
+                    # under a process pool that runs in the child against the
+                    # child's own registry, so the coordinator's entry survived
+                    # forever: the panel accumulated every target as
+                    # permanently "searching" and the registry grew without
+                    # bound. Clearing twice is harmless -- finish() ignores a
+                    # target it does not hold.
+                    TRACKER.finish(int(spec["tic_id"]))
                     try:
                         result_row = future.result()
                     except Exception as exc:

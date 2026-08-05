@@ -560,6 +560,108 @@ def test_buffered_targets_report_staged_rather_than_downloading(
     TRACKER.clear()
 
 
+def test_completed_targets_leave_the_in_flight_panel(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The coordinator must clear its own in-flight entries.
+
+    `_analyze_downloaded_batch_target` calls TRACKER.finish, but under a process
+    pool that runs in the child against the child's registry. The coordinator's
+    entry then survived forever: a 64,000-target run showed 6,283 targets
+    "in flight" against eight analysis workers, every one frozen at SEARCHING
+    with an hour of elapsed time, and the registry grew without bound.
+
+    Simulated here by an analysis that never calls finish, which is exactly
+    what the coordinator observes when the real one runs out of process.
+    """
+
+    from exohunt.progress import TRACKER
+
+    target_count = 12
+    target_path = tmp_path / "targets.csv"
+    target_path.write_text(
+        "target,tic_id,sectors\n"
+        + "".join(f"TIC {tic},{tic},105\n" for tic in range(1, target_count + 1)),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "campaign"
+
+    def fake_download(spec, args):
+        TRACKER.begin(
+            int(spec["tic_id"]), target=str(spec["target"]), stage="downloading"
+        )
+        values = np.arange(20, dtype=float)
+        return values, np.ones_like(values), {"tic_id": spec["tic_id"]}
+
+    def fake_analysis(spec, args, downloaded, destination):
+        # Deliberately does NOT call TRACKER.finish: a child process cannot
+        # reach the coordinator's registry.
+        return {
+            "target": spec["target"],
+            "tic_id": spec["tic_id"],
+            "sectors": "105",
+            "run_state": "completed",
+            "status": "rejected",
+            "screening_class": "no_transit_detected",
+            "followup_priority": 5,
+            "followup_reasons": "deprioritize for this TESS window",
+            "planet_free": False,
+            "period_days": 3.0,
+            "depth_ppm": 500.0,
+            "depth_snr": 4.0,
+            "observed_transits": 5,
+            "transit_time": 1.0,
+            "duration_hours": 2.0,
+            "rejection_reasons": "white-noise BLS depth S/N is below 7.1",
+        }
+
+    monkeypatch.setattr(cli_module, "_download_batch_target", fake_download)
+    monkeypatch.setattr(
+        cli_module, "_analyze_downloaded_batch_target", fake_analysis
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "prune_fits_cache",
+        lambda *args, **kwargs: {
+            "files_deleted": 0, "bytes_deleted": 0, "bytes_after": 0,
+            "files_protected": 0, "bytes_protected": 0,
+        },
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "record_campaign",
+        lambda *args, **kwargs: (None, {"campaign_runs_logged": 1}),
+    )
+    monkeypatch.chdir(tmp_path)
+    TRACKER.clear()
+
+    args = argparse.Namespace(
+        targets=str(target_path),
+        output_dir=str(output_dir),
+        max_targets=None,
+        force=False,
+        author="TESScut",
+        cadence_seconds=158.0,
+        min_period=0.5,
+        max_period=13.0,
+        mask_width=1.5,
+        allow_no_known=True,
+        cache_max_gb=10.0,
+        retain_rejected_plots=True,
+        workers=2,
+        download_workers=2,
+        prefetch=8,
+    )
+    assert _run_batch_hunt(args) == 0
+
+    remaining = TRACKER.snapshot()
+    assert remaining == [], (
+        f"{len(remaining)} targets left in the panel after completion"
+    )
+    TRACKER.clear()
+
+
 def test_parallel_batch_uses_bounded_download_ahead_and_ordered_checkpoint(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
