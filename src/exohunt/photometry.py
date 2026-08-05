@@ -160,6 +160,41 @@ def resolve_light_curve_source(
     }
 
 
+def prepare_search_arrays(
+    time_values: np.ndarray,
+    flux_values: np.ndarray,
+    metadata: dict[str, object],
+):
+    """Run the edge-safe detrend that the download stage would otherwise run.
+
+    Preparation is real CPU work -- a Savitzky-Golay filter over roughly
+    eighteen thousand cadences, plus iterative outlier clipping. Doing it in
+    the campaign's download threads pinned the coordinator process at 150% of
+    one core while eight analysis workers sat at 2% each, starved. Splitting it
+    out lets the workers do it in parallel.
+
+    Takes and returns plain arrays so it can run either side of a process
+    boundary, and adds exactly the metadata keys the flattening step would have
+    contributed, so a report cannot tell which stage produced them.
+    """
+
+    import lightkurve as lk
+
+    # Do NOT coerce dtype. Mission flux arrives as float32, and upcasting to
+    # float64 changes the Savitzky-Golay arithmetic by about 6e-7 in relative
+    # flux -- invisible on its own, but measured across sixteen targets it
+    # moved every fitted depth and flipped one target's period from 5.987 d to
+    # 5.965 d. Preserving the incoming dtype reproduces the in-place result
+    # exactly.
+    curve = lk.LightCurve(time=time_values, flux=flux_values)
+    flattened, detrending = flatten_edge_safe(curve)
+    enriched = dict(metadata)
+    enriched["detrending"] = detrending
+    enriched["cadence_minutes"] = float(detrending["cadence_days"]) * 24 * 60
+    enriched["flatten_window_cadences"] = int(detrending["window_cadences"])
+    return flattened.time.value, flattened.flux.value, enriched
+
+
 def _cached_products(download_dir: Path) -> list[Path]:
     """Light-curve files already present in a target's cache namespace."""
 
@@ -217,7 +252,17 @@ def _download_light_curve(
     cadence_seconds: float | None = 120.0,
     *,
     cache_namespace: str | None = None,
+    flatten: bool = True,
 ):
+    """Fetch one target's photometry, optionally leaving it unprepared.
+
+    ``flatten=False`` returns the normalized-but-undetrended light curve and
+    omits the metadata keys that detrending produces, so a caller can run
+    :func:`prepare_search_arrays` elsewhere -- in a campaign, on an analysis
+    worker rather than on the coordinator. Every other caller keeps the
+    prepared result it has always received.
+    """
+
     lk, cache_dir = _configured_lightkurve()
     # Astroquery's TESScut client names its temporary ZIP with only
     # second-level precision. Concurrent downloads into one directory can
@@ -279,8 +324,6 @@ def _download_light_curve(
                     .normalize()
                     .remove_outliers(sigma_upper=4.0, sigma_lower=20.0)
                 )
-                flattened, detrending = flatten_edge_safe(normalized)
-                cadence_days = float(detrending["cadence_days"])
                 metadata = {
                     "target": target,
                     "tic_id": cached_tic,
@@ -289,11 +332,6 @@ def _download_light_curve(
                     "author": author,
                     "requested_cadence_seconds": requested_cadence_seconds,
                     "downloaded_products": len(collection),
-                    "cadence_minutes": cadence_days * 24 * 60,
-                    "flatten_window_cadences": int(
-                        detrending["window_cadences"]
-                    ),
-                    "detrending": detrending,
                     "requested_author": requested_author,
                     "resolved_cadence_seconds": cadence_seconds,
                     "author_selection": "explicit",
@@ -301,6 +339,24 @@ def _download_light_curve(
                     "authors_considered": [],
                     "served_from_cache": True,
                 }
+                if not flatten:
+                    # The analysis stage checks this rather than inferring from a missing
+                    # detrending block, so a caller that supplies prepared arrays without
+                    # one is never detrended twice.
+                    metadata["requires_preparation"] = True
+                    return (
+                        normalized.time.value,
+                        normalized.flux.value,
+                        metadata,
+                    )
+                flattened, detrending = flatten_edge_safe(normalized)
+                metadata["detrending"] = detrending
+                metadata["cadence_minutes"] = (
+                    float(detrending["cadence_days"]) * 24 * 60
+                )
+                metadata["flatten_window_cadences"] = int(
+                    detrending["window_cadences"]
+                )
                 return flattened.time.value, flattened.flux.value, metadata
 
     if author == "auto":
@@ -372,9 +428,6 @@ def _download_light_curve(
             .normalize()
             .remove_outliers(sigma_upper=4.0, sigma_lower=20.0)
         )
-        flattened, detrending = flatten_edge_safe(normalized)
-        cadence_days = float(detrending["cadence_days"])
-        window = int(detrending["window_cadences"])
         tic_match = re.search(r"\b(\d+)\b", target)
         metadata = {
             "target": target,
@@ -384,9 +437,6 @@ def _download_light_curve(
             "author": author,
             "requested_cadence_seconds": requested_cadence_seconds,
             "downloaded_products": 1,
-            "cadence_minutes": cadence_days * 24 * 60,
-            "flatten_window_cadences": window,
-            "detrending": detrending,
             "tesscut_size_pixels": 11,
             "aperture_pixels": aperture_pixels,
             "background_pixels": background_pixels,
@@ -401,6 +451,18 @@ def _download_light_curve(
             ),
             "authors_considered": (selection or {}).get("considered", []),
         }
+        if not flatten:
+            # The analysis stage checks this rather than inferring from a missing
+            # detrending block, so a caller that supplies prepared arrays without
+            # one is never detrended twice.
+            metadata["requires_preparation"] = True
+            return normalized.time.value, normalized.flux.value, metadata
+        flattened, detrending = flatten_edge_safe(normalized)
+        metadata["detrending"] = detrending
+        metadata["cadence_minutes"] = (
+            float(detrending["cadence_days"]) * 24 * 60
+        )
+        metadata["flatten_window_cadences"] = int(detrending["window_cadences"])
         return flattened.time.value, flattened.flux.value, metadata
 
     kwargs: dict[str, object] = {"mission": "TESS", "author": author}
@@ -427,9 +489,6 @@ def _download_light_curve(
         .normalize()
         .remove_outliers(sigma_upper=4.0, sigma_lower=20.0)
     )
-    flattened, detrending = flatten_edge_safe(normalized)
-    cadence_days = float(detrending["cadence_days"])
-    window = int(detrending["window_cadences"])
     target_name = str(search.table["target_name"][0]).strip()
     tic_id = int(target_name) if target_name.isdigit() else None
     downloaded_sectors = sorted(
@@ -447,13 +506,20 @@ def _download_light_curve(
         "author": author,
         "requested_cadence_seconds": requested_cadence_seconds,
         "downloaded_products": len(collection),
-        "cadence_minutes": cadence_days * 24 * 60,
-        "flatten_window_cadences": window,
-        "detrending": detrending,
         "requested_author": requested_author,
         "resolved_cadence_seconds": cadence_seconds,
         "author_selection": "auto" if selection else "explicit",
         "author_fallback_to_tesscut": bool(selection and selection["fallback"]),
         "authors_considered": (selection or {}).get("considered", []),
     }
+    if not flatten:
+        # The analysis stage checks this rather than inferring from a missing
+        # detrending block, so a caller that supplies prepared arrays without
+        # one is never detrended twice.
+        metadata["requires_preparation"] = True
+        return normalized.time.value, normalized.flux.value, metadata
+    flattened, detrending = flatten_edge_safe(normalized)
+    metadata["detrending"] = detrending
+    metadata["cadence_minutes"] = float(detrending["cadence_days"]) * 24 * 60
+    metadata["flatten_window_cadences"] = int(detrending["window_cadences"])
     return flattened.time.value, flattened.flux.value, metadata

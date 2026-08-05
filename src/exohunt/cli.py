@@ -70,6 +70,7 @@ from .photometry import (
     _download_light_curve,
     _preferred_exposure,
     _thread_safe_lightkurve_download,
+    prepare_search_arrays,
     resolve_light_curve_source,
 )
 from .pixel import difference_image, target_pixel_from_sky_grid

@@ -66,9 +66,21 @@ def cached(monkeypatch, tmp_path):
     return calls
 
 
+class _Stitched:
+    """Minimal stand-in for a stitched light curve: just the arrays."""
+
+    def __init__(self) -> None:
+        values = np.arange(50, dtype=float)
+        self.time = type("V", (), {"value": values})()
+        self.flux = type("V", (), {"value": np.ones(50, dtype=np.float32)})()
+
+
 def _stitchable(monkeypatch):
     monkeypatch.setattr(
-        _Collection, "stitch", lambda self, corrector_func=None: object(), raising=False
+        _Collection,
+        "stitch",
+        lambda self, corrector_func=None: _Stitched(),
+        raising=False,
     )
 
 
@@ -140,6 +152,75 @@ def test_an_unreadable_cache_entry_falls_back(cached, monkeypatch) -> None:
             "TIC 4242", [100], "SPOC", 120.0, cache_namespace="TIC_4242_s100"
         )
     assert cached["searched"] == 1
+
+
+def test_preparation_preserves_the_incoming_flux_dtype() -> None:
+    """Preparation must not upcast float32 mission flux.
+
+    Moving the detrend off the coordinator meant rebuilding a light curve from
+    arrays. Coercing them to float64 on the way changed Savitzky-Golay
+    arithmetic by about 6e-7 in relative flux, which moved every fitted depth
+    across a sixteen-target cohort and flipped one period from 5.987 d to
+    5.965 d. Preserving the dtype reproduces the in-place result exactly.
+    """
+
+    pytest.importorskip("lightkurve")
+    # Long enough that the half-window edge guard leaves a baseline behind.
+    time_values = np.arange(4000, dtype=float) * 0.002
+    flux_values = (
+        1.0 + 0.001 * np.sin(2 * np.pi * time_values / 0.9)
+    ).astype(np.float32)
+
+    import lightkurve as lk
+
+    from exohunt.detrending import flatten_edge_safe
+
+    # What the download stage used to compute, detrending the curve in place.
+    in_place, _ = flatten_edge_safe(
+        lk.LightCurve(time=time_values, flux=flux_values)
+    )
+    expected = np.asarray(in_place.flux.value, dtype=float)
+
+    prepared_time, prepared_flux, metadata = photometry.prepare_search_arrays(
+        time_values, flux_values, {"target": "TIC 1"}
+    )
+    assert np.array_equal(np.asarray(prepared_flux, dtype=float), expected)
+
+    # And the guard has teeth: upcasting first gives a different answer, which
+    # is exactly the bug this pins.
+    _, upcast_flux, _ = photometry.prepare_search_arrays(
+        time_values, flux_values.astype(np.float64), {"target": "TIC 1"}
+    )
+    assert not np.array_equal(np.asarray(upcast_flux, dtype=float), expected)
+
+    # The keys the flattening step owns must appear exactly once, here.
+    assert "detrending" in metadata
+    assert metadata["flatten_window_cadences"] > 0
+    assert metadata["cadence_minutes"] == pytest.approx(
+        float(metadata["detrending"]["cadence_days"]) * 24 * 60
+    )
+    assert metadata["target"] == "TIC 1"
+    assert len(prepared_time) > 0
+
+
+def test_unflattened_download_omits_the_detrending_metadata(
+    cached, monkeypatch
+) -> None:
+    """flatten=False must not claim a detrend that has not happened yet.
+
+    The analysis stage decides whether to prepare by looking for these keys,
+    so leaving a stale one behind would skip preparation entirely.
+    """
+
+    _stitchable(monkeypatch)
+    _, _, metadata = photometry._download_light_curve(
+        "TIC 4242", [100], "SPOC", 120.0,
+        cache_namespace="TIC_4242_s100", flatten=False,
+    )
+
+    for key in ("detrending", "cadence_minutes", "flatten_window_cadences"):
+        assert key not in metadata, key
+    assert metadata["served_from_cache"] is True
 
 
 def test_identity_is_read_from_product_headers() -> None:

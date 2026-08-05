@@ -93,9 +93,11 @@ def _plain_arrays_for_transport(downloaded):
             f"{int(np.count_nonzero(np.asarray(mask)))} masked cadences would "
             "be silently unmasked. Run with --analysis-processes 0."
         )
+    # Strip the mask without touching the dtype: mission flux is float32, and
+    # upcasting it here would silently change every fitted depth downstream.
     return (
-        np.asarray(time_values, dtype=float),
-        np.asarray(flux, dtype=float),
+        np.asarray(time_values),
+        np.asarray(flux),
         metadata,
     )
 
@@ -1652,6 +1654,12 @@ def _download_batch_target(
                 args.author,
                 args.cadence_seconds,
                 cache_namespace=namespace,
+                # Detrending is CPU work and this runs on the coordinator's
+                # download threads, where the GIL serialises it. Leaving the
+                # curve unprepared moves that cost to the analysis worker,
+                # which has capacity; the coordinator was pinned at 150% of a
+                # core while eight workers idled at 2% each.
+                flatten=False,
             )
         except Exception as exc:
             if attempt >= 3 or not _is_transient_search_error(exc):
@@ -1709,6 +1717,15 @@ def _analyze_downloaded_batch_target(
         if spec.get(key) is not None:
             metadata[key] = spec[key]
     TRACKER.stage(int(spec["tic_id"]), "preparing")
+    # The download stage hands over a normalized but undetrended curve, so the
+    # edge-safe detrend happens here, on a worker, rather than on the
+    # coordinator. The download stage says so explicitly rather than this
+    # inferring it from a missing key: any caller that supplies already
+    # prepared arrays without that key would otherwise be detrended twice.
+    if metadata.pop("requires_preparation", False):
+        time_values, flux_values, metadata = cli_module.prepare_search_arrays(
+            time_values, flux_values, metadata
+        )
     try:
         for attempt in range(1, 4):
             try:
