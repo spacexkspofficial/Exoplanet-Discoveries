@@ -20,7 +20,13 @@ import sys
 import threading
 import time
 from collections import deque
-from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from concurrent.futures import (
+    FIRST_COMPLETED,
+    Future,
+    ProcessPoolExecutor,
+    ThreadPoolExecutor,
+    wait,
+)
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -60,6 +66,54 @@ IN_FLIGHT_CACHE_PROTECTION_SECONDS = 900.0
 # still triggers it; this floor keeps the I/O from competing with the
 # downloads it is meant to make room for.
 MINIMUM_PRUNE_INTERVAL_SECONDS = 120.0
+
+
+def _plain_arrays_for_transport(downloaded):
+    """Strip astropy masking so a light curve survives a process boundary.
+
+    lightkurve hands back flux as a ``MaskedNDArray``. Pickling one loses its
+    ``.mask`` -- the child receives an array whose mask is ``None``, and the
+    first fancy-index in ``phase_fold`` raises ``'NoneType' object has no
+    attribute '__getitem__'``. Every target fails, and the traceback is
+    swallowed into an error row.
+
+    The conversion is only safe because the mask carries nothing: the
+    preparation path runs ``remove_nans`` before this point, and measured
+    across cached Sector 100 targets the mask was set on 0 of ~10,000 cadences
+    every time. That is an assumption about upstream behaviour rather than a
+    guarantee, so a non-empty mask raises here instead of being dropped
+    silently -- losing cadences would change which data the search sees.
+    """
+
+    time_values, flux, metadata = downloaded
+    mask = getattr(flux, "mask", None)
+    if mask is not None and bool(np.any(np.asarray(mask))):
+        raise RuntimeError(
+            "Refusing to send a masked light curve to an analysis process: "
+            f"{int(np.count_nonzero(np.asarray(mask)))} masked cadences would "
+            "be silently unmasked. Run with --analysis-processes 0."
+        )
+    return (
+        np.asarray(time_values, dtype=float),
+        np.asarray(flux, dtype=float),
+        metadata,
+    )
+
+
+def _analysis_executor(workers: int, processes: int):
+    """The pool that runs the search, threads or processes.
+
+    Threads keep the stage tracker, the monkeypatch seam the tests rely on, and
+    zero start-up cost. Processes give real parallelism: the search is CPU-bound
+    Python and holds the GIL, so thread workers plateau near one core no matter
+    how many are configured.
+    """
+
+    if processes > 0:
+        return ProcessPoolExecutor(max_workers=processes)
+    return ThreadPoolExecutor(
+        max_workers=workers, thread_name_prefix="exohunt-analysis"
+    )
 
 
 class _CoordinatorHeartbeat:
@@ -307,6 +361,15 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
     )
     if download_workers <= 0 or download_workers > 8:
         raise ValueError("Use between 1 and 8 download workers.")
+    # Analysis threads cannot use more than one core's worth of interpreter.
+    # Measured on a 16-logical-CPU machine, eight analysis threads drew 1.7
+    # cores -- 10.6% of the machine -- because BLS/TLS spends most of its time
+    # holding the GIL. Processes are the only way to reach the rest, at the
+    # cost of one interpreter start per worker and losing the child's stage
+    # detail in the in-flight panel.
+    analysis_processes = int(getattr(args, "analysis_processes", 0) or 0)
+    if analysis_processes < 0 or analysis_processes > 16:
+        raise ValueError("Use between 0 and 16 analysis processes.")
     specs = [
         _batch_target_spec(index, row, output_dir)
         for index, row in enumerate(rows, start=1)
@@ -384,6 +447,7 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
     }
     runtime_state: dict[str, object] = {
         "analysis_workers": workers,
+        "analysis_processes": analysis_processes,
         "download_workers": download_workers,
         "prefetch_targets": prefetch,
         "downloads_in_flight": 0,
@@ -696,9 +760,17 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             future_started[future] = time.monotonic()
             staged += 1
 
-    def submit_analyses(executor: ThreadPoolExecutor) -> None:
-        while downloaded_waiting and len(analysis_futures) < workers:
+    analysis_slots = analysis_processes or workers
+
+    def submit_analyses(executor) -> None:
+        while downloaded_waiting and len(analysis_futures) < analysis_slots:
             spec, downloaded = downloaded_waiting.popleft()
+            if analysis_processes:
+                # The child owns its own tracker, so its stage changes never
+                # reach this process. Mark the coarse stage here rather than
+                # leaving the target reading "staged" for its whole analysis.
+                TRACKER.stage(int(spec["tic_id"]), "searching")
+                downloaded = _plain_arrays_for_transport(downloaded)
             future = executor.submit(
                 _analyze_downloaded_batch_target,
                 spec,
@@ -741,10 +813,7 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             max_workers=download_workers,
             thread_name_prefix="exohunt-download",
         ) as download_executor,
-        ThreadPoolExecutor(
-            max_workers=workers,
-            thread_name_prefix="exohunt-analysis",
-        ) as analysis_executor,
+        _analysis_executor(workers, analysis_processes) as analysis_executor,
         ThreadPoolExecutor(
             max_workers=1,
             thread_name_prefix="exohunt-maintenance",

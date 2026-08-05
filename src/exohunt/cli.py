@@ -2325,6 +2325,19 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     batch.add_argument(
+        "--analysis-processes",
+        type=int,
+        default=0,
+        help=(
+            "Run the search in this many separate processes instead of threads "
+            "(0 = threads, the default). The search is CPU-bound Python and "
+            "holds the GIL, so thread workers plateau near one core: eight "
+            "threads measured 1.7 of 16 logical CPUs. Processes reach the rest, "
+            "at the cost of one interpreter start each and coarser stage detail "
+            "in the in-flight panel, since a child's stages stay in the child."
+        ),
+    )
+    batch.add_argument(
         "--prefetch",
         type=int,
         help=(

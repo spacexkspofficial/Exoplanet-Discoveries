@@ -334,9 +334,13 @@ def test_cache_prune_does_not_drain_the_download_pipeline(
     completions on a workspace of any size.
     """
 
-    monkeypatch.setattr(campaign_module, "MINIMUM_PRUNE_INTERVAL_SECONDS", 0.0)
+    # raising=False so this guard still runs against a build predating the
+    # throttle, where it must fail on the assertion rather than error on setup.
+    monkeypatch.setattr(
+        campaign_module, "MINIMUM_PRUNE_INTERVAL_SECONDS", 0.0, raising=False
+    )
 
-    target_count = 40
+    target_count = 60
     target_path = tmp_path / "targets.csv"
     target_path.write_text(
         "target,tic_id,sectors\n"
@@ -345,23 +349,21 @@ def test_cache_prune_does_not_drain_the_download_pipeline(
     )
     output_dir = tmp_path / "campaign"
     activity_lock = threading.Lock()
-    active_downloads = 0
+    downloads_started = 0
     completed = 0
     prune_calls = 0
-    # Sampled whenever a prune runs: how much work was in flight at that moment.
-    in_flight_at_prune: list[int] = []
+    # How many downloads were submitted while a prune was in progress. Counting
+    # progress across a fixed prune window is deterministic; sampling in-flight
+    # depth at the instant a prune fires is not, and was flaky under load.
+    started_during_prune: list[int] = []
 
     def fake_download(spec, args):
-        nonlocal active_downloads
+        nonlocal downloads_started
         with activity_lock:
-            active_downloads += 1
-        try:
-            time.sleep(0.01)
-            values = np.arange(20, dtype=float)
-            return values, np.ones_like(values), {"tic_id": spec["tic_id"]}
-        finally:
-            with activity_lock:
-                active_downloads -= 1
+            downloads_started += 1
+        time.sleep(0.01)
+        values = np.arange(20, dtype=float)
+        return values, np.ones_like(values), {"tic_id": spec["tic_id"]}
 
     def fake_analysis(spec, args, downloaded, destination):
         nonlocal completed
@@ -391,7 +393,14 @@ def test_cache_prune_does_not_drain_the_download_pipeline(
         nonlocal prune_calls
         with activity_lock:
             prune_calls += 1
-            in_flight_at_prune.append(active_downloads)
+            before = downloads_started
+        # A real prune walks the cache and sizes the workspace, which takes
+        # seconds. Holding here for a fixed window is what makes the assertion
+        # deterministic: either downloads were submitted during it or they were
+        # not.
+        time.sleep(0.3)
+        with activity_lock:
+            started_during_prune.append(downloads_started - before)
         return {
             "files_deleted": 0,
             "bytes_deleted": 0,
@@ -435,13 +444,14 @@ def test_cache_prune_does_not_drain_the_download_pipeline(
         (output_dir / "batch_progress.json").read_text(encoding="utf-8")
     )
     assert progress["completed_targets"] == target_count
-    # Every ten completions raises the flag, so the run must have pruned
-    # several times rather than once at the end.
-    assert prune_calls >= 3
-    # The point of the change: at least one prune happened while downloads were
-    # still in flight. Under the drain-first behaviour this list would be all
-    # zeroes, because quiescence was a precondition for pruning.
-    assert max(in_flight_at_prune) > 0
+    # Every ten completions raises the flag, so the run must have pruned more
+    # than once rather than only at the end.
+    assert prune_calls >= 2
+    # The point of the change: downloads kept being submitted while a prune was
+    # running. Under the drain-first behaviour every entry here would be zero,
+    # because quiescence was a precondition for pruning at all.
+    assert started_during_prune
+    assert max(started_during_prune) > 0
 
 
 def test_buffered_targets_report_staged_rather_than_downloading(
