@@ -260,6 +260,16 @@ def build_parser() -> argparse.ArgumentParser:
             "evict the oldest files before the campaign reaches them."
         ),
     )
+    parser.add_argument(
+        "--budget-wait-seconds",
+        type=float,
+        default=3600.0,
+        help=(
+            "How long to wait for a full cache to drain before giving up. A "
+            "running campaign frees space continuously, so a full cache is "
+            "normally temporary."
+        ),
+    )
     parser.add_argument("--output", type=Path, default=None)
     return parser
 
@@ -317,10 +327,29 @@ def main(argv: list[str] | None = None) -> int:
     if budget_bytes is not None:
         current = cache_bytes(cache_root)
         print(
-            f"cache is {current / 1e9:.2f} GB of a {args.max_gb:.2f} GB budget"
+            f"cache is {current / 1e9:.2f} GB of a {args.max_gb:.2f} GB budget",
+            flush=True,
         )
+        # Wait rather than give up. A campaign consuming this cache frees space
+        # continuously, so a full cache is a temporary condition -- but exiting
+        # on it meant a multi-sector run silently skipped every sector after
+        # the budget was first reached, reporting "all sectors warmed" having
+        # fetched nothing for seven of them.
+        waited = 0.0
+        while current >= budget_bytes and waited < args.budget_wait_seconds:
+            print(
+                f"  cache full ({current / 1e9:.2f} GB); waiting for the "
+                f"campaign to free space [{waited / 60:.0f} min]",
+                flush=True,
+            )
+            clock.sleep(60.0)
+            waited += 60.0
+            current = cache_bytes(cache_root)
         if current >= budget_bytes:
-            print("budget already reached; nothing to do")
+            print(
+                f"budget still reached after {waited / 60:.0f} min; stopping",
+                flush=True,
+            )
             return 0
 
     index: dict[int, tuple[str, str]] = {}

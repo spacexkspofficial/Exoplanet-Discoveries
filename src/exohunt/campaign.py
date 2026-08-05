@@ -118,6 +118,24 @@ def _analysis_executor(workers: int, processes: int):
     """
 
     if processes > 0:
+        # Pin each worker's linear-algebra backend to one thread before any
+        # child is spawned, so they inherit it at import time.
+        #
+        # Without this every worker sizes its own OpenBLAS pool from the core
+        # count: eight workers on a sixteen-thread machine meant 128 BLAS
+        # threads, each carrying its own buffers. A 64,000-target run died with
+        # "OpenBLAS error: Memory allocation still failed after 10 retries" and
+        # took the process pool with it. The parallelism that matters here is
+        # across targets, not within one matrix operation, so one thread per
+        # worker is also the faster arrangement.
+        for variable in (
+            "OMP_NUM_THREADS",
+            "OPENBLAS_NUM_THREADS",
+            "MKL_NUM_THREADS",
+            "NUMEXPR_NUM_THREADS",
+            "VECLIB_MAXIMUM_THREADS",
+        ):
+            os.environ.setdefault(variable, "1")
         return ProcessPoolExecutor(max_workers=processes)
     return ThreadPoolExecutor(
         max_workers=workers, thread_name_prefix="exohunt-analysis"
