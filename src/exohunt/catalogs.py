@@ -126,6 +126,122 @@ def _write_cache(path: Path, result: dict[str, object]) -> None:
     temporary.replace(path)
 
 
+_TOI_COLUMNS = (
+    "toi,tid,ctoi_alias,tfopwg_disp,pl_orbper,pl_tranmid,"
+    "pl_trandurh,pl_trandep,pl_orbpererr1,pl_orbpererr2,"
+    "pl_tranmiderr1,pl_tranmiderr2,pl_trandurherr1,"
+    "pl_trandurherr2,rowupdate"
+)
+_PS_COLUMNS = (
+    "pl_name,hostname,pl_orbper,pl_tranmid,pl_trandur,pl_rade,"
+    "pl_orbpererr1,pl_orbpererr2,pl_tranmiderr1,pl_tranmiderr2,"
+    "pl_trandurerr1,pl_trandurerr2,tran_flag,discoverymethod,"
+    "disc_year,tic_id,gaia_dr2_id,gaia_dr3_id"
+)
+
+
+def _tap_batch(tic_ids: list[int]) -> tuple[list[dict[str, str]], list[dict[str, str]], int]:
+    """Query one batch, halving it if the archive rejects the URL length.
+
+    The TAP service takes its query in the URL, so a batch that is too large
+    comes back as HTTP 414 rather than as a smaller result. Batch sizes are
+    bounded by total TIC digits rather than by count, so the safe size is not
+    a constant; halving on rejection finds it without guessing.
+    """
+
+    joined = ",".join(str(value) for value in tic_ids)
+    quoted = ",".join(f"'TIC {value}'" for value in tic_ids)
+    try:
+        tois = _tap_csv(f"select {_TOI_COLUMNS} from toi where tid in ({joined})")
+        confirmed = _tap_csv(
+            f"select {_PS_COLUMNS} from ps where default_flag=1 "
+            f"and tic_id in ({quoted})"
+        )
+        return tois, confirmed, 2
+    except urllib.error.HTTPError as error:
+        if error.code != 414 or len(tic_ids) <= 1:
+            raise
+    middle = len(tic_ids) // 2
+    left_tois, left_ps, left_queries = _tap_batch(tic_ids[:middle])
+    right_tois, right_ps, right_queries = _tap_batch(tic_ids[middle:])
+    return (
+        left_tois + right_tois,
+        left_ps + right_ps,
+        left_queries + right_queries,
+    )
+
+
+def warm_cache_bulk(
+    tic_ids: list[int],
+    *,
+    batch_size: int = 150,
+    cache_dir: str | Path | None = None,
+    progress=None,
+) -> dict[str, int]:
+    """Populate the per-TIC cache using batched queries instead of one each.
+
+    :func:`check_tic` asks the archive about a single TIC at a time, which is
+    correct but pays a network round trip per target. Measured against the TAP
+    service, that runs near 3,250 targets/hour no matter how many threads are
+    used -- the service is latency-bound per request, not throughput-bound --
+    so a four-thousand-target campaign spends over an hour of analysis time
+    waiting on it.
+
+    The same information comes back from ``where tid in (...)``, so this asks
+    once per few hundred targets and writes the identical cache entries.
+
+    Entries are written in exactly the shape :func:`check_tic` writes, with
+    ``gaia_source_id`` left unset, because every caller in this codebase asks
+    without one and a mismatch there would make ``check_tic`` refetch and undo
+    the benefit. TICs with no rows get empty lists rather than no file, which
+    is the whole point: the common case is a target with nothing catalogued,
+    and it must still be a cache hit.
+    """
+
+    values = sorted({int(value) for value in tic_ids if int(value) > 0})
+    root = _catalog_cache_root(cache_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    written = 0
+    queried = 0
+    for start in range(0, len(values), batch_size):
+        batch = values[start : start + batch_size]
+        tois, confirmed, used = _tap_batch(batch)
+        queried += used
+
+        by_toi: dict[int, list[dict[str, str]]] = {}
+        for row in tois:
+            try:
+                by_toi.setdefault(int(float(row["tid"])), []).append(row)
+            except (KeyError, TypeError, ValueError):
+                continue
+        by_ps: dict[int, list[dict[str, str]]] = {}
+        for row in confirmed:
+            raw = str(row.get("tic_id", "")).replace("TIC", "").strip()
+            try:
+                by_ps.setdefault(int(float(raw)), []).append(row)
+            except (TypeError, ValueError):
+                continue
+
+        for tic_id in batch:
+            _write_cache(
+                root / f"TIC_{tic_id}.json",
+                {
+                    "tic_id": tic_id,
+                    "query_identifiers": {
+                        "tic_id": tic_id,
+                        "gaia_source_id": None,
+                    },
+                    "ephemeris_uncertainty_columns_queried": True,
+                    "tois": by_toi.get(tic_id, []),
+                    "confirmed_planets": by_ps.get(tic_id, []),
+                },
+            )
+            written += 1
+        if progress is not None:
+            progress(written, len(values))
+    return {"written": written, "queries": queried, "targets": len(values)}
+
+
 def check_tic(
     tic_id: int,
     *,

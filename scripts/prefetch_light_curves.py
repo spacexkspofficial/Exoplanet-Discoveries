@@ -174,39 +174,23 @@ def warm_catalog_cache(specs: list[dict[str, Any]], *, workers: int) -> None:
     same file lock.
     """
 
-    from exohunt.catalogs import check_tic
+    from exohunt.catalogs import warm_cache_bulk
 
     tics = sorted({int(spec["tic_id"]) for spec in specs})
     print(f"warming catalog cache for {len(tics)} targets")
     started = clock.monotonic()
-    lock = threading.Lock()
-    done = 0
-    failed = 0
 
-    def one(tic: int) -> None:
-        nonlocal done, failed
-        try:
-            check_tic(tic)
-        except Exception:  # noqa: BLE001 - a miss is not fatal, analysis retries
-            with lock:
-                failed += 1
-        finally:
-            with lock:
-                done += 1
-                count = done
-            if count % 100 == 0:
-                elapsed = clock.monotonic() - started
-                rate = count / elapsed * 3600 if elapsed else 0
-                print(f"  [{count}/{len(tics)}] {rate:.0f}/hour  {failed} failed")
+    def report(written: int, total: int) -> None:
+        elapsed = clock.monotonic() - started
+        rate = written / elapsed * 3600 if elapsed else 0
+        print(f"  [{written}/{total}] {rate:.0f}/hour")
 
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        list(as_completed([pool.submit(one, tic) for tic in tics]))
-
+    stats = warm_cache_bulk(tics, progress=report)
     elapsed = clock.monotonic() - started
     print(
-        f"catalog cache warmed: {done - failed}/{len(tics)} in "
-        f"{elapsed / 60:.1f} min "
-        f"({done / elapsed * 3600:.0f}/hour), {failed} failed"
+        f"catalog cache warmed: {stats['written']}/{stats['targets']} in "
+        f"{elapsed / 60:.1f} min ({stats['written'] / elapsed * 3600:.0f}/hour) "
+        f"using {stats['queries']} queries"
     )
 
 
