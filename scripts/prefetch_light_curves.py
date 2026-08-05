@@ -161,6 +161,55 @@ def direct_download(
     return written
 
 
+def warm_catalog_cache(specs: list[dict[str, Any]], *, workers: int) -> None:
+    """Populate the NASA Exoplanet Archive cache ahead of analysis.
+
+    Analysis calls ``catalogs.check_tic`` per target to find TOIs and confirmed
+    planets to mask. A cache miss is a TAP round trip *inside* the analysis
+    worker, so a campaign can sit at 10% CPU with fully cached photometry and
+    still crawl. Warming it here moves that waiting off the critical path.
+
+    ``check_tic`` is reused rather than reimplemented, so entries written here
+    are exactly what analysis expects -- same schema, same freshness rules,
+    same file lock.
+    """
+
+    from exohunt.catalogs import check_tic
+
+    tics = sorted({int(spec["tic_id"]) for spec in specs})
+    print(f"warming catalog cache for {len(tics)} targets")
+    started = clock.monotonic()
+    lock = threading.Lock()
+    done = 0
+    failed = 0
+
+    def one(tic: int) -> None:
+        nonlocal done, failed
+        try:
+            check_tic(tic)
+        except Exception:  # noqa: BLE001 - a miss is not fatal, analysis retries
+            with lock:
+                failed += 1
+        finally:
+            with lock:
+                done += 1
+                count = done
+            if count % 100 == 0:
+                elapsed = clock.monotonic() - started
+                rate = count / elapsed * 3600 if elapsed else 0
+                print(f"  [{count}/{len(tics)}] {rate:.0f}/hour  {failed} failed")
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(as_completed([pool.submit(one, tic) for tic in tics]))
+
+    elapsed = clock.monotonic() - started
+    print(
+        f"catalog cache warmed: {done - failed}/{len(tics)} in "
+        f"{elapsed / 60:.1f} min "
+        f"({done / elapsed * 3600:.0f}/hour), {failed} failed"
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--targets", required=True, type=Path)
@@ -186,6 +235,21 @@ def build_parser() -> argparse.ArgumentParser:
             "this is much faster, but it only applies to SPOC 2-minute light "
             "curves whose targets all share one sector."
         ),
+    )
+    parser.add_argument(
+        "--catalogs",
+        action="store_true",
+        help=(
+            "Also warm the NASA Exoplanet Archive cache. Analysis queries the "
+            "archive's TAP service once per target, and a miss is a network "
+            "round trip inside the analysis worker -- which is why a campaign "
+            "with a fully cached photometry set still ran at 10%% CPU."
+        ),
+    )
+    parser.add_argument(
+        "--catalogs-only",
+        action="store_true",
+        help="Warm the catalog cache and skip photometry entirely.",
     )
     parser.add_argument("--max-targets", type=int, default=None)
     parser.add_argument(
@@ -236,6 +300,12 @@ def main(argv: list[str] | None = None) -> int:
         _batch_target_spec(index, row, Path("."))
         for index, row in enumerate(rows, start=1)
     ]
+
+    if args.catalogs or args.catalogs_only:
+        warm_catalog_cache(specs, workers=args.workers)
+        if args.catalogs_only:
+            return 0
+
     pending = [spec for spec in specs if not already_cached(cache_root, spec)]
     print(
         f"targets: {len(specs)}   already cached: {len(specs) - len(pending)}"
