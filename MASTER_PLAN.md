@@ -305,6 +305,54 @@ research-review principle this plan adopts word-for-word).
 
 ### 2.3 Acceptance measurements for the detrending change
 
+> **Amended 2026-08-05, owner-delegated.** The four numbers below were written
+> before any of them had been measured directly. Three campaigns and the
+> edge-bias instrument have since measured all of them, and two of the four are
+> now known to be unusable as written: criterion 1 cannot discriminate, and
+> criteria 2 and 3 are *jointly unsatisfiable* for shallow transits at any
+> guard width. The amended set is below; the original is kept beneath it
+> because the reasoning only makes sense against what it replaced. See
+> PROGRESS corrections 23–29 and `P2_EDGE_BIAS.md`.
+
+**Amended acceptance set.**
+
+1. **Artifact regression — demoted to a diagnostic, not a gate.** Enrichment
+   is a 0.41σ statistic between arms (correction 24), and the historical
+   epochs it was measured at return 1.011 (p=0.37) on a neutral cohort — they
+   measure nothing (correction 25). It is still computed and reported; it no
+   longer blocks. *Survivors sitting on derived artifact epochs* is the number
+   with resolving power and is what a reviewer should read.
+2. **Retention and depth bias are one criterion, stated per depth regime.**
+   Measured directly (`P2_EDGE_BIAS.md`): edge trend bias is ~89% non-variance
+   at every offset, and the guard width needed follows from the shallowest
+   depth a lane claims:
+
+   | shallowest claimed depth | required guard | retention |
+   |---:|---:|---:|
+   | ≥ 4,000 ppm | ~300 cadences | ~0.86 |
+   | ~2,000 ppm | ~626 cadences | ~0.71 |
+
+   A lane passes when its guard is sized for its own shallowest claim. The
+   flat ≥85% retention target applies only to the deep lane; requiring it of a
+   shallow lane demands trend bias below what the estimator can deliver.
+3. **Injection recovery** — unchanged, and still unspent. Recovered-depth bias
+   ≤ 5% median, recovery rate within 3% of the interior rate at equal depth.
+   This moves to P3, where the injection framework is built anyway.
+4. **Population check** — unchanged: locked 500-target diagnostic re-run,
+   per-epoch histogram enrichment < 2× everywhere, T3-pass rate in the §1.4
+   band.
+
+**Consequence for §2.2.** No detrending replacement ships. Support-weighted
+biweight (correction 10) and the quarter-window/event-support lane (correction
+13) are rejected on measurement, and the direct bias measurement explains why
+no third parameterisation of the same idea would work either. Production keeps
+Savitzky–Golay with the half-window guard, and the measurement now *justifies*
+that choice rather than merely inheriting it: 720 cadences holds edge bias to
+~102 ppm, which is 5% of ~2,000 ppm — close to the shallowest depth this
+pipeline claims. The 33% cadence cost is earned, not wasted.
+
+<details><summary>Original criteria, superseded</summary>
+
 The change is a behaviour change and ships only when all four numbers pass, on
 the pinned sets, in one report:
 
@@ -320,6 +368,8 @@ the pinned sets, in one report:
 4. **Population check**: a locked 500-target diagnostic re-run (same list, new
    signature): per-epoch histogram enrichment < 2× everywhere; T3-pass rate
    within the §1.4 band.
+
+</details>
 
 ---
 

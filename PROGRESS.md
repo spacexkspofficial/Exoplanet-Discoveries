@@ -1037,6 +1037,59 @@ record was written; `origin/main` and the research branch are synchronized at
     temporary name and renames on success, so it cannot produce that state;
     the download path still can.
 
+31. **Section 2.3 is amended and P2's detrending question is closed: no
+    replacement ships, and production is now justified rather than inherited.**
+    The owner delegated this decision on 2026-08-05 ("make whatever decision
+    you think is best... just unblock it"). Recorded here in full because a
+    delegated decision that is not written down is indistinguishable from
+    drift.
+
+    **The problem.** §2.3 required four numbers to pass together. Correction 28
+    showed criteria 2 and 3 are jointly unsatisfiable: retention >= 85% caps
+    the guard near 300 cadences, which leaves ~191 ppm of trend bias, which
+    exceeds the 5% depth-bias budget for anything shallower than ~3,800 ppm.
+    Corrections 23-25 showed criterion 1 cannot discriminate at all — 0.41
+    sigma between arms, and its historical epochs return 1.011 (p=0.37) on a
+    neutral cohort. So the gate could never open, for any mechanism.
+
+    **The decision.**
+
+    - Criterion 1 (artifact enrichment) is **demoted to a diagnostic**. It is
+      still computed and reported; it no longer blocks. Survivors on derived
+      artifact epochs is the number with resolving power.
+    - Criteria 2 and 3 are **merged and stated per depth regime**. A lane
+      passes when its guard is sized for the shallowest depth it claims: ~300
+      cadences and ~0.86 retention at >= 4,000 ppm, ~626 cadences and ~0.71
+      retention at ~2,000 ppm. The flat 85% target now applies only to the deep
+      lane.
+    - Criterion 3's injection measurement **moves to P3**, which builds the
+      injection framework regardless.
+    - **No detrending replacement ships.** Production keeps Savitzky-Golay with
+      the half-window guard.
+
+    **Why this is not just lowering a bar to pass it.** The direct bias
+    measurement (correction 29, `P2_EDGE_BIAS.md`) found edge error is ~89%
+    non-variance at every offset, with the ratio flat in support fraction. That
+    is a statement about the estimator, not about any candidate mechanism: no
+    support weight, floor, exponent or window shape can price a bias that does
+    not behave like variance. The original criteria asked for something the
+    physics does not permit. The amended ones ask for the guard to match the
+    claim, which is answerable.
+
+    Production also comes out of this measured rather than assumed: 720
+    cadences holds edge bias to ~102 ppm, which is 5% of ~2,000 ppm — close to
+    the shallowest depth this pipeline actually claims. Its 33% cadence cost is
+    earned.
+
+    **What this does not do.** It does not exit P2 on its own. Of P2's exit
+    criteria: the amended §2.3 numbers are satisfiable and criterion 1's
+    demotion is recorded; the magic-literal grep test passes
+    (`test_kernel_modules_carry_no_bare_science_thresholds`); the known-planet
+    cohort was recovered through the campaign path (correction 26, 3 planets).
+    The pinned equivalence cohort on disk is **150 targets, not the 200** §P2
+    names, and the injection measurement is deferred to P3 rather than done.
+    Both are stated here rather than quietly counted as passes.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to
