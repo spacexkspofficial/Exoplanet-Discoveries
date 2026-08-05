@@ -25,9 +25,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import threading
 import time as clock
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
@@ -61,6 +63,104 @@ def already_cached(cache_root: Path, spec: dict[str, Any]) -> bool:
     return any(namespace.rglob("*_lc.fits"))
 
 
+# MAST publishes one cURL script per sector listing every 2-minute light
+# curve, which makes each product's download URL derivable from its TIC. That
+# removes the per-target archive *search* -- the round trip that dominates
+# fetch latency -- leaving only the transfer itself.
+SECTOR_SCRIPT_URL = (
+    "https://archive.stsci.edu/missions/tess/download_scripts/sector/"
+    "tesscurl_sector_{sector}_lc.sh"
+)
+
+# tess<start>-s<sector>-<16-digit TIC>-<version>-<type>_lc.fits
+PRODUCT_PATTERN = re.compile(
+    r"(tess\d+-s(\d{4})-(\d{16})-\d+-[a-z])_lc\.fits", re.IGNORECASE
+)
+
+
+def sector_product_index(
+    sector: int, script_cache: Path
+) -> dict[int, tuple[str, str]]:
+    """Map TIC -> (observation id, download URL) for one sector.
+
+    Parsed from the sector's published cURL script, which is fetched once and
+    cached. The observation id is the product filename without its ``_lc.fits``
+    suffix, and it is also the directory name lightkurve expects inside
+    ``mastDownload/TESS`` -- getting that wrong would leave every prefetched
+    file invisible to the campaign.
+    """
+
+    script_cache.parent.mkdir(parents=True, exist_ok=True)
+    if script_cache.exists():
+        text = script_cache.read_text(encoding="utf-8", errors="replace")
+    else:
+        url = SECTOR_SCRIPT_URL.format(sector=sector)
+        print(f"fetching product index: {url}")
+        with urllib.request.urlopen(url, timeout=180) as response:
+            text = response.read().decode("utf-8", errors="replace")
+        script_cache.write_text(text, encoding="utf-8")
+
+    index: dict[int, tuple[str, str]] = {}
+    for line in text.splitlines():
+        if "_lc.fits" not in line or "http" not in line:
+            continue
+        match = PRODUCT_PATTERN.search(line)
+        if not match:
+            continue
+        if int(match.group(2)) != int(sector):
+            continue
+        url = line.split()[-1]
+        if not url.startswith("http"):
+            continue
+        index[int(match.group(3))] = (match.group(1), url)
+    return index
+
+
+def direct_download(
+    spec: dict[str, Any],
+    cache_root: Path,
+    observation_id: str,
+    url: str,
+    timeout: float = 300.0,
+) -> int:
+    """Fetch one product straight into the layout lightkurve reads.
+
+    Writes to a temporary name and renames on success, so an interrupted
+    transfer can never be mistaken for a cached file by a later run.
+    """
+
+    destination = (
+        cache_root
+        / "batch_targets"
+        / cache_namespace(spec)
+        / "mastDownload"
+        / "TESS"
+        / observation_id
+    )
+    destination.mkdir(parents=True, exist_ok=True)
+    final = destination / f"{observation_id}_lc.fits"
+    if final.exists() and final.stat().st_size > 0:
+        return 0
+    partial = destination / f"{observation_id}_lc.fits.part"
+    request = urllib.request.Request(
+        url, headers={"User-Agent": "exohunt-prefetch/1.0"}
+    )
+    written = 0
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        with partial.open("wb") as handle:
+            while True:
+                chunk = response.read(1 << 20)
+                if not chunk:
+                    break
+                handle.write(chunk)
+                written += len(chunk)
+    if written <= 0:
+        partial.unlink(missing_ok=True)
+        raise RuntimeError("empty response body")
+    partial.replace(final)
+    return written
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--targets", required=True, type=Path)
@@ -74,6 +174,17 @@ def build_parser() -> argparse.ArgumentParser:
             "Concurrent downloads. This process does nothing but wait on the "
             "network, so it tolerates far more concurrency than a campaign "
             "can. Keep it civil: MAST is a shared archive."
+        ),
+    )
+    parser.add_argument(
+        "--direct",
+        action="store_true",
+        help=(
+            "Derive each product URL from the sector's published cURL script "
+            "and fetch it straight into the cache, skipping the per-target "
+            "archive search. The search round trip dominates fetch latency, so "
+            "this is much faster, but it only applies to SPOC 2-minute light "
+            "curves whose targets all share one sector."
         ),
     )
     parser.add_argument("--max-targets", type=int, default=None)
@@ -144,6 +255,26 @@ def main(argv: list[str] | None = None) -> int:
             print("budget already reached; nothing to do")
             return 0
 
+    index: dict[int, tuple[str, str]] = {}
+    if args.direct:
+        sectors = {int(s) for spec in pending for s in spec["sectors"]}
+        if len(sectors) != 1:
+            raise SystemExit(
+                "--direct needs every target in one sector; this list spans "
+                f"{sorted(sectors)}. Run without --direct."
+            )
+        sector = sectors.pop()
+        index = sector_product_index(
+            sector, cache_root / "product_index" / f"sector_{sector}_lc.sh"
+        )
+        print(f"sector {sector} product index: {len(index)} light curves")
+        missing = [s for s in pending if int(s["tic_id"]) not in index]
+        if missing:
+            print(
+                f"{len(missing)} targets are absent from the sector index and "
+                "will fall back to the search path"
+            )
+
     lock = threading.Lock()
     started = clock.monotonic()
     done = 0
@@ -155,13 +286,17 @@ def main(argv: list[str] | None = None) -> int:
         if stop.is_set():
             return
         try:
-            _download_light_curve(
-                str(spec["target"]),
-                list(spec["sectors"]),
-                args.author,
-                args.cadence_seconds,
-                cache_namespace=cache_namespace(spec),
-            )
+            entry = index.get(int(spec["tic_id"])) if args.direct else None
+            if entry is not None:
+                direct_download(spec, cache_root, entry[0], entry[1])
+            else:
+                _download_light_curve(
+                    str(spec["target"]),
+                    list(spec["sectors"]),
+                    args.author,
+                    args.cadence_seconds,
+                    cache_namespace=cache_namespace(spec),
+                )
         except Exception as error:  # noqa: BLE001 - recorded, not swallowed
             with lock:
                 failed.append({"target": str(spec["target"]), "error": repr(error)})
