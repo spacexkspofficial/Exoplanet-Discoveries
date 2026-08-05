@@ -67,6 +67,12 @@ IN_FLIGHT_CACHE_PROTECTION_SECONDS = 900.0
 # downloads it is meant to make room for.
 MINIMUM_PRUNE_INTERVAL_SECONDS = 120.0
 
+# Rebuilding the dashboard snapshot re-walks the results tree and re-parses the
+# whole survey; measured at roughly 15 s against a 5 s checkpoint throttle, so
+# inline it consumed the coordinator thread entirely. It is a progress view,
+# not evidence, so it refreshes on this cadence instead.
+DASHBOARD_EXPORT_INTERVAL_SECONDS = 120.0
+
 
 def _plain_arrays_for_transport(downloaded):
     """Strip astropy masking so a light curve survives a process boundary.
@@ -460,6 +466,8 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
         "targets_remaining": 0,
     }
     last_progress_publish = 0.0
+    last_dashboard_export = 0.0
+    dashboard_export_busy = threading.Event()
 
     def roll_cache(results_snapshot: list[dict[str, object]] | None = None) -> None:
         # Runs on a maintenance thread during a campaign, so it must never read
@@ -599,6 +607,54 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
     def ordered_results() -> list[dict[str, object]]:
         return [results_by_index[index] for index in sorted(results_by_index)]
 
+    def _refresh_dashboard_snapshot(state: str) -> None:
+        """Rebuild the dashboard snapshot off the scheduler thread, rarely.
+
+        This was called inline on every checkpoint publish. Profiling the
+        coordinator's main thread over sixty targets found it running 64 times
+        for 988 s of main-thread time -- 98% of the coordinator's time was
+        work, not waiting, and this was nearly all of it: 804,098 scandir
+        calls, 253,662 JSON decodes, 372,220 stats. Each export re-walks the
+        results tree and re-parses the whole survey, so at roughly 15 s per
+        export against a 5 s publish throttle it simply ran back to back and
+        left nothing for scheduling.
+
+        It is a UI convenience -- the checkpoints remain authoritative -- so it
+        runs on its own thread and no more often than the interval below. A
+        final state always exports synchronously, so a finished campaign leaves
+        a complete snapshot behind.
+        """
+
+        nonlocal last_dashboard_export
+
+        def export() -> None:
+            try:
+                from .dashboard import export_dashboard_data
+
+                export_dashboard_data(Path.cwd())
+            except Exception:
+                # Checkpoints stay authoritative if the optional refresh fails.
+                pass
+            finally:
+                dashboard_export_busy.clear()
+
+        if state != "running":
+            dashboard_export_busy.clear()
+            export()
+            return
+        now = time.monotonic()
+        if now - last_dashboard_export < DASHBOARD_EXPORT_INTERVAL_SECONDS:
+            return
+        # A skipped refresh is not a lost one: the next publish retries, and a
+        # snapshot mid-campaign is only ever a progress view.
+        if dashboard_export_busy.is_set():
+            return
+        last_dashboard_export = now
+        dashboard_export_busy.set()
+        threading.Thread(
+            target=export, name="exohunt-dashboard-export", daemon=True
+        ).start()
+
     def publish_progress(state: str = "running") -> None:
         nonlocal last_progress_publish
         # Deliberately does NOT beat the coordinator lease. Liveness runs on
@@ -646,13 +702,7 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
         }
         _atomic_write_json(progress_path, progress)
         _publish_followup_queue(output_dir, results)
-        try:
-            from .dashboard import export_dashboard_data
-
-            export_dashboard_data(Path.cwd())
-        except Exception:
-            # Search checkpoints remain authoritative if the optional UI refresh fails.
-            pass
+        _refresh_dashboard_snapshot(state)
 
     pending_specs: deque[dict[str, object]] = deque()
     for spec in specs:
