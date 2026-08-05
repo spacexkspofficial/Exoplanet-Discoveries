@@ -631,10 +631,16 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             try:
                 from .dashboard import export_dashboard_data
 
-                export_dashboard_data(Path.cwd())
-            except Exception:
-                # Checkpoints stay authoritative if the optional refresh fails.
-                pass
+                export_dashboard_data(workspace_root)
+            except Exception as exc:
+                # Checkpoints stay authoritative, so a failed refresh must not
+                # end the campaign -- but it must not be silent either. This
+                # swallowed its errors before, which is why a stale dashboard
+                # looked like a code-path bug rather than a reported failure.
+                print(
+                    f"dashboard snapshot refresh failed: {exc!r}",
+                    file=sys.stderr,
+                )
             finally:
                 dashboard_export_busy.clear()
 
