@@ -1725,18 +1725,53 @@ export default function App() {
           if (!response.ok) throw new Error(`Star page ${page} returned ${response.status}`);
           return (await response.json()) as StarPage;
         };
-        const first = await loadPage(1);
-        const remaining =
-          first.pages > 1
-            ? await Promise.all(
-                Array.from({ length: first.pages - 1 }, (_, index) => loadPage(index + 2)),
-              )
-            : [];
-        stars = [first, ...remaining]
-          .sort((left, right) => left.page - right.page)
-          .flatMap((page) => page.items);
-        if (stars.length !== first.total) {
-          throw new Error(`Star projection returned ${stars.length} of ${first.total} rows`);
+        // Paging the projection costs a request per thousand stars, and each
+        // one rebuilds its rows server-side: measured at ~4 s per page, so a
+        // 19-page survey spent ~76 s before anything rendered and every
+        // counter sat at zero until it finished. The exported snapshot carries
+        // the same rows in one file -- `ledger-import --parity` reports no
+        // star_payload_differences between them -- and fetches in ~8 s.
+        const loadFromSnapshot = async () => {
+          const response = await fetch("/data/survey.json", { cache: "no-store" });
+          if (!response.ok) return null;
+          const payload = (await response.json()) as Partial<SurveyData>;
+          const rows = payload.stars;
+          if (!Array.isArray(rows) || rows.length === 0) return null;
+          // Only trust it when it agrees with the ledger's own count; a
+          // half-written or superseded snapshot must fall through rather than
+          // quietly render a different survey than the summary describes.
+          if (
+            typeof summary.stars_total === "number" &&
+            rows.length !== summary.stars_total
+          ) {
+            return null;
+          }
+          return rows;
+        };
+
+        let rows: Star[] | null = null;
+        try {
+          rows = await loadFromSnapshot();
+        } catch {
+          rows = null;
+        }
+
+        if (rows) {
+          stars = rows;
+        } else {
+          const first = await loadPage(1);
+          const remaining =
+            first.pages > 1
+              ? await Promise.all(
+                  Array.from({ length: first.pages - 1 }, (_, index) => loadPage(index + 2)),
+                )
+              : [];
+          stars = [first, ...remaining]
+            .sort((left, right) => left.page - right.page)
+            .flatMap((page) => page.items);
+          if (stars.length !== first.total) {
+            throw new Error(`Star projection returned ${stars.length} of ${first.total} rows`);
+          }
         }
       }
       if (sequence !== loadSequence.current) return;
