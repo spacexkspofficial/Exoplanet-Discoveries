@@ -707,6 +707,42 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             "results": results,
         }
         _atomic_write_json(progress_path, progress)
+        # A compact companion for the dashboard's polling path. The checkpoint
+        # carries every result row, so a multi-thousand-target run is megabytes
+        # of JSON and re-parsing it per poll cost the summary endpoint 6-12 s --
+        # longer than the 5 s poll interval, so calls overlapped and the
+        # frontend never got past them. This holds only the fields that panel
+        # reads, and stays small for the whole run.
+        _atomic_write_json(
+            progress_path.with_name("batch_status.json"),
+            {
+                key: progress[key]
+                for key in (
+                    "schema_version",
+                    "state",
+                    "started_at_utc",
+                    "updated_at_utc",
+                    "target_list",
+                    "total_targets",
+                    "completed_targets",
+                    "counts",
+                    "runtime",
+                )
+                if key in progress
+            }
+            # Derived here because the reader would otherwise have to walk
+            # every result row to recover it.
+            | {
+                "sectors": sorted(
+                    {
+                        int(sector)
+                        for row in results
+                        for sector in str(row.get("sectors") or "").split(";")
+                        if sector.strip().isdigit()
+                    }
+                )
+            },
+        )
         _publish_followup_queue(output_dir, results)
         _refresh_dashboard_snapshot(state)
 

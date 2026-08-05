@@ -34,6 +34,34 @@ WORKSPACE = Path(__file__).resolve().parents[2]
 LIVE_CHECKPOINT_MAX_AGE_SECONDS = 900.0
 
 
+# One parsed checkpoint per (path, mtime). A campaign checkpoint carries every
+# result row, so a multi-thousand-target run is megabytes of JSON, and the
+# summary endpoint re-parsed all of them on every poll: measured at 6-12 s per
+# call against a 5 s polling interval, so calls overlapped and the frontend
+# never reached the star fetch at all. Keyed on mtime, so a checkpoint that has
+# actually changed is still re-read.
+_LIVE_CAMPAIGN_CACHE: dict[Path, tuple[int, dict[str, Any] | None]] = {}
+
+
+def _read_checkpoint(path: Path) -> dict[str, Any] | None:
+    try:
+        mtime_ns = path.stat().st_mtime_ns
+    except OSError:
+        _LIVE_CAMPAIGN_CACHE.pop(path, None)
+        return None
+    cached = _LIVE_CAMPAIGN_CACHE.get(path)
+    if cached is not None and cached[0] == mtime_ns:
+        return cached[1]
+    try:
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        parsed = None
+    if not isinstance(parsed, dict):
+        parsed = None
+    _LIVE_CAMPAIGN_CACHE[path] = (mtime_ns, parsed)
+    return parsed
+
+
 def _live_campaigns(root: Path) -> list[dict[str, Any]]:
     """Summarize in-flight campaigns from their checkpoint files.
 
@@ -49,12 +77,20 @@ def _live_campaigns(root: Path) -> list[dict[str, Any]]:
     now = time.time()
     campaigns: list[dict[str, Any]] = []
     for path in sorted(results_root.rglob("batch_progress.json")):
+        # Campaigns write a compact companion alongside the checkpoint holding
+        # exactly the fields this panel reads. Prefer it: the checkpoint itself
+        # carries every result row and re-parsing it per poll is what made this
+        # endpoint slower than the frontend's polling interval.
+        status_path = path.with_name("batch_status.json")
+        source = status_path if status_path.exists() else path
         try:
-            age = now - path.stat().st_mtime
-            if age > LIVE_CHECKPOINT_MAX_AGE_SECONDS:
-                continue
-            progress = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+            age = now - source.stat().st_mtime
+        except OSError:
+            continue
+        if age > LIVE_CHECKPOINT_MAX_AGE_SECONDS:
+            continue
+        progress = _read_checkpoint(source)
+        if progress is None:
             continue
         if not isinstance(progress, dict):
             continue
@@ -74,13 +110,20 @@ def _live_campaigns(root: Path) -> list[dict[str, Any]]:
         # `updated_at_utc` or `sectors` does not degrade gracefully -- the
         # throughput readouts render as "--/h" and the freshness label as
         # "NaNh ago", because the arithmetic runs on undefined.
-        sectors = sorted(
-            {
-                int(sector)
-                for result in results
-                if isinstance(result, dict)
-                for sector in _result_sectors(result.get("sectors"))
-            }
+        # The compact companion carries this directly; the full checkpoint does
+        # not, so fall back to deriving it from the result rows.
+        published_sectors = progress.get("sectors")
+        sectors = (
+            [int(value) for value in published_sectors]
+            if isinstance(published_sectors, list)
+            else sorted(
+                {
+                    int(sector)
+                    for result in results
+                    if isinstance(result, dict)
+                    for sector in _result_sectors(result.get("sectors"))
+                }
+            )
         )
         campaigns.append(
             {

@@ -95,9 +95,23 @@ def sector_product_index(
         text = script_cache.read_text(encoding="utf-8", errors="replace")
     else:
         url = SECTOR_SCRIPT_URL.format(sector=sector)
-        print(f"fetching product index: {url}")
-        with urllib.request.urlopen(url, timeout=180) as response:
-            text = response.read().decode("utf-8", errors="replace")
+        print(f"fetching product index: {url}", flush=True)
+        try:
+            with urllib.request.urlopen(url, timeout=180) as response:
+                text = response.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                raise
+            # MAST publishes these per sector and the newest sectors lag, so a
+            # missing script is expected rather than exceptional. Returning an
+            # empty index sends every target down the search path instead of
+            # ending the run, which is what this did before.
+            print(
+                f"no published product index for sector {sector} "
+                f"(HTTP 404); falling back to the search path",
+                flush=True,
+            )
+            return {}
         script_cache.write_text(text, encoding="utf-8")
 
     index: dict[int, tuple[str, str]] = {}
@@ -331,6 +345,7 @@ def main(argv: list[str] | None = None) -> int:
 
     lock = threading.Lock()
     started = clock.monotonic()
+    last_report = [started]
     done = 0
     failed: list[dict[str, str]] = []
     stop = threading.Event()
@@ -358,17 +373,24 @@ def main(argv: list[str] | None = None) -> int:
             with lock:
                 done += 1
                 count = done
-            if count % 25 == 0:
+                # Report on a clock rather than every N targets: a slow search
+                # path can leave minutes of silence between count milestones,
+                # which reads as a hung process.
+                due = clock.monotonic() - last_report[0] >= 10.0
+                if due:
+                    last_report[0] = clock.monotonic()
+            if due:
                 elapsed = clock.monotonic() - started
                 rate = count / elapsed * 3600 if elapsed else 0
                 remaining = len(pending) - count
-                eta = remaining / (count / elapsed) / 3600 if count else 0
+                eta = remaining / (count / elapsed) / 60 if count else 0
                 print(
                     f"[{count}/{len(pending)}] {rate:.0f}/hour  "
-                    f"{len(failed)} failed  ETA {eta:.1f} h"
+                    f"{len(failed)} failed  ETA {eta:.0f} min",
+                    flush=True,
                 )
                 if budget_bytes is not None and cache_bytes(cache_root) >= budget_bytes:
-                    print("cache budget reached; stopping")
+                    print("cache budget reached; stopping", flush=True)
                     stop.set()
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:

@@ -1697,11 +1697,20 @@ export default function App() {
     "legacy" | "loading" | "ready" | "error"
   >("legacy");
   const loadSequence = useRef(0);
+  const loadInFlight = useRef(false);
   const phaseCurveCache = useRef(new Map<number, PhaseCurve>());
   const starCache = useRef<Star[]>([]);
   const starRevision = useRef<string | null>(null);
 
   const loadSurvey = useCallback(async () => {
+    // Never start a load while one is still running. The poll fires every 5 s,
+    // and a load slower than that used to bump the sequence counter and then
+    // be discarded by its own successor at the `sequence !== current` guard
+    // below -- so once the survey grew past a five-second refresh, setSurvey
+    // stopped being reached at all and the dashboard sat permanently empty.
+    // Skipping is safe: the next tick retries in five seconds.
+    if (loadInFlight.current) return;
+    loadInFlight.current = true;
     const sequence = ++loadSequence.current;
     try {
       const [summaryResponse, opsResponse] = await Promise.all([
@@ -1737,12 +1746,15 @@ export default function App() {
           const payload = (await response.json()) as Partial<SurveyData>;
           const rows = payload.stars;
           if (!Array.isArray(rows) || rows.length === 0) return null;
-          // Only trust it when it agrees with the ledger's own count; a
-          // half-written or superseded snapshot must fall through rather than
-          // quietly render a different survey than the summary describes.
+          // The snapshot may legitimately hold *more* stars than the ledger
+          // reports: it is rebuilt from report files during a campaign, while
+          // the ledger only advances when `ledger-import` runs. Requiring exact
+          // agreement rejected a perfectly good snapshot mid-campaign and fell
+          // back to the slow paged path, which is the failure this change
+          // existed to remove. Only a snapshot that is *behind* is suspect.
           if (
             typeof summary.stars_total === "number" &&
-            rows.length !== summary.stars_total
+            rows.length < summary.stars_total
           ) {
             return null;
           }
@@ -1821,6 +1833,8 @@ export default function App() {
     } catch (error) {
       if (sequence !== loadSequence.current) return;
       setLoadError(error instanceof Error ? error.message : "Unable to load survey data");
+    } finally {
+      loadInFlight.current = false;
     }
   }, []);
 
