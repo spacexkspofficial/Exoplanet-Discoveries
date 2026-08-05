@@ -370,6 +370,8 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
     analysis_processes = int(getattr(args, "analysis_processes", 0) or 0)
     if analysis_processes < 0 or analysis_processes > 16:
         raise ValueError("Use between 0 and 16 analysis processes.")
+    # The real analysis concurrency, whichever pool is in use.
+    analysis_slots = analysis_processes or workers
     specs = [
         _batch_target_spec(index, row, output_dir)
         for index, row in enumerate(rows, start=1)
@@ -719,8 +721,10 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
                     if download_median
                     else None
                 ),
+                # Must use the real concurrency, which is the process count
+                # when running a process pool, not the thread-worker setting.
                 "analysis_capacity_per_hour": (
-                    round(3600.0 * workers / analysis_median)
+                    round(3600.0 * analysis_slots / analysis_median)
                     if analysis_median
                     else None
                 ),
@@ -759,8 +763,6 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             download_futures[future] = spec
             future_started[future] = time.monotonic()
             staged += 1
-
-    analysis_slots = analysis_processes or workers
 
     def submit_analyses(executor) -> None:
         while downloaded_waiting and len(analysis_futures) < analysis_slots:
