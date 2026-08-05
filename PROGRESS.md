@@ -961,6 +961,82 @@ record was written; `origin/main` and the research branch are synchronized at
     Full suite: **293 passed**. No production behaviour changed. Raw evidence:
     `results/p2_gates/edge_guard_retention_120.json`; see `P2_EDGE_BIAS.md`.
 
+29. **Campaign throughput was capped by the dashboard export, not by the
+    search — and four earlier optimisations that each fixed a real bottleneck
+    moved it by nothing.** Throughput sat at 400-440 stars/hour across every
+    configuration tried: four analysis threads or eight, threads or processes,
+    a cold cache or a fully warm one, detrending on the coordinator or on the
+    workers. That stability across configurations that differ enormously was
+    itself the evidence that none of them was the constraint.
+
+    `cProfile` on the coordinator's **main thread** — the scheduler loop — over
+    sixty targets:
+
+    | measurement | value |
+    |---|---:|
+    | main-thread time | 988.6 s |
+    | spent working rather than waiting on futures | **98%** |
+    | `nt.scandir` calls | 804,098 |
+    | JSON `raw_decode` calls | 253,662 |
+    | `nt.stat` calls | 372,220 |
+    | `export_dashboard_data` calls, for 60 targets | **64** |
+
+    `publish_progress` called `export_dashboard_data` inline on every
+    checkpoint. Each export re-walks the results tree and re-parses the whole
+    survey at roughly 15 s, against a 5 s publish throttle, so it ran back to
+    back and consumed the scheduler thread entirely — about **16.5 s of
+    coordinator overhead per target**. The snapshot is a progress view and the
+    checkpoints are authoritative, so it now runs on its own daemon thread at
+    most once every 120 s, with a synchronous final export.
+
+    | | before | after |
+    |---|---:|---:|
+    | throughput | 432/hour | **8,460/hour** |
+    | analysis median | 43.45 s | **2.58 s** |
+
+    **The analysis median is the confirmation**: 2.58 s matches the 2.44 s a
+    single analysis costs standalone. The search was never slow; it was starved.
+
+    **What this says about the four preceding fixes.** Each removed a genuine
+    bottleneck and each was verified: a direct-URL photometry prefetcher
+    (17,299/hour against 440 inline), batched catalog warming (152,088/hour
+    against 3,250 per-TIC, 58 queries for 4,327 targets), serving cached
+    products without an archive search (download median 36.9 s to 0.88 s), and
+    moving detrending off the coordinator (CPU 1.82 to 3.87 of 16 cores). Not
+    one of them changed stars/hour, because all of them sat behind a serialised
+    step none of them touched. Every hypothesis formed about the coordinator
+    without measuring it — GIL starvation, prune cost, download-thread
+    contention — was wrong when tested. Profiling the component under suspicion
+    should have come first.
+
+    Those fixes are still worth having: a cold cohort now warms in minutes
+    instead of hours, and they are what make the 8,460/hour reachable rather
+    than immediately re-blocked on I/O. But the ledger should record that they
+    were not the fix.
+
+    Verified identical to a pre-change baseline through the shipping
+    `batch-hunt` path on a sixteen-target cohort, 0 of 16 rows differing, at
+    each step. One trap caught by that verification: mission flux is float32,
+    and rebuilding a light curve with dtype coerced to float64 shifted
+    Savitzky-Golay arithmetic by ~6e-7 in relative flux, moving every fitted
+    depth and flipping one period from 5.987 d to 5.965 d. Preserving dtype
+    reproduces the in-place result exactly.
+
+    Full suite: **304 passed**. See commits `f31f306`, `0eb3029`, `03b2af5`.
+
+30. **The 4,327-target detector-balanced Sector 100 campaign completed: 0 new
+    planets, 35 automated survivors.** 4,327 of 4,327 searched, **0 errors**,
+    4,292 rejected. The survivors are a follow-up queue, not candidates; the
+    claim ceiling is unchanged until context vetting adjudicates them, and on
+    the previous small-star cohort that pass explained every survivor.
+
+    One target failed mid-run with a corrupt FITS after a campaign was killed
+    during a download — lightkurve writes products in place, so an interrupted
+    download leaves a truncated file that later reads as corrupt. Deleting the
+    namespace and re-fetching resolved it. The new prefetcher writes to a
+    temporary name and renames on success, so it cannot produce that state;
+    the download path still can.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to
