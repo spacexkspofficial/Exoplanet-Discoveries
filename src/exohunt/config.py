@@ -226,6 +226,31 @@ class InstrumentConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class CalibrationConfig:
+    """P3 sampling design and release-gate budgets."""
+
+    policy_version: str = "p3-limb-darkened-production-path-v1"
+    random_sample_fraction: float = 0.05
+    archetype_count: int = 50
+    random_phase_injections_per_star: int = 20
+    edge_injections_per_star: int = 20
+    period_grid_points: int = 5
+    depth_noise_multipliers: tuple[float, ...] = (0.5, 1.0, 2.0, 4.0, 8.0)
+    impact_parameters: tuple[float, ...] = (0.0, 0.5, 0.8)
+    photon_noise_hours: float = 3.0
+    inverted_survivor_budget: float = 0.001
+    scrambled_survivor_budget: float = 0.001
+    t3_pass_rate_min: float = 0.002
+    t3_pass_rate_max: float = 0.02
+    maximum_epoch_enrichment: float = 2.0
+    maximum_median_depth_bias_fraction: float = 0.05
+    maximum_edge_recovery_gap: float = 0.03
+    known_period_tolerance_fraction: float = 0.01
+    known_depth_tolerance_fraction: float = 0.35
+    epoch_alignment_minimum_tolerance_days: float = 0.02
+
+
+@dataclass(frozen=True, slots=True)
 class ScienceConfig:
     """Everything that defines a result's scientific identity, in one object."""
 
@@ -235,6 +260,7 @@ class ScienceConfig:
     catalog_masking: CatalogMaskConfig = field(default_factory=CatalogMaskConfig)
     population: PopulationConfig = field(default_factory=PopulationConfig)
     instrument: InstrumentConfig = field(default_factory=InstrumentConfig)
+    calibration: CalibrationConfig = field(default_factory=CalibrationConfig)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -267,6 +293,29 @@ def code_version(repo_root: str | Path | None = None) -> str:
     return "package:exohunt-starter-0.1.0"
 
 
+def require_clean_repository(repo_root: str | Path | None = None) -> None:
+    """Refuse release evidence whose git commit does not describe its code."""
+
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=all"],
+            cwd=str(repo_root) if repo_root else str(Path(__file__).parent),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise RuntimeError("Could not verify a clean repository for release evidence.") from exc
+    if result.returncode != 0:
+        raise RuntimeError("Could not verify a clean repository for release evidence.")
+    if result.stdout.strip():
+        raise RuntimeError(
+            "Release calibration requires a clean git worktree so code_version "
+            "identifies the code that actually ran. Commit or stash changes, or "
+            "use --allow-dirty only for a diagnostic smoke run."
+        )
+
+
 def scientific_signature(
     *,
     code: str,
@@ -284,6 +333,35 @@ def scientific_signature(
         {
             "code": code,
             "config": config.to_dict(),
+            "product_family": product_family,
+            "target_list": target_list_hash,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return "sig1:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def settings_signature(
+    *,
+    code: str,
+    settings: dict[str, object],
+    product_family: str,
+    target_list_hash: str,
+) -> str:
+    """Sign the settings the shipping path actually consumed.
+
+    ``scientific_signature`` remains the identity for the complete frozen
+    ``ScienceConfig``.  Campaigns also have command-level scientific inputs
+    (author, cadence, period bounds, and the shipped detrending constants), so
+    their release evidence must sign that exact serialized mapping rather than
+    a nearby configuration object.
+    """
+
+    canonical = json.dumps(
+        {
+            "code": code,
+            "settings": settings,
             "product_family": product_family,
             "target_list": target_list_hash,
         },

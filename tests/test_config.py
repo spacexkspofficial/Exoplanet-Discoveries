@@ -12,6 +12,7 @@ from exohunt.config import (
     SearchConfig,
     hash_target_list,
     scientific_signature,
+    settings_signature,
 )
 
 
@@ -81,6 +82,29 @@ def test_target_list_hash_tracks_content(tmp_path) -> None:
     assert hash_target_list(first) == hash_target_list(second)
     second.write_text("tic_id\n2\n", encoding="utf-8")
     assert hash_target_list(first) != hash_target_list(second)
+
+
+def test_settings_signature_is_canonical_and_sensitive() -> None:
+    first = settings_signature(
+        code="git:abc",
+        settings={"period": [0.5, 20.0], "author": "SPOC"},
+        product_family="SPOC-120s",
+        target_list_hash="targets",
+    )
+    reordered = settings_signature(
+        code="git:abc",
+        settings={"author": "SPOC", "period": [0.5, 20.0]},
+        product_family="SPOC-120s",
+        target_list_hash="targets",
+    )
+    changed = settings_signature(
+        code="git:abc",
+        settings={"author": "SPOC", "period": [0.5, 19.0]},
+        product_family="SPOC-120s",
+        target_list_hash="targets",
+    )
+    assert first == reordered
+    assert first != changed
 
 
 def test_search_config_documents_the_alias_ladder() -> None:

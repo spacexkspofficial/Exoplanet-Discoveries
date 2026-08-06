@@ -31,7 +31,8 @@ def _tap_csv(
 ) -> list[dict[str, str]]:
     if attempts < 1:
         raise ValueError("attempts must be at least 1")
-    url = TAP_URL + "?" + urllib.parse.urlencode({"query": query, "format": "csv"})
+    parameters = urllib.parse.urlencode({"query": query, "format": "csv"})
+    url = TAP_URL + "?" + parameters
     request = urllib.request.Request(url, headers={"User-Agent": "exohunt-starter/0.1"})
     for attempt in range(1, attempts + 1):
         try:
@@ -39,6 +40,29 @@ def _tap_csv(
                 text = response.read().decode("utf-8")
             return list(csv.DictReader(io.StringIO(text)))
         except urllib.error.HTTPError as exc:
+            # IPAC's front door sometimes redirects broad GET queries to a
+            # blocked page (observed as a terminal 404 after redirect) while
+            # accepting the same standards-compliant TAP sync request as
+            # form-encoded POST. This also avoids URI-length rejection.
+            if exc.code in {302, 404}:
+                post = urllib.request.Request(
+                    TAP_URL,
+                    data=parameters.encode("utf-8"),
+                    headers={
+                        "User-Agent": "exohunt-starter/0.1",
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    method="POST",
+                )
+                try:
+                    with urllib.request.urlopen(post, timeout=timeout) as response:
+                        text = response.read().decode("utf-8")
+                    return list(csv.DictReader(io.StringIO(text)))
+                except (urllib.error.URLError, TimeoutError, ConnectionError):
+                    if attempt >= attempts:
+                        raise
+                    time.sleep(min(2 ** (attempt - 1), 16))
+                    continue
             if attempt >= attempts or (exc.code != 429 and exc.code < 500):
                 raise
         except (urllib.error.URLError, TimeoutError, ConnectionError):

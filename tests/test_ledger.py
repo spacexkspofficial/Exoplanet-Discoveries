@@ -60,6 +60,41 @@ def test_unknown_verdicts_are_rejected(conn) -> None:
         )
 
 
+def test_release_report_blocks_broken_or_unknown_signatures(conn, tmp_path: Path) -> None:
+    path = tmp_path / "release.json"
+    path.write_text("{}", encoding="utf-8")
+    broken = {
+        "scientific_signature": "sig1:broken",
+        "release_gate_passes": False,
+        "execution_complete": True,
+        "errors": [],
+        "known_planet_gate": {"passes": True},
+    }
+    with pytest.raises(ValueError, match="not passing"):
+        ledger.store_release_report(
+            conn,
+            signature="sig1:broken",
+            report_path=path,
+            payload=broken,
+        )
+    with pytest.raises(RuntimeError, match="enqueue is blocked"):
+        ledger.require_released_signature(conn, "sig1:broken")
+
+    passing = {
+        **broken,
+        "scientific_signature": "sig1:good",
+        "release_gate_passes": True,
+    }
+    ledger.store_release_report(
+        conn,
+        signature="sig1:good",
+        report_path=path,
+        payload=passing,
+    )
+    ledger.require_released_signature(conn, "sig1:good")
+    assert ledger.release_report_for_signature(conn, "sig1:good") is not None
+
+
 def test_upsert_star_enriches_without_blanking(conn) -> None:
     ledger.upsert_star(conn, 42, name="TIC 42", tmag=11.5)
     ledger.upsert_star(conn, 42, teff_k=3400.0)

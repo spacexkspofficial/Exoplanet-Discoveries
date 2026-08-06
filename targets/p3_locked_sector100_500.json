@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "status": "locked_before_p3_outcome_measurement",
+  "selection_rule": "first 500 rows in the existing small-planet-merit ranking; no search outcomes consulted",
+  "source_csv": "targets\\sector100_expansion_5000.csv",
+  "source_csv_sha256": "43a13ce57a2d35a52861312e69e888c71718bfe679c81efe2f66a181def936e0",
+  "output_csv": "targets\\p3_locked_sector100_500.csv",
+  "output_csv_sha256": "aeb806fcd831bbc73c91208829508d41c414108725f9c1f0bb9c6c8dfbf03165",
+  "cohort_rows": 500,
+  "unique_tic_ids": 500,
+  "cohort_identity_sha256": "420e4b540c6eec03c5a022c9e4f3042c0377b092de75b74a1541f7e9056b5101",
+  "extends_p2_first_150": true,
+  "enriched_prefix_csv": "targets\\p2_search_grid_golden_150.csv",
+  "enriched_prefix_sha256": "66b5f1e0228495fbbd23fdcda5003c70cc064b1437172f12af41b97b9f8bf065",
+  "copied_stellar_mass_rows": 69,
+  "stellar_radius_rows": 500,
+  "stellar_mass_rows": 69
+}

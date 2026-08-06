@@ -1639,7 +1639,12 @@ def _hunt_from_light_curve(
     tic_id = args.tic or metadata.get("tic_id")
     if not tic_id:
         raise RuntimeError("Could not infer a TIC ID; provide one with --tic.")
-    catalog = check_tic(int(tic_id))
+    catalog_override = getattr(args, "catalog_override", None)
+    catalog = (
+        catalog_override
+        if catalog_override is not None
+        else check_tic(int(tic_id))
+    )
     ephemerides = _catalog_ephemerides(catalog)
     allow_no_known = bool(getattr(args, "allow_no_known", False))
     if not ephemerides and not allow_no_known:
@@ -1860,7 +1865,15 @@ def _hunt_from_light_curve(
         deeper_vetting,
         t3_vetoes,
     )
-    sensitivity = fixed_ephemeris_injection_sensitivity(cleaned_time, cleaned_flux)
+    calibration_only = bool(getattr(args, "calibration_only", False))
+    sensitivity = (
+        {
+            "status": "not_run_in_calibration_trial",
+            "reason": "not consumed by the T2-T3 recovery/null verdict",
+        }
+        if calibration_only
+        else fixed_ephemeris_injection_sensitivity(cleaned_time, cleaned_flux)
+    )
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1874,6 +1887,7 @@ def _hunt_from_light_curve(
         ),
         "data": metadata,
         "search_configuration": _scientific_settings(args),
+        "scientific_signature": getattr(args, "scientific_signature", None),
         "observation_window": {
             "start_btjd": float(np.nanmin(time)),
             "end_btjd": float(np.nanmax(time)),
@@ -1981,6 +1995,12 @@ def _hunt_from_light_curve(
         },
         "followup_classification": classification,
     }
+    args.generated_report_payload = report
+    if calibration_only:
+        # Calibration executes the production T2-T3 path above, but thousands
+        # of trials must not publish candidate artifacts or mutate campaign
+        # evidence.  The in-memory report is the trial result.
+        return 0
     temporary_plot = plot_path.with_name(plot_path.stem + ".tmp.png")
     _plot_result(result, arrays, temporary_plot)
     _replace_with_retry(temporary_plot, plot_path)
@@ -2300,6 +2320,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     batch.add_argument("--mask-width", type=float, default=1.5)
     batch.add_argument("--allow-no-known", action="store_true")
+    batch.add_argument(
+        "--trusted-first-pass",
+        action="store_true",
+        help=(
+            "Require this exact code/config/product/target-list signature to "
+            "have a passing release report in the ledger. Without this flag "
+            "the campaign is diagnostic and remains runnable for calibration."
+        ),
+    )
     batch.add_argument(
         "--allow-sleep",
         action="store_true",

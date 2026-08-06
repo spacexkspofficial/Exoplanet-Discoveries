@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "status": "locked_before_p3_known_recovery_measurement",
+  "source": "official per-TIC snapshots under data\\catalogs\\nasa_exoplanet_archive",
+  "source_query": "select pl_name,hostname,tic_id,pl_orbper,pl_trandep,sy_tmag,disc_facility,rowupdate from pscomppars",
+  "source_response_sha256": "a261603b5fd24ffe898626149e4ffc9e5bc1e0ed24f6fd624dda97e1a5446396",
+  "official_snapshot_set_sha256": "6b33101fcbbbe9291e5fce43ebb46d875adb32b63a26869f88eacaf4ff6fc780",
+  "retrieved_at_utc": "2026-08-06T17:32:46+00:00",
+  "selection": "four mandatory historical controls plus deterministic farthest-point coverage in log(period), log(depth), and Tmag; one planet per TIC; first available 120-s SPOC sector",
+  "mandatory_planets": {
+    "WASP-18 b": 2,
+    "pi Men c": 1,
+    "HD 209458 b": 56,
+    "TOI-700 c": 3
+  },
+  "rows": 20,
+  "output_csv": "targets\\p3_known_planets_20.csv",
+  "output_csv_sha256": "7aeaf2516609ede6b18e0f2c89a2bd6f22279dec998ece9fdab537b52a0f66c8",
+  "period_days_range": [
+    0.7683904,
+    16.051106
+  ],
+  "depth_ppm_range": [
+    321.0,
+    19304.2778014
+  ],
+  "tmag_range": [
+    8.65,
+    13.91
+  ]
+}

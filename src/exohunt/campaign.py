@@ -356,6 +356,28 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
         rows = rows[: args.max_targets]
     if not rows:
         raise RuntimeError("Target CSV contains no rows.")
+    # Every campaign is stamped, including diagnostic work. Only an explicit
+    # trusted-first-pass request is blocked on the release registry, so P3 can
+    # run the calibration that creates the report without circular approval.
+    from .config import code_version, hash_target_list, settings_signature
+
+    signature = settings_signature(
+        code=code_version(Path.cwd()),
+        settings=cli_module._scientific_settings(args),
+        product_family=f"{args.author}-{float(args.cadence_seconds):g}s",
+        target_list_hash=hash_target_list(target_path),
+    )
+    args.scientific_signature = signature
+    if bool(getattr(args, "trusted_first_pass", False)):
+        from . import ledger
+        from .config import require_clean_repository
+
+        require_clean_repository(Path.cwd())
+        conn = ledger.connect()
+        try:
+            ledger.require_released_signature(conn, signature)
+        finally:
+            conn.close()
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     workers = max(1, int(getattr(args, "workers", 1)))

@@ -103,6 +103,14 @@ CREATE TABLE IF NOT EXISTS snapshot (
     created_at_utc TEXT NOT NULL,
     UNIQUE (source, version, content_hash)
 );
+CREATE TABLE IF NOT EXISTS release_report (
+    signature TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    report_path TEXT NOT NULL,
+    report_sha256 TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    created_at_utc TEXT NOT NULL
+);
 """
 
 
@@ -249,6 +257,70 @@ def append_evidence(
         ),
     )
     return cursor.lastrowid if cursor.rowcount else None
+
+
+def store_release_report(
+    conn: sqlite3.Connection,
+    *,
+    signature: str,
+    report_path: str | Path,
+    payload: dict[str, Any],
+) -> None:
+    """Authorize one exact signature only after every P3 gate passes."""
+
+    import hashlib
+
+    if payload.get("scientific_signature") != signature:
+        raise ValueError("Release report signature does not match its key.")
+    if payload.get("release_gate_passes") is not True:
+        raise ValueError("Release report is not passing; signature remains diagnostic.")
+    if payload.get("execution_complete") is not True or payload.get("errors"):
+        raise ValueError("Release report is incomplete or contains execution errors.")
+    known = payload.get("known_planet_gate")
+    if not isinstance(known, dict) or known.get("passes") is not True:
+        raise ValueError("Known-planet production-path gate has not passed.")
+    path = Path(report_path)
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    conn.execute(
+        "INSERT INTO release_report "
+        "(signature, status, report_path, report_sha256, payload, created_at_utc) "
+        "VALUES (?, 'trusted', ?, ?, ?, ?) "
+        "ON CONFLICT(signature) DO UPDATE SET "
+        "status=excluded.status, report_path=excluded.report_path, "
+        "report_sha256=excluded.report_sha256, payload=excluded.payload, "
+        "created_at_utc=excluded.created_at_utc",
+        (
+            signature,
+            str(path.resolve()),
+            digest,
+            json.dumps(payload, sort_keys=True, separators=(",", ":")),
+            _utc_now(),
+        ),
+    )
+
+
+def release_report_for_signature(
+    conn: sqlite3.Connection, signature: str
+) -> dict[str, Any] | None:
+    row = conn.execute(
+        "SELECT * FROM release_report WHERE signature = ? AND status = 'trusted'",
+        (signature,),
+    ).fetchone()
+    if row is None:
+        return None
+    result = dict(row)
+    result["payload"] = json.loads(result["payload"])
+    return result
+
+
+def require_released_signature(conn: sqlite3.Connection, signature: str) -> None:
+    if release_report_for_signature(conn, signature) is None:
+        raise RuntimeError(
+            f"Scientific signature {signature} has no passing stored release report; "
+            "trusted first-pass enqueue is blocked. Diagnostic/calibration work is allowed."
+        )
 
 
 def set_affects_state(

@@ -2,7 +2,7 @@
 
 Tracks execution of [MASTER_PLAN.md](MASTER_PLAN.md) against its own gates.
 Started 2026-07-27 after owner approval of all seven §10 decisions.
-Test suite at last update: **236 passed** (114 pre-existing + 122 new), bare
+Test suite at last update: **319 passed**, bare
 `pytest` from a clean checkout.
 
 ## Phase status
@@ -79,7 +79,17 @@ record was written; `origin/main` and the research branch are synchronized at
 | Catalog ephemeris matching | Exact, half-, double-, and triple-period rules wired and replayed; one-third held | After masking was isolated in commit `9f9a860`, the shipping path gained the separately measured exact-period event-window rule. Both frozen 28-product outputs reproduce 4 phase-distinct exact relations, 1 mask-overlap control, and 4 untrustworthy recovery cases. The later harmonic production replay matches the independent diagnostic on 19/19 controlled relations: 12 zero-overlap cases continue, while 3 consistent and 4 controlled partial cases remain rejected. The one under-controlled one-third case remains period-only. Full evidence: `P2_CATALOG_MATCHING.md` and `P2_HARMONIC_MATCHING.md`. |
 | **Not yet done** | — | Remaining structure-only extraction (the single-target `_hunt_from_light_curve` analysis path and the context/vetting commands), then separately measured rewiring onto `detrend.py`/`population.py` and first-class signature/evidence records; a viable detrending mechanism; known-planet campaign cohort; monotransit detector; TLS integration into T2; cli.py AST tripwire |
 
-### P3–P5: **not started** (gated behind P2 exit, per plan)
+### P3 — Calibration and return of trust: **in progress**
+
+| Plan item | Status | Evidence |
+|---|---|---|
+| Locked 500 cohort | Frozen before measurement | `targets/p3_locked_sector100_500.csv` is the first 500 rows of the already-pinned Sector 100 merit ranking, extending the P2 first 150 without outcome selection; 500 unique TICs, content and ordered-identity hashes in its manifest |
+| Injection/null work items | Implemented; full gate pending | `calibration.py` injects quadratic-limb-darkened batman models into normalized pre-detrending flux, then calls the exact shipping preparation and T2–T3 hunt. Five photon-noise depth multiples, three impact parameters, five log-period bins, 20 random phases plus 20 paired edge trials per sampled star. Inversion is post-preparation; scrambles independently shift contiguous segments. One-star real-data smoke: 43 searches, no errors, about 2,259 searches/hour |
+| Sampling/completeness | Implemented; full surface pending | Deterministic 5% random sample plus 50 farthest-point archetypes over Tmag/Teff/radius/distance/camera/CCD; per-trial resumable evidence and period/depth completeness surface |
+| Known planets | Frozen at 20; full gate pending | Four historical controls plus 16 diverse official NASA snapshot rows, spanning 321–19,304 ppm, 0.77–16.05 d, and measured Tmag 8.65–13.91. TOI-700 c production-path smoke passed at the intended half-period alias with 3.2% depth error |
+| Signatures/release block | Implemented | Production and calibration identities are separate hashes; release runs require a clean worktree. The ledger stores only passing, complete reports with a green 20-planet gate. `batch-hunt --trusted-first-pass` refuses an exact signature lacking that stored report; the intentionally broken-report unit test proves the block |
+
+P4–P5 remain gated behind the measured P3 exit.
 
 ## Measured corrections to the plan (honesty ledger)
 
@@ -1124,6 +1134,33 @@ record was written; `origin/main` and the research branch are synchronized at
     up ledger: 210,281 evidence rows / 83,555 star identities; the voting
     projection contains 83,554 stars and matches the exporter exactly with zero
     count, per-star-status, or payload differences.
+
+33. **P3 is executable under frozen identities; a single-sector scramble is
+    explicitly not a whole-sector circular shift.** The first 500 rows of the
+    pre-existing Sector 100 merit ranking were frozen before any P3 outcome was
+    measured. The injection sample is a deterministic union of 5% random and
+    50 feature-space archetype stars. Each sampled star gets 20 random-phase
+    and 20 distribution-matched segment-edge injections, with limb-darkened
+    batman models inserted before the shipping Savitzky-Golay preparation.
+
+    The plan's literal "circular time shifts per sector" is BLS-invariant for
+    this single-sector locked cohort: shifting the entire flux vector changes
+    only phase, not periodic coherence. The implemented null therefore shifts
+    each contiguous observing segment independently; if a curve has only one
+    segment it is split at the midpoint first. This preserves local red-noise
+    structure while actually destroying global coherence, and every result
+    records the offsets and the correction.
+
+    A real one-star SPOC smoke completed all 43 searches without error. It
+    exposed a necessary reporting distinction: an injection recovered exactly
+    at the 0.5-day scientific boundary is a T2 recovery but cannot be a
+    promotion because the production rail policy correctly rejects endpoint
+    fits. Completeness and promotion-grade completeness are now both reported;
+    null and baseline survivor gates continue to use the full production
+    verdict. TOI-700 c independently passed the known-planet production-path
+    smoke at its deliberate half-period alias with 3.2% depth error. Full
+    locked-500, full 20-planet, threshold-calibration, and release-report gates
+    remain unspent at this entry.
 
 ## Owner notes
 
