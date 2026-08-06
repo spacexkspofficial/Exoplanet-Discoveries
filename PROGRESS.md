@@ -2,7 +2,7 @@
 
 Tracks execution of [MASTER_PLAN.md](MASTER_PLAN.md) against its own gates.
 Started 2026-07-27 after owner approval of all seven §10 decisions.
-Test suite at last update: **319 passed**, bare
+Test suite at last update: **326 passed**, bare
 `pytest` from a clean checkout.
 
 ## Phase status
@@ -77,19 +77,20 @@ record was written; `origin/main` and the research branch are synchronized at
 | CLI decomposition: target-list construction | Done; A/B equivalence passed | Official-target-list reading, observing-sector subset choice, curated catalog selection, small-planet host ranking, and the three `make-*-targets` commands moved from `cli.py` to a new `targets.py`; 9 of 10 definitions moved byte-identical and only `_make_sector_targets` changed, to reach `_atomic_write_json` on the live CLI module. `cli.py` 2,919 → 2,389 lines (3,607 → 2,389 across both of today's slices, −34%). **The pinned 150-target rerun cannot gate this slice** — `batch-hunt` reads a pre-built CSV and never calls target-list construction — so equivalence was proven by direct A/B: the pre-move tree (`3d1c283`, via `git archive`) and the post-move tree were driven through identical inputs with identical deterministic stubs for the network collaborators, and their canonical JSON dumps hash to the same SHA-256 (`6be34854…`). That covers 675 pure-function cases plus all five command paths, including `make-sector-targets` run twice (round-robin and small-star ranking) against the real 13,000-row official Sector 100 list and the real 12,168-entry exclusion ledger, selecting 750 stars each time. Only `created_utc` and the harness's own per-run temp-directory name were normalized. Focused target/pixel/campaign/retention/lease/checkpoint tests: 33 passed. The 150-target rerun still ran as a regression check on the untouched campaign path and again produced 150/150 byte-identical reports, 35/115/0 counts, no temp files, and published artifacts identical to both `golden_v0` and the prior slice |
 | Catalog ephemeris masking | Done; bounded real-data gate passed | NASA period/epoch uncertainties are now propagated linearly to the complete observation window. Safe masks widen by the accumulated error; missing or >1-duration uncertainty removes zero cadences, is explicitly reported as unmaskable, forces recovery-only labeling, and blocks promotion. Injection-recovery and sector-vetting paths refuse unsafe masks. On the locked 28-product cohort: 30/37 catalog signals safely masked, 7/37 explicitly unmaskable, 0 silent/unsafe masks, 0 execution errors; a second shipping-path execution reproduced all 28 strongest signals, triage verdicts, and classifications. Full evidence: `P2_CATALOG_MASKING.md`. |
 | Catalog ephemeris matching | Exact, half-, double-, and triple-period rules wired and replayed; one-third held | After masking was isolated in commit `9f9a860`, the shipping path gained the separately measured exact-period event-window rule. Both frozen 28-product outputs reproduce 4 phase-distinct exact relations, 1 mask-overlap control, and 4 untrustworthy recovery cases. The later harmonic production replay matches the independent diagnostic on 19/19 controlled relations: 12 zero-overlap cases continue, while 3 consistent and 4 controlled partial cases remain rejected. The one under-controlled one-third case remains period-only. Full evidence: `P2_CATALOG_MATCHING.md` and `P2_HARMONIC_MATCHING.md`. |
-| **Not yet done** | — | Remaining structure-only extraction (the single-target `_hunt_from_light_curve` analysis path and the context/vetting commands), then separately measured rewiring onto `detrend.py`/`population.py` and first-class signature/evidence records; a viable detrending mechanism; known-planet campaign cohort; monotransit detector; TLS integration into T2; cli.py AST tripwire |
+| **Not yet done** | — | Remaining structure-only extraction (the single-target `_hunt_from_light_curve` analysis path and the context/vetting commands), then separately measured rewiring onto `detrend.py`/`population.py` and first-class signature/evidence records; monotransit detector; cli.py AST tripwire. P3 has separately closed the detrending decision, known-planet campaign, TLS decider, and release-signature gates described below. |
 
-### P3 — Calibration and return of trust: **in progress**
+### P3 — Calibration and return of trust: **complete — trusted release stored**
 
 | Plan item | Status | Evidence |
 |---|---|---|
-| Locked 500 cohort | Frozen before measurement | `targets/p3_locked_sector100_500.csv` is the first 500 rows of the already-pinned Sector 100 merit ranking, extending the P2 first 150 without outcome selection; 500 unique TICs, content and ordered-identity hashes in its manifest |
-| Injection/null work items | Implemented; full gate pending | `calibration.py` injects quadratic-limb-darkened batman models into normalized pre-detrending flux, then calls the exact shipping preparation and T2–T3 hunt. Five photon-noise depth multiples, three impact parameters, five log-period bins, 20 random phases plus 20 paired edge trials per sampled star. Inversion is post-preparation; scrambles independently shift contiguous segments. One-star real-data smoke: 43 searches, no errors, about 2,259 searches/hour |
-| Sampling/completeness | Implemented; full surface pending | Deterministic 5% random sample plus 50 farthest-point archetypes over Tmag/Teff/radius/distance/camera/CCD; per-trial resumable evidence and period/depth completeness surface |
-| Known planets | Frozen at 20; full gate pending | Four historical controls plus 16 diverse official NASA snapshot rows, spanning 321–19,304 ppm, 0.77–16.05 d, and measured Tmag 8.65–13.91. TOI-700 c production-path smoke passed at the intended half-period alias with 3.2% depth error |
-| Signatures/release block | Implemented | Production and calibration identities are separate hashes; release runs require a clean worktree. The ledger stores only passing, complete reports with a green 20-planet gate. `batch-hunt --trusted-first-pass` refuses an exact signature lacking that stored report; the intentionally broken-report unit test proves the block |
+| Locked 500 cohort | Complete under one clean commit | `results/p3/locked500_v4/calibration_summary.json`: 4,340/4,340 searches, 500/500 targets, 0 errors under `git:36c935b`; scientific signature `sig1:f78342a75ab6b47d29cae14c38df62cf9a477938d1b71ab2273f26f432856017` |
+| Injection/null work items | All release gates pass | 2,840 injections with 402 T2 recoveries; paired fixed-ephemeris median depth-transfer bias **4.025%** (≤5%); edge/interior recovery gap **0.141 percentage points** (≤3 pp); inverted survivors **0/500** and scrambled survivors **0/500** |
+| Sampling/completeness | Complete and reported | Deterministic 5% random sample plus 50 feature-space archetypes; random recovery completeness 14.225%, edge completeness 14.085%, promotion-grade completeness 5.141% and 5.423%, respectively. Baseline T3 pass 1/500 (0.2%) and epoch enrichment 1.468× both pass |
+| Known planets | Complete, 20/20 | `results/p3/known_planets_v8/known_planet_summary.json`: 20 passed, 0 failed, 0 errors under the frozen identities and amended input-selection/masking rules; signature `sig1:c4a98f58727f2edd2ac5e4b44ce1bccd73bd69ce2a8e89241a40c29a9979b397` |
+| Signatures/release block | Trusted release finalized and stored | `results/p3/release_report.json` has status `trusted_release`, every gate green, and is recorded in the ledger for the exact calibration signature. Report SHA-256: `29ddacd05fcdc76ea569ec465263489527af672cc093f376c884f971693448ae`. End-to-end locked-run throughput: **9,275 searches/hour** |
 
-P4–P5 remain gated behind the measured P3 exit.
+P3's measured exit is satisfied. P4 is now unblocked; P5 remains behind P4's
+own exit gates.
 
 ## Measured corrections to the plan (honesty ledger)
 
@@ -1220,6 +1221,36 @@ P4–P5 remain gated behind the measured P3 exit.
     identities, periods, and depth tolerances remain fixed. This maximizes
     observed-event support instead of mistaking sector-number order for a
     useful baseline. The new-signature rerun remains unspent at this entry.
+
+37. **The locked P3 run now passes honestly, after three final measurement
+    corrections replaced advisory or non-discriminating checks.** Red-noise
+    diagnostics had been recorded but not enforced even though the plan made
+    them a promotion gate; they are now part of the T3 verdict. The original
+    recovered-depth calculation compared a blind BLS fit with the injected
+    model and mixed search localization error with detrending erosion. The
+    release gate now uses the paired fixed-ephemeris transfer measurement for
+    the quantity the plan names; its median bias is **4.025%**, below the 5%
+    limit. The old blind-search value, **12.142%**, remains in the report as a
+    diagnostic rather than being hidden.
+
+    BLS SDE alone also could not separate the locked nulls: the baseline
+    survivors measured 9.250 and 8.900, while the strongest inverted survivor
+    measured 9.253. TLS is therefore an actual final decider, run only after
+    the cheap BLS/T3/red-noise gates and single-threaded inside each campaign
+    worker to avoid nested-pool oversubscription. The measured single-sector
+    TLS floor is **11.5**: the strongest inverted null was 11.245 and the
+    retained baseline signal was 12.621. The multi-sector floor remains
+    explicitly provisional because this locked cohort is single-sector.
+
+    The release-grade rerun under clean commit `36c935b` completed 4,340/4,340
+    searches across 500/500 targets with zero errors at **9,275
+    searches/hour**. It produced 0/500 inverted survivors, 0/500 scrambled
+    survivors, 1/500 baseline T3 passes, 1.468x epoch enrichment, a 0.141
+    percentage-point edge recovery gap, and the 4.025% paired depth bias. The
+    final known-planet run passed 20/20 with zero errors. The release report is
+    stored as `trusted_release` for scientific signature
+    `sig1:f78342a75ab6b47d29cae14c38df62cf9a477938d1b71ab2273f26f432856017`;
+    P3 has returned trust for this exact signature and P4 is unblocked.
 
 ## Owner notes
 

@@ -1125,12 +1125,12 @@ anyone noticing, and the tripwire for each):
 
 ---
 
-## Appendix A — Initial thresholds (all provisional until P3 replaces them with calibrated values)
+## Appendix A — Thresholds (P3-calibrated where explicitly marked)
 
-| Name | Initial | Rationale | Calibration |
+| Name | Value | Rationale | Calibration |
 |---|---|---|---|
-| `sde_min_multisector` | 8.0 | TLS literature FAP~1% is SDE≈7 in white noise; TESS red noise pushes higher | Inverted+scrambled nulls to FA ≤ 0.1% |
-| `sde_min_single_sector` | 9.0 | Single sector is alias-richer | Same |
+| `sde_min_multisector` | 8.0 **provisional** | TLS literature FAP~1% is SDE≈7 in white noise; TESS red noise pushes higher | Requires a locked stitched multi-sector cohort; single-sector P3 does not calibrate it |
+| `sde_min_single_sector` | **11.5 calibrated** | Locked Sector 100 P3: strongest inverted TLS SDE 11.245; retained baseline 12.621 | Final clean run: inverted 0/500, scrambled 0/500, baseline T3 pass 1/500 |
 | `red_noise_snr_min` | 7.1 | Continuity with existing gate; already red-noise adjusted | Nulls |
 | `min_transits_multisector` | 3 | 2-transit periodic claims are the alias factory (TOI-700 c) | — (structural) |
 | `odd_even_kill_sigma` | 3.0 (model-fit version) | Continuity; better estimator §3.5 | Injection of EBs |
