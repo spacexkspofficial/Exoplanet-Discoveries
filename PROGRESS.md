@@ -1205,6 +1205,22 @@ P4–P5 remain gated behind the measured P3 exit.
     threshold. The resulting signature explicitly records this masking rule;
     its rerun is unspent at this entry.
 
+36. **Sibling masking isolated TOI-1233.01 correctly, but non-contiguous
+    sector selection still supplied weak long-period support.** The run again
+    reached 19/20: every other planet passed, including exact TOI-776 b and the
+    intended TOI-700 c half-period alias. HD 108236's sibling masks removed
+    the four other known ephemerides, but the mechanical “first two sectors”
+    rule chose Sectors 10–11 despite a contiguous 99–101 block and the exposed
+    14.18-day signal still did not become the strongest peak.
+
+    The final input rule is independent of search outcomes: mandatory controls
+    retain their historical single sectors; controls below 8 d use one sector;
+    controls at or above 8 d use up to three sectors from their longest
+    contiguous public SPOC run, with the latest run breaking ties. The same 20
+    identities, periods, and depth tolerances remain fixed. This maximizes
+    observed-event support instead of mistaking sector-number order for a
+    useful baseline. The new-signature rerun remains unspent at this entry.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to

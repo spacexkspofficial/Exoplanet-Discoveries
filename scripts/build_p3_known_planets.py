@@ -93,6 +93,17 @@ def _all_spoc_sectors(row: dict[str, object]) -> list[int]:
     return sectors or [int(row["sector"])]
 
 
+def _best_contiguous_run(sectors: list[int], *, maximum: int = 3) -> list[int]:
+    runs: list[list[int]] = []
+    for sector in sorted(set(sectors)):
+        if runs and sector == runs[-1][-1] + 1:
+            runs[-1].append(sector)
+        else:
+            runs.append([sector])
+    best = max(runs, key=lambda run: (min(len(run), maximum), run[-1]))
+    return best[-maximum:]
+
+
 def _diverse_order(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     matrix = np.asarray(
         [
@@ -376,7 +387,7 @@ def build(
         if planet in MANDATORY:
             chosen_sectors = [MANDATORY[planet]]
         elif float(row["expected_period_days"]) >= 8.0:
-            chosen_sectors = sector_set[:2]
+            chosen_sectors = _best_contiguous_run(sector_set)
         else:
             chosen_sectors = sector_set[:1]
         row["sector"] = chosen_sectors[0]
@@ -394,12 +405,13 @@ def build(
     output_hash = hashlib.sha256(output_csv.read_bytes()).hexdigest()
     manifest = {
         "schema_version": 1,
-        "status": "amended_after_initial_measurement_without_target_replacement",
+        "status": "amended_after_two_measurements_without_target_replacement",
         "amendment": (
             "The initial first-sector execution recovered 18/20 at the correct "
-            "alias and exposed inadequate event support for the two long-period "
-            "controls. The same 20 planet/TIC identities are retained; only the "
-            "predeclared period-based sector rule was amended before rerun."
+            "alias. A second execution reached 19/20 and showed that selecting "
+            "the first two non-contiguous products did not guarantee long-period "
+            "event support. The same 20 planet/TIC identities are retained; the "
+            "final rule uses the longest contiguous public run."
         ),
         "source": source_label,
         "source_query": QUERY,
@@ -410,7 +422,8 @@ def build(
             "four mandatory historical controls plus deterministic farthest-point "
             "coverage in log(period), log(depth), and Tmag; one planet per TIC; "
             "fixed historical sectors for mandatory controls, otherwise one "
-            "120-s SPOC sector below 8 d and the first two at or above 8 d"
+            "120-s SPOC sector below 8 d and up to three sectors from the "
+            "longest contiguous public run at or above 8 d"
         ),
         "mandatory_planets": MANDATORY,
         "rows": len(selected),
