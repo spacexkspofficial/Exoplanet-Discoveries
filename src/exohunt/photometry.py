@@ -180,15 +180,49 @@ def prepare_search_arrays(
 
     import lightkurve as lk
 
-    # Do NOT coerce dtype. Mission flux arrives as float32, and upcasting to
+    # A multi-sector archive response is not guaranteed to arrive in time
+    # order.  Lightkurve usually stitches it correctly, but a real three-sector
+    # P3 recovery arrived with one boundary out of order.  Normalize that
+    # transport detail here, at the shared preparation boundary.  Exact
+    # duplicate cadences are averaged so the result is independent of product
+    # ordering.
+    time = np.asarray(time_values, dtype=float)
+    flux = np.asarray(flux_values)
+    if time.ndim != 1 or flux.ndim != 1 or time.size != flux.size:
+        raise ValueError("Time and flux must be equal-length one-dimensional arrays.")
+    finite = np.isfinite(time) & np.isfinite(flux)
+    removed_nonfinite = int(time.size - np.count_nonzero(finite))
+    time = time[finite]
+    flux = flux[finite]
+    order = np.argsort(time, kind="stable")
+    reordered = not np.array_equal(order, np.arange(order.size))
+    time = time[order]
+    flux = flux[order]
+    unique_time, first, counts = np.unique(
+        time, return_index=True, return_counts=True
+    )
+    duplicate_cadences = int(np.sum(counts - 1))
+    if duplicate_cadences:
+        merged_flux = np.add.reduceat(flux.astype(np.float64), first) / counts
+        flux = merged_flux.astype(flux.dtype, copy=False)
+        time = unique_time
+
+    # Do NOT coerce flux dtype. Mission flux arrives as float32, and upcasting to
     # float64 changes the Savitzky-Golay arithmetic by about 6e-7 in relative
     # flux -- invisible on its own, but measured across sixteen targets it
     # moved every fitted depth and flipped one target's period from 5.987 d to
     # 5.965 d. Preserving the incoming dtype reproduces the in-place result
     # exactly.
-    curve = lk.LightCurve(time=time_values, flux=flux_values)
+    curve = lk.LightCurve(time=time, flux=flux)
     flattened, detrending = flatten_edge_safe(curve)
     enriched = dict(metadata)
+    enriched["time_axis_normalization"] = {
+        "method": "stable_sort_and_mean_exact_duplicates",
+        "input_cadences": int(np.asarray(time_values).size),
+        "removed_nonfinite_cadences": removed_nonfinite,
+        "duplicate_cadences_merged": duplicate_cadences,
+        "reordered": reordered,
+    }
     enriched["detrending"] = detrending
     enriched["cadence_minutes"] = float(detrending["cadence_days"]) * 24 * 60
     enriched["flatten_window_cadences"] = int(detrending["window_cadences"])

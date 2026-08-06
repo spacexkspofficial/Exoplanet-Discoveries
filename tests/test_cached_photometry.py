@@ -11,6 +11,8 @@ so these tests pin when it is allowed to engage and when it must stand aside.
 
 from __future__ import annotations
 
+import sys
+
 import numpy as np
 import pytest
 
@@ -201,6 +203,55 @@ def test_preparation_preserves_the_incoming_flux_dtype() -> None:
     )
     assert metadata["target"] == "TIC 1"
     assert len(prepared_time) > 0
+
+
+def test_preparation_orders_and_merges_stitched_cadences(monkeypatch) -> None:
+    """Archive product ordering cannot make multi-sector preparation fail."""
+
+    captured: dict[str, np.ndarray] = {}
+
+    class _LightCurve:
+        def __init__(self, *, time, flux) -> None:
+            captured["time"] = np.asarray(time)
+            captured["flux"] = np.asarray(flux)
+
+    class _LK:
+        LightCurve = _LightCurve
+
+    class _Values:
+        def __init__(self, values) -> None:
+            self.value = np.asarray(values)
+
+    class _Flattened:
+        def __init__(self, time, flux) -> None:
+            self.time = _Values(time)
+            self.flux = _Values(flux)
+
+    monkeypatch.setitem(sys.modules, "lightkurve", _LK())
+    monkeypatch.setattr(
+        photometry,
+        "flatten_edge_safe",
+        lambda curve: (
+            _Flattened(captured["time"], captured["flux"]),
+            {"cadence_days": 1.0, "window_cadences": 101},
+        ),
+    )
+    time, flux, metadata = photometry.prepare_search_arrays(
+        np.asarray([3.0, 1.0, 2.0, 2.0, np.nan]),
+        np.asarray([3.0, 1.0, 1.8, 2.2, 9.0], dtype=np.float32),
+        {"target": "TIC 1"},
+    )
+
+    assert np.array_equal(time, np.asarray([1.0, 2.0, 3.0]))
+    assert np.array_equal(flux, np.asarray([1.0, 2.0, 3.0], dtype=np.float32))
+    assert flux.dtype == np.float32
+    assert metadata["time_axis_normalization"] == {
+        "method": "stable_sort_and_mean_exact_duplicates",
+        "input_cadences": 5,
+        "removed_nonfinite_cadences": 1,
+        "duplicate_cadences_merged": 1,
+        "reordered": True,
+    }
 
 
 def test_unflattened_download_omits_the_detrending_metadata(
