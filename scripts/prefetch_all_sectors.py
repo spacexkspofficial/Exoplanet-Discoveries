@@ -29,6 +29,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--workers", type=int, default=24)
     parser.add_argument("--max-gb", type=float, default=42.0)
     parser.add_argument("--skip-catalogs", action="store_true")
+    parser.add_argument(
+        "--start-sector",
+        type=int,
+        help="Skip sectors before this one when resuming a partially warmed cohort.",
+    )
     args = parser.parse_args(argv)
 
     rows = list(csv.DictReader(args.targets.open(encoding="utf-8-sig")))
@@ -36,6 +41,10 @@ def main(argv: list[str] | None = None) -> int:
     for row in rows:
         by_sector[str(row["sectors"]).strip()].append(row)
     sectors = sorted(by_sector, key=lambda value: int(value))
+    if args.start_sector is not None:
+        sectors = [sector for sector in sectors if int(sector) >= args.start_sector]
+        if not sectors:
+            parser.error(f"no sectors at or after {args.start_sector} in {args.targets}")
     print(
         f"{len(rows)} targets across {len(sectors)} sectors: "
         f"{', '.join(sectors)}",
