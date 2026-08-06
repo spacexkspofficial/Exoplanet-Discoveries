@@ -8,11 +8,25 @@ import pytest
 
 from exohunt.config import (
     CURRENT_CONFIG,
+    CURRENT_IDENTITY,
+    IdentityConfig,
     ScienceConfig,
     SearchConfig,
     hash_target_list,
+    match_radius_arcsec,
+    module_digest,
     scientific_signature,
     settings_signature,
+    vetting_signature,
+)
+
+# The configuration digest P3 certified. `results/p3/release_report.json` stores
+# `trusted_release` for the signature built over this hash at git:36c935b, so a
+# change here retires that release whether or not anyone noticed. P4 adds a
+# whole vetting layer; this pin is what proves the layer was added *beside* the
+# detection identity rather than inside it.
+P3_CERTIFIED_CONFIG_HASH = (
+    "dcdb2bf009a1667246d69b87af533af590befbcece8648623592990d18cd1594"
 )
 
 
@@ -111,3 +125,71 @@ def test_search_config_documents_the_alias_ladder() -> None:
     ratios = SearchConfig().alias_ratios
     assert 0.5 in ratios and 2.0 in ratios and 1.0 in ratios
     assert ratios == tuple(sorted(ratios))
+
+
+def test_p4_vetting_layer_does_not_move_the_p3_certified_identity() -> None:
+    """The P3 release is keyed to a digest over ScienceConfig alone.
+
+    Adding a vetting parameter to ScienceConfig would invalidate the stored
+    trusted release silently -- the campaign path would simply start refusing
+    `--trusted-first-pass` with a signature nobody recognised.
+    """
+
+    assert ScienceConfig().config_hash() == P3_CERTIFIED_CONFIG_HASH
+    assert "identity" not in {
+        field.name for field in dataclasses.fields(ScienceConfig)
+    }
+
+
+def test_vetting_signature_names_its_snapshot_generation() -> None:
+    base = vetting_signature(
+        code="modules:abc",
+        identity=CURRENT_IDENTITY,
+        snapshots={"nasa_toi": "hash-1", "nasa_ps": "hash-2"},
+    )
+    assert base.startswith("vet1:")
+    # Key order must not matter; the snapshot generation must.
+    assert base == vetting_signature(
+        code="modules:abc",
+        identity=CURRENT_IDENTITY,
+        snapshots={"nasa_ps": "hash-2", "nasa_toi": "hash-1"},
+    )
+    assert base != vetting_signature(
+        code="modules:abc",
+        identity=CURRENT_IDENTITY,
+        snapshots={"nasa_toi": "hash-1", "nasa_ps": "hash-CHANGED"},
+    )
+    # A source that was not consulted is not the same as one that was.
+    assert base != vetting_signature(
+        code="modules:abc",
+        identity=CURRENT_IDENTITY,
+        snapshots={"nasa_toi": "hash-1"},
+    )
+    assert base != vetting_signature(
+        code="modules:abc",
+        identity=dataclasses.replace(CURRENT_IDENTITY, match_radius_pixels=2.0),
+        snapshots={"nasa_toi": "hash-1", "nasa_ps": "hash-2"},
+    )
+
+
+def test_module_digest_tracks_only_the_named_modules() -> None:
+    one = module_digest("identity.py")
+    assert one == module_digest("identity.py")
+    assert one != module_digest("identity.py", "snapshots.py")
+    assert module_digest("identity.py", "snapshots.py") == module_digest(
+        "snapshots.py", "identity.py"
+    )
+    with pytest.raises(FileNotFoundError):
+        module_digest("no_such_module.py")
+    with pytest.raises(ValueError):
+        module_digest()
+
+
+def test_match_radius_is_derived_from_the_pixel_scale() -> None:
+    assert match_radius_arcsec() == pytest.approx(
+        CURRENT_IDENTITY.match_radius_pixels
+        * CURRENT_CONFIG.instrument.pixel_scale_arcsec
+    )
+    assert match_radius_arcsec(
+        IdentityConfig(match_radius_pixels=2.0)
+    ) == pytest.approx(2.0 * CURRENT_CONFIG.instrument.pixel_scale_arcsec)

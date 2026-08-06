@@ -92,6 +92,20 @@ record was written; `origin/main` and the research branch are synchronized at
 P3's measured exit is satisfied. P4 is now unblocked; P5 remains behind P4's
 own exit gates.
 
+### P4 — Vetting depth and backlog adjudication: **foundation built; vetting depth and backlog outstanding**
+
+| Plan item | Status | Evidence |
+|---|---|---|
+| Snapshot infrastructure (§4.1) | Built, tested, and populated | `snapshots.py`: immutable content-hashed generations with manifest, atomic write, generation pruning that keeps every manifest, and hash verification on read. Two scope classes, because the sources differ: whole-catalog snapshots, and sample-scoped extracts that record the position list they were taken over so `catalog_coverage_gap` stays structurally distinct from `no_match`. Three live generations fetched from the real services: **nasa_toi 8,113 rows**, **nasa_ps 6,336 rows** (`default_flag=1`), **tess_eb 4,584 rows**, all registered in the ledger `snapshot` table. Five further sources (VSX, ASAS-SN, Gaia DR3, Gaia NSS SB1/EB) are declared and implemented but unfetched — they are sample-scoped and wait on a P4 cohort position list |
+| Identity graph (§4.1) | Built and tested | `identity.py` plus ledger schema v2 (`identity_node`, `identity_edge`; additive, migration recorded in `event_log`). Proper-motion propagation to a catalog's epoch with an explicit basis string for the cases it *cannot* propagate; ranked counterparts with ambiguity preserved rather than resolved away; faint neighbours retained as scene members but excluded as hosts; edges idempotent per snapshot hash, so re-vetting against a new generation appends rather than overwrites |
+| Ephemeris matching (§4.3) | Built and tested | `adjudicate.py` implements the period **and** epoch rule the plan names as a defect. Alias ladder taken from `SearchConfig.alias_ratios` rather than a second hard-coded list; catalog period uncertainty propagated over the elapsed cycles; a propagated phase uncertainty beyond a quarter period reports `not_evaluable` instead of a fabricated disagreement; host match routes and only signal match kills; disagreeing sources never auto-resolve |
+| Known-object regression suite (§4.1) | **Green, and measured against deliberate breaks** | `results/p4/known_objects_v1/known_objects.json`: **502 cases** built from the three live snapshot generations — 400 real catalogued objects (150 confirmed planets, 150 TOIs, 100 TESS EBs, stratified across period) and 102 deliberate near-miss impostors. All 502 reproduce their stated intent, and the builder refuses to freeze a case the code disagrees with. Teeth measured, not assumed: removing the epoch test fails **34/502**, widening the phase tolerance fails **34/502**, and widening the period tolerance from 1% to 10% fails **34/502** — each break caught by exactly the impostor family built for it |
+| Campaign import | Done; **parity gate now red** | The finished 64,614-target `full_remaining_pool` campaign and several other unimported campaigns were imported idempotently: ledger **18,941 → 83,555 stars**, +146,228 evidence rows. This exposed a latent projection disagreement — see correction 38 |
+| **Not yet done** | — | Pixel-vet v2 (§4.4); T7 cross-reduction machinery (§4.5); TRICERATOPS/fit/packet assembly (§4.6, deferred by owner decision to an interface); review-queue UI (§8); and the backlog re-adjudication itself, which is P4's actual exit measurement. The five sample-scoped snapshot sources remain unfetched |
+
+P4's exit is **not** met. The vetting substrate exists and is gated; the
+vetting depth and the backlog adjudication that gate depends on do not.
+
 ## Measured corrections to the plan (honesty ledger)
 
 1. The "duplicate dashboard" was a process-chain misread (one server, three
@@ -1251,6 +1265,73 @@ own exit gates.
     stored as `trusted_release` for scientific signature
     `sig1:f78342a75ab6b47d29cae14c38df62cf9a477938d1b71ab2273f26f432856017`;
     P3 has returned trust for this exact signature and P4 is unblocked.
+
+38. **The P1 parity gate is red, and it is reporting a real disagreement
+    rather than a bug.** Importing the finished 64,614-target campaign (plus
+    several other campaigns that had never been imported) took the ledger from
+    18,941 to 83,555 stars and immediately broke the permanent parity gate on
+    **13 stars**, all in the same direction: the filesystem exporter says
+    `screened_rejected`, the ledger projection says `automated_survivor`.
+
+    The cause is that the two projections embody different policies, which
+    happened to agree until a campaign overlapped stars an earlier campaign had
+    already searched. `resolve_status` folds evidence by registry stage and
+    then precedence, and `automated_survivor` outranks `screened_rejected`
+    within the same stage, so *any* surviving conclusion wins regardless of
+    when it was reached. The exporter is effectively last-campaign-wins.
+    **2,104 stars now carry both verdicts**; the two rules agree on 2,091 of
+    them and disagree on the 13 where the older campaign was the one that said
+    survivor.
+
+    Neither answer is obviously right, which is why nothing was changed. Under
+    the plan's own framing (§1.1, the unit of work is (star, data-state), not
+    star) both conclusions are valid for their own data-state, and collapsing
+    them into one current-best status for the star is a policy choice the
+    owner should make rather than a defect to patch. It matters beyond these
+    13: P5 re-searches stars by design, so the disagreement grows. The live
+    dashboard currently reports 1,009 automated survivors where the exporter
+    reports 996.
+
+39. **The trusted-release signature is invalidated by any commit, including
+    ones that cannot touch the science.** `settings_signature` takes
+    `code=code_version()`, which is `git rev-parse HEAD` over the whole
+    repository, so the stored `trusted_release` is keyed to `git:36c935b` and
+    was already unreachable at `191a865` — two commits later, both of them
+    documentation and dashboard changes. A `--trusted-first-pass` campaign at
+    HEAD would be refused with a signature nobody recognises.
+
+    P4 did not inherit this. Vetting parameters live in `IdentityConfig` and
+    `EphemerisMatchConfig`, which are deliberately **not** members of
+    `ScienceConfig`, and `vetting_signature` identifies its code with
+    `module_digest` over the modules that actually compute the verdict rather
+    than with the repository head. `test_config.py` pins the P3-certified
+    configuration digest
+    (`dcdb2bf009a1667246d69b87af533af590befbcece8648623592990d18cd1594`) so a
+    future edit cannot retire that release silently. The detection-side
+    problem is untouched and needs an owner decision before P5.
+
+40. **The P1 dashboard latency gate is broken by the ledger's new size, and
+    the running server had to be restarted to recover at all.** After the
+    import the ledger holds 83,555 stars and 210,341 evidence rows, up from
+    18,941 and 64,113. `/api/summary` — the payload the browser polls — now
+    measures a **1,546 ms warm mean over five HTTP hits**, against P1's
+    exit gate of under 100 ms (measured then at 73.1 ms cold, 77.9 ms mean).
+
+    Profiled against the live ledger, `summary_payload` costs 895 ms in
+    process, and **`_status_counts_by_signature` alone is 498 ms of it**;
+    `_status_counts_by_lane` is 137 ms and everything else is under 90 ms. The
+    fix is a query/index change on that one function, not a rearchitecture,
+    but it needs its own measurement and was not attempted here.
+
+    Separately, the import left a 381 MB write-ahead log that the running
+    dashboard could neither read through — `/api/health` reported
+    `ledger_available: false` and `/api/summary` returned 503 — nor allow to be
+    checkpointed, because its own read lock made `wal_checkpoint(TRUNCATE)`
+    return busy. Stopping the dashboard tree, checkpointing (integrity `ok`,
+    WAL folded into a 526.88 MB database with no `-wal`/`-shm` left), and
+    relaunching on the documented path restored it. **Any future bulk import
+    should checkpoint before the dashboard is expected to serve**, and the
+    503 is the symptom to recognise.
 
 ## Owner notes
 

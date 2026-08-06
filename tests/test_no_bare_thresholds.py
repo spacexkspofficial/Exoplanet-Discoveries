@@ -28,6 +28,11 @@ KERNEL_MODULES = (
     "checkpoints.py",
     "lease.py",
     "paths.py",
+    # P4 vetting kernel. The pixel scale (21.0) is the literal these modules
+    # most want to re-introduce -- a match radius "of one pixel" is the whole
+    # point -- so they derive it from InstrumentConfig instead.
+    "snapshots.py",
+    "identity.py",
 )
 
 # The numeric values with a documented history of silent drift. Scanned as

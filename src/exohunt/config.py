@@ -261,6 +261,84 @@ class CalibrationConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class IdentityConfig:
+    """Identity-graph and catalog cross-match settings (T5, MASTER_PLAN 4.1).
+
+    Deliberately **not** a member of :class:`ScienceConfig`. The detection
+    identity that P3 certified is a digest over ``ScienceConfig``; folding
+    vetting parameters into it would silently invalidate the stored trusted
+    release every time a catalog rule was tuned, and would equally let a
+    detection change masquerade as a vetting change. Vetting evidence carries
+    :func:`vetting_signature` instead, which also names the snapshot
+    generation it adjudicated against.
+    """
+
+    policy_version: str = "identity-graph-pm-aware-v1"
+    # Counterpart search radius, expressed in TESS pixels rather than arcsec so
+    # the instrument fact lives once (InstrumentConfig.pixel_scale_arcsec).
+    # Anything inside one pixel contributes flux to the aperture, so it is kept
+    # as a ranked alternative rather than resolved away.
+    match_radius_pixels: float = 1.0
+    # Gaia DR3 positions are on the J2016.0 frame; every cone match against an
+    # epoch-specific catalog propagates proper motion to that catalog's epoch
+    # before comparing. At our magnitudes the PM error is negligible; the win
+    # is against 2MASS-era mismatches for high-proper-motion M dwarfs, which
+    # are precisely the primary lane.
+    gaia_reference_epoch_jyear: float = 2016.0
+    # 2MASS observations span 1997-2001; its catalogued positions are quoted at
+    # the mean epoch of the survey.
+    twomass_reference_epoch_jyear: float = 1999.3
+    # RUWE above this raises the blend prior. It never kills on its own --
+    # planet hosts have binaries (MASTER_PLAN 4.2).
+    ruwe_blend_prior: float = 1.4
+    # A neighbour this much fainter than the target cannot dilute to the
+    # observed depth even if it eclipsed totally, so it is recorded but not
+    # ranked as a plausible host.
+    max_neighbour_delta_mag: float = 10.0
+    # Snapshot generations retained on disk. Manifests (hash, row count,
+    # query) are kept forever so an old adjudication stays interpretable; only
+    # the bulk rows of older generations are pruned.
+    snapshot_generations_kept: int = 3
+
+
+CURRENT_IDENTITY = IdentityConfig()
+
+
+@dataclass(frozen=True, slots=True)
+class EphemerisMatchConfig:
+    """When a catalog ephemeris is the *same signal* (MASTER_PLAN 4.3).
+
+    The rule this replaces accepted a 1% period-ratio match with no epoch test.
+    At the 0.5-3 day periods where eclipsing binaries pile up, unrelated
+    signals agree on period constantly, so that rule manufactures "known"
+    verdicts -- and a false *known* is as damaging as a false *novel*, because
+    it discards a genuine new signal silently instead of loudly.
+    """
+
+    policy_version: str = "ephemeris-period-and-epoch-v1"
+    # Period agreement, as a fraction of the catalogued period. Continuity with
+    # the historical gate; the epoch test is what makes it decisive.
+    period_tolerance_fraction: float = 0.01
+    # Phase agreement is required within max(this fraction of the candidate's
+    # own duration, the drift the catalog's period error accumulates over the
+    # elapsed cycles). Half a duration is the point at which two events stop
+    # overlapping at all.
+    phase_tolerance_duration_fraction: float = 0.5
+    # Used as the per-cycle drift allowance only when a catalog row quotes no
+    # period uncertainty of its own.
+    assumed_period_uncertainty_fraction: float = 0.01
+    # Once the propagated phase uncertainty reaches this fraction of the
+    # period, the catalog prediction no longer says *where* the transit is, so
+    # the relation is reported as period-only rather than as agreement. The
+    # same reasoning as CatalogMaskConfig.max_phase_uncertainty_durations,
+    # applied to matching instead of masking.
+    max_phase_uncertainty_periods: float = 0.25
+
+
+CURRENT_EPHEMERIS_MATCH = EphemerisMatchConfig()
+
+
+@dataclass(frozen=True, slots=True)
 class ScienceConfig:
     """Everything that defines a result's scientific identity, in one object."""
 
@@ -379,6 +457,71 @@ def settings_signature(
         separators=(",", ":"),
     )
     return "sig1:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def module_digest(*module_names: str) -> str:
+    """Digest the source text of specific modules.
+
+    ``code_version`` answers "which commit is checked out", which is the right
+    identity for a survey run but the wrong one for a layer that must stay
+    stable across unrelated edits: a README fix moves ``git rev-parse HEAD``
+    and would retire an otherwise-valid vetting generation. This digests only
+    the modules that actually compute the verdict, so re-adjudication is forced
+    exactly when the adjudicating code changes.
+    """
+
+    if not module_names:
+        raise ValueError("module_digest needs at least one module name.")
+    here = Path(__file__).resolve().parent
+    digest = hashlib.sha256()
+    for name in sorted(module_names):
+        path = here / name
+        if not path.is_file():
+            raise FileNotFoundError(f"Cannot digest missing module: {path}")
+        digest.update(name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def vetting_signature(
+    *,
+    code: str,
+    identity: IdentityConfig,
+    snapshots: dict[str, str],
+    matching: EphemerisMatchConfig | None = None,
+) -> str:
+    """Digest what a catalog adjudication means.
+
+    ``snapshots`` maps each consulted source name to the content hash of the
+    generation it was adjudicated against, so "re-vet the world against new
+    catalogs" produces provably different evidence instead of quietly
+    overwriting the old verdict's meaning (MASTER_PLAN section 4).
+    """
+
+    canonical = json.dumps(
+        {
+            "code": code,
+            "identity": asdict(identity),
+            "matching": asdict(matching or CURRENT_EPHEMERIS_MATCH),
+            "snapshots": dict(sorted(snapshots.items())),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return "vet1:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def match_radius_arcsec(
+    identity: IdentityConfig | None = None,
+    instrument: InstrumentConfig | None = None,
+) -> float:
+    """Counterpart search radius in arcseconds, derived from the pixel scale."""
+
+    identity = identity or CURRENT_IDENTITY
+    instrument = instrument or CURRENT_CONFIG.instrument
+    return identity.match_radius_pixels * instrument.pixel_scale_arcsec
 
 
 def hash_target_list(path: str | Path) -> str:

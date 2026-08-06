@@ -52,7 +52,22 @@ pnpm-debug.log*
 
 # Generated survey data and local runtime state
 data/
-results/
+# ...excluding contents rather than the directory itself, because git cannot
+# re-include anything below an excluded directory -- the exception below would
+# silently do nothing if this said `results/`.
+results/*
+# The P4 known-object regression suite is the one exception. MASTER_PLAN
+# section 4.1 makes it a merge gate ("every identity/catalog code change must
+# resolve the whole suite before merge"), and a gate that lives only on the
+# machine that built it gates nothing: tests/test_known_object_suite.py skips
+# outright when the frozen cohort is absent. 552 KB, rebuilt by
+# scripts/build_p4_known_objects.py.
+!results/p4/
+results/p4/*
+!results/p4/known_objects_v1/
+results/p4/known_objects_v1/*
+!results/p4/known_objects_v1/known_objects.json
+!results/p4/known_objects_v1/positions.csv
 output/
 logs/
 tmp/

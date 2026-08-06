@@ -33,7 +33,11 @@ from typing import Any, Iterable
 from .paths import default_db_path
 from .statuses import STATUS_REGISTRY, resolve_status
 
-SCHEMA_VERSION = 1
+# 1: star / evidence / star_state / lease / event_log / snapshot / release_report.
+# 2: the P4 identity graph (MASTER_PLAN 4.1). Purely additive -- every version-1
+#    table and column is unchanged, so a version-1 reader keeps working and the
+#    migration is the DDL below plus a recorded version bump.
+SCHEMA_VERSION = 2
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -111,6 +115,37 @@ CREATE TABLE IF NOT EXISTS release_report (
     payload TEXT NOT NULL,
     created_at_utc TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS identity_node (
+    tic_id INTEGER PRIMARY KEY,
+    gaia_source_id INTEGER,
+    ra_deg REAL,
+    dec_deg REAL,
+    pmra_mas_yr REAL,
+    pmdec_mas_yr REAL,
+    epoch_jyear REAL,
+    resolution TEXT NOT NULL,
+    candidate_count INTEGER NOT NULL DEFAULT 0,
+    provenance TEXT NOT NULL,
+    resolved_at_utc TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS identity_edge (
+    edge_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tic_id INTEGER NOT NULL,
+    identifier_type TEXT NOT NULL,
+    identifier TEXT NOT NULL,
+    source TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    match_basis TEXT NOT NULL,
+    separation_arcsec REAL,
+    rank INTEGER NOT NULL DEFAULT 1,
+    snapshot_hash TEXT,
+    retrieved_at_utc TEXT NOT NULL,
+    UNIQUE (tic_id, identifier_type, identifier, source)
+);
+CREATE INDEX IF NOT EXISTS identity_edge_by_tic
+ON identity_edge (tic_id, identifier_type, rank);
+CREATE INDEX IF NOT EXISTS identity_edge_by_identifier
+ON identity_edge (identifier_type, identifier);
 """
 
 
@@ -144,12 +179,48 @@ def connect(
     conn.execute(f"PRAGMA busy_timeout={int(busy_timeout_ms)}")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(_SCHEMA)
-    conn.execute(
-        "INSERT OR IGNORE INTO schema_meta (key, value) VALUES ('schema_version', ?)",
-        (str(SCHEMA_VERSION),),
-    )
+    _record_schema_version(conn)
     conn.commit()
     return conn
+
+
+def _record_schema_version(conn: sqlite3.Connection) -> None:
+    """Advance the recorded schema version after additive DDL has been applied.
+
+    Every migration so far adds tables and indexes, which ``CREATE ... IF NOT
+    EXISTS`` applies on open. The version is still recorded rather than
+    inferred, and it only ever moves forward: opening an old database with new
+    code upgrades it, while opening a *newer* database with old code must not
+    silently rewrite the marker to claim a version this code cannot honour.
+    """
+
+    row = conn.execute(
+        "SELECT value FROM schema_meta WHERE key = 'schema_version'"
+    ).fetchone()
+    if row is None:
+        conn.execute(
+            "INSERT INTO schema_meta (key, value) VALUES ('schema_version', ?)",
+            (str(SCHEMA_VERSION),),
+        )
+        return
+    try:
+        existing = int(str(row["value"]))
+    except (TypeError, ValueError):
+        existing = 0
+    if existing >= SCHEMA_VERSION:
+        return
+    conn.execute(
+        "UPDATE schema_meta SET value = ? WHERE key = 'schema_version'",
+        (str(SCHEMA_VERSION),),
+    )
+    conn.execute(
+        "INSERT INTO event_log (kind, payload, created_at_utc) VALUES (?, ?, ?)",
+        (
+            "schema_migration",
+            json.dumps({"from": existing, "to": SCHEMA_VERSION}, sort_keys=True),
+            _utc_now(),
+        ),
+    )
 
 
 def connect_readonly(
