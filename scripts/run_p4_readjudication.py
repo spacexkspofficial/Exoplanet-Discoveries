@@ -54,6 +54,17 @@ BACKLOG_LANES = (
 
 VETTING_MODULES = ("adjudicate.py", "identity.py", "snapshots.py")
 
+# Evidence is idempotent on (tic_id, kind, source), which is what stops a
+# re-import from duplicating history -- and would equally stop an *improved*
+# run from being recorded at all, because the vetting signature digests the
+# kernel modules and not this runner's own input policy. Bump this whenever
+# the runner changes what it feeds the adjudicator, so a better answer lands
+# as a new row beside the old one instead of being silently dropped.
+#   v1: ephemeris read from the deciding evidence row only.
+#   v2: falls back to any screening row, recovering 262 of 288 stars that v1
+#       reported as having no ephemeris at all.
+READJUDICATION_POLICY = "p4-readjudication-v2-ephemeris-recovery"
+
 
 def _f(value: Any) -> float | None:
     if value in (None, ""):
@@ -73,8 +84,37 @@ def _tic(value: Any) -> int | None:
         return None
 
 
+def _ephemeris_from(payload: dict[str, Any]) -> dict[str, Any] | None:
+    """Pull a usable ephemeris out of one evidence payload, or None."""
+
+    result = payload.get("result")
+    result = result if isinstance(result, dict) else {}
+    period = _f(result.get("period_days"))
+    duration = _f(result.get("duration_hours"))
+    if not (period and duration):
+        return None
+    return {
+        "period_days": period,
+        "epoch_btjd": _f(result.get("transit_time")),
+        "duration_hours": duration,
+        "red_noise_adjusted_snr": _f(result.get("red_noise_adjusted_snr")),
+        "depth_ppm": _f(result.get("depth_ppm")),
+        "observed_transits": result.get("observed_transits"),
+        "sectors": result.get("sectors"),
+    }
+
+
 def load_backlog(conn) -> list[dict[str, Any]]:
-    """Pull every backlog star with a usable ephemeris in its evidence."""
+    """Pull every backlog star, with the best ephemeris its evidence holds.
+
+    A star's *deciding* row is whichever conclusion currently wins the status
+    projection, and for the catalog-context lanes that is a ``context`` record
+    with no search result attached. The ephemeris is still in the ledger --
+    it is in the ``screening`` row the same star already has -- so falling
+    back to it recovers 262 of the 288 stars that a deciding-row-only read
+    reports as unadjudicable. Nothing new is fetched; this is a different
+    query over evidence that was always there.
+    """
 
     placeholders = ",".join("?" for _ in BACKLOG_LANES)
     rows = conn.execute(
@@ -87,27 +127,37 @@ def load_backlog(conn) -> list[dict[str, Any]]:
 
     backlog: list[dict[str, Any]] = []
     for row in rows:
-        payload = json.loads(row["payload"])
-        result = payload.get("result")
-        result = result if isinstance(result, dict) else {}
-        period = _f(result.get("period_days"))
-        epoch = _f(result.get("transit_time"))
-        duration = _f(result.get("duration_hours"))
-        backlog.append(
-            {
-                "tic_id": row["tic_id"],
-                "status": row["status"],
-                "signature": row["signature"],
-                "period_days": period,
-                "epoch_btjd": epoch,
-                "duration_hours": duration,
-                "red_noise_adjusted_snr": _f(result.get("red_noise_adjusted_snr")),
-                "depth_ppm": _f(result.get("depth_ppm")),
-                "observed_transits": result.get("observed_transits"),
-                "sectors": result.get("sectors"),
-                "has_ephemeris": bool(period and duration),
-            }
+        ephemeris = _ephemeris_from(json.loads(row["payload"]))
+        source = "deciding_evidence"
+        if ephemeris is None:
+            for other in conn.execute(
+                "SELECT payload FROM evidence WHERE tic_id = ? "
+                "ORDER BY evidence_id DESC",
+                (row["tic_id"],),
+            ):
+                ephemeris = _ephemeris_from(json.loads(other["payload"]))
+                if ephemeris is not None:
+                    source = "recovered_from_screening_evidence"
+                    break
+        star = {
+            "tic_id": row["tic_id"],
+            "status": row["status"],
+            "signature": row["signature"],
+            "ephemeris_source": source if ephemeris else "none_in_ledger",
+            "period_days": None,
+            "epoch_btjd": None,
+            "duration_hours": None,
+            "red_noise_adjusted_snr": None,
+            "depth_ppm": None,
+            "observed_transits": None,
+            "sectors": None,
+        }
+        if ephemeris is not None:
+            star.update(ephemeris)
+        star["has_ephemeris"] = bool(
+            star["period_days"] and star["duration_hours"]
         )
+        backlog.append(star)
     return backlog
 
 
@@ -486,6 +536,7 @@ def main(argv: list[str] | None = None) -> int:
                 "tic_id": star["tic_id"],
                 "prior_status": star["status"],
                 "prior_signature": star["signature"],
+                "ephemeris_source": star["ephemeris_source"],
                 "ephemeris": {
                     "period_days": star["period_days"],
                     "epoch_btjd": star["epoch_btjd"],
@@ -501,7 +552,7 @@ def main(argv: list[str] | None = None) -> int:
                 conn,
                 tic_id=star["tic_id"],
                 kind="t5_readjudication",
-                source=f"p4_readjudication:{signature}",
+                source=f"p4_readjudication:{READJUDICATION_POLICY}:{signature}",
                 payload=record,
                 verdict=None,
                 affects_state=bool(args.promote),
@@ -514,10 +565,14 @@ def main(argv: list[str] | None = None) -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     report = {
         "vetting_signature": signature,
+        "readjudication_policy": READJUDICATION_POLICY,
         "snapshot_hashes": hashes,
         "consulted_sources": consulted,
         "backlog_size": len(backlog),
         "source_diagnostics": diagnostics,
+        "ephemeris_sources": dict(
+            sorted(Counter(star["ephemeris_source"] for star in backlog).items())
+        ),
         "evidence_voting": bool(args.promote),
         "t3_regate": dict(sorted(t3_counter.items())),
         "t5_outcomes": dict(sorted(t5_counter.items())),

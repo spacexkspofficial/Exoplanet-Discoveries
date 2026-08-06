@@ -102,7 +102,8 @@ own exit gates.
 | Known-object regression suite (§4.1) | **Green, and measured against deliberate breaks** | `results/p4/known_objects_v1/known_objects.json`: **502 cases** built from the three live snapshot generations — 400 real catalogued objects (150 confirmed planets, 150 TOIs, 100 TESS EBs, stratified across period) and 102 deliberate near-miss impostors. All 502 reproduce their stated intent, and the builder refuses to freeze a case the code disagrees with. Teeth measured, not assumed: removing the epoch test fails **34/502**, widening the phase tolerance fails **34/502**, and widening the period tolerance from 1% to 10% fails **34/502** — each break caught by exactly the impostor family built for it |
 | Campaign import | Done; **parity gate now red** | The finished 64,614-target `full_remaining_pool` campaign and several other unimported campaigns were imported idempotently: ledger **18,941 → 83,555 stars**, +146,228 evidence rows. This exposed a latent projection disagreement — see correction 38 |
 | Identity resolution | Done for the backlog | `scripts/resolve_p4_identities.py` resolves canonical nodes from TIC v8.2 (VizieR `IV/39/tic82`) in bulk: **1,363/1,363 backlog stars**, with sky position, proper motion, Tmag, Teff, radius, distance, and the TIC's own Gaia DR3 cross-match. The campaign path never needed coordinates, so before this only 920 of 1,363 had any; sample-scoped extracts and PM-aware matching both require them. Gaia edges are recorded with `catalog_crossmatch` basis, leaving the positional neighbour scene as a separate later claim |
-| Backlog re-adjudication | **Run and measured: 25.0%, against an ≥80% gate** | `results/p4/readjudication_v1/`: 1,363 backlog stars (1,009 `automated_survivor`, 169 `catalog_coverage_gap`, 93 `known_eb_host_residual_review`, 92 `single_event_lead`) re-adjudicated under vetting signature `vet1:e87ee0d0…`. T3 re-gate against the calibrated red-noise floor: **292 fail**, 224 pass, 847 not evaluable (older reports carry no red-noise-adjusted S/N). T5: 10 `known_eb_rediscovery`, 12 `known_eb_host_residual_review`, 40 `unresolved_transit_like_signal`. **341/1,363 resolved (25.02%)**. Evidence rows are written non-voting pending correction 38 |
+| Backlog re-adjudication | **Run and measured: 29.2%, against an ≥80% gate** | `results/p4/readjudication_v1/` under policy `p4-readjudication-v2-ephemeris-recovery` and vetting signature `vet1:e87ee0d0…`: 1,363 backlog stars (1,009 `automated_survivor`, 169 `catalog_coverage_gap`, 93 `known_eb_host_residual_review`, 92 `single_event_lead`). T3 re-gate against the calibrated red-noise floor: **330 fail**, 337 pass, 696 not evaluable. T5: 11 `known_eb_rediscovery`, 24 `known_eb_host_residual_review`, 53 `unresolved_transit_like_signal`. **398/1,363 resolved (29.2%)**; 939 still open on catalog coverage and 26 with no ephemeris anywhere in the ledger. Evidence rows are written non-voting pending correction 38 |
+| T3 re-gate verification | Checked against source, not just self-consistent | No record sits on the wrong side of its own 7.1 floor, and 8 failing stars cross-checked against their per-target report JSON on disk reproduce the recorded red-noise-adjusted S/N exactly. The re-gate reads numbers those reports already carried; it does not recompute photometry |
 | **Not yet done** | — | Pixel-vet v2 (§4.4); T7 cross-reduction machinery (§4.5); TRICERATOPS/fit/packet assembly (§4.6, deferred by owner decision to an interface, which is also not yet built); review-queue UI (§8). The five sample-scoped snapshot sources remain unfetched — see correction 41 |
 
 P4's exit is **not** met: the backlog resolves at 25.0% against the plan's
@@ -1357,10 +1358,17 @@ not been given its inputs.
     converting `catalog_coverage_gap` into `unresolved_transit_like_signal`,
     which is a genuine review lane and counts toward the exit gate.
 
-    The other 288 are a different problem: their deciding evidence is a
-    `context` record with no `result` block, so there is no ephemeris to match
-    on at all. Those need their ephemeris recovered from the per-target report
-    before any catalog can speak to them.
+    The other 288 turned out not to need new data at all. Their *deciding*
+    evidence is a `context` record with no `result` block, but the same stars
+    already carry a `screening` row that has the ephemeris; reading the
+    deciding row alone was the bug. Falling back to any screening row recovers
+    **262 of the 288**, leaving 26 with no ephemeris anywhere in the ledger,
+    and moves resolution from 25.02% to **29.2%**. This is also why the runner
+    now carries its own `READJUDICATION_POLICY` version: evidence is
+    idempotent on `(tic_id, kind, source)`, and the vetting signature digests
+    the kernel modules rather than the runner's input policy, so without a
+    version bump the improved answer would have been silently discarded as a
+    duplicate of the worse one.
 
 42. **The first resolution number this runner produced, 46.15%, was wrong,
     and the bug was in the measurement rather than the science.** The

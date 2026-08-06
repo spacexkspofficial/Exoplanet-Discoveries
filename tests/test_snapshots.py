@@ -230,6 +230,62 @@ def test_manifest_survives_a_dict_round_trip(tmp_path) -> None:
     assert snapshots.SnapshotManifest.from_dict(payload) == manifest
 
 
+def test_scoped_fetch_batches_positions_and_concatenates(tmp_path, monkeypatch) -> None:
+    """The batch size is a measured service limit, not a preference.
+
+    VizieR answers a 200-circle CONTAINS union by dropping the connection
+    without a response, which is a far quieter failure than an HTTP status,
+    so a regression here would look like an empty catalog rather than an
+    error. This pins the batching contract without touching the network.
+    """
+
+    positions = [(float(index), -20.0) for index in range(60)]
+    issued: list[str] = []
+
+    def fake_tap(url, query, *, timeout=300, attempts=4):
+        issued.append(query)
+        index = len(issued)
+        return f"Name,RAJ2000,DEJ2000\nV{index},{index}.0,-20.0\n"
+
+    monkeypatch.setattr(snapshots, "_tap_sync", fake_tap)
+    monkeypatch.setattr(
+        snapshots, "table_columns", lambda source, timeout=120: ("Name", "RAJ2000", "DEJ2000")
+    )
+
+    manifest = snapshots.fetch("vsx", positions=positions, root=tmp_path)
+
+    # 60 positions at 25 per query is three queries, and every position is
+    # carried by exactly one of them.
+    assert len(issued) == 3
+    assert snapshots._POSITIONS_PER_QUERY == 25
+    total_circles = sum(query.count("CIRCLE(") for query in issued)
+    assert total_circles == len(positions)
+    # Results from every batch survive into the snapshot.
+    assert manifest.row_count == 3
+    assert manifest.scope_size == 60
+    assert manifest.scope_hash == snapshots.hash_positions(positions)
+
+
+def test_scoped_fetch_deduplicates_rows_seen_in_more_than_one_batch(
+    tmp_path, monkeypatch
+) -> None:
+    """Overlapping cones return the same catalog row twice; it is one object."""
+
+    positions = [(float(index), -20.0) for index in range(30)]
+    monkeypatch.setattr(
+        snapshots,
+        "_tap_sync",
+        lambda url, query, timeout=300, attempts=4: (
+            "Name,RAJ2000,DEJ2000\nV1,1.0,-20.0\n"
+        ),
+    )
+    monkeypatch.setattr(
+        snapshots, "table_columns", lambda source, timeout=120: ("Name", "RAJ2000", "DEJ2000")
+    )
+    manifest = snapshots.fetch("vsx", positions=positions, root=tmp_path)
+    assert manifest.row_count == 1
+
+
 def test_every_source_declares_a_supported_service_and_scope() -> None:
     for name, source in snapshots.SNAPSHOT_SOURCES.items():
         assert source.name == name
