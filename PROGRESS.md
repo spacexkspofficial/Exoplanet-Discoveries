@@ -101,10 +101,18 @@ own exit gates.
 | Ephemeris matching (§4.3) | Built and tested | `adjudicate.py` implements the period **and** epoch rule the plan names as a defect. Alias ladder taken from `SearchConfig.alias_ratios` rather than a second hard-coded list; catalog period uncertainty propagated over the elapsed cycles; a propagated phase uncertainty beyond a quarter period reports `not_evaluable` instead of a fabricated disagreement; host match routes and only signal match kills; disagreeing sources never auto-resolve |
 | Known-object regression suite (§4.1) | **Green, and measured against deliberate breaks** | `results/p4/known_objects_v1/known_objects.json`: **502 cases** built from the three live snapshot generations — 400 real catalogued objects (150 confirmed planets, 150 TOIs, 100 TESS EBs, stratified across period) and 102 deliberate near-miss impostors. All 502 reproduce their stated intent, and the builder refuses to freeze a case the code disagrees with. Teeth measured, not assumed: removing the epoch test fails **34/502**, widening the phase tolerance fails **34/502**, and widening the period tolerance from 1% to 10% fails **34/502** — each break caught by exactly the impostor family built for it |
 | Campaign import | Done; **parity gate now red** | The finished 64,614-target `full_remaining_pool` campaign and several other unimported campaigns were imported idempotently: ledger **18,941 → 83,555 stars**, +146,228 evidence rows. This exposed a latent projection disagreement — see correction 38 |
-| **Not yet done** | — | Pixel-vet v2 (§4.4); T7 cross-reduction machinery (§4.5); TRICERATOPS/fit/packet assembly (§4.6, deferred by owner decision to an interface); review-queue UI (§8); and the backlog re-adjudication itself, which is P4's actual exit measurement. The five sample-scoped snapshot sources remain unfetched |
+| Identity resolution | Done for the backlog | `scripts/resolve_p4_identities.py` resolves canonical nodes from TIC v8.2 (VizieR `IV/39/tic82`) in bulk: **1,363/1,363 backlog stars**, with sky position, proper motion, Tmag, Teff, radius, distance, and the TIC's own Gaia DR3 cross-match. The campaign path never needed coordinates, so before this only 920 of 1,363 had any; sample-scoped extracts and PM-aware matching both require them. Gaia edges are recorded with `catalog_crossmatch` basis, leaving the positional neighbour scene as a separate later claim |
+| Backlog re-adjudication | **Run and measured: 25.0%, against an ≥80% gate** | `results/p4/readjudication_v1/`: 1,363 backlog stars (1,009 `automated_survivor`, 169 `catalog_coverage_gap`, 93 `known_eb_host_residual_review`, 92 `single_event_lead`) re-adjudicated under vetting signature `vet1:e87ee0d0…`. T3 re-gate against the calibrated red-noise floor: **292 fail**, 224 pass, 847 not evaluable (older reports carry no red-noise-adjusted S/N). T5: 10 `known_eb_rediscovery`, 12 `known_eb_host_residual_review`, 40 `unresolved_transit_like_signal`. **341/1,363 resolved (25.02%)**. Evidence rows are written non-voting pending correction 38 |
+| **Not yet done** | — | Pixel-vet v2 (§4.4); T7 cross-reduction machinery (§4.5); TRICERATOPS/fit/packet assembly (§4.6, deferred by owner decision to an interface, which is also not yet built); review-queue UI (§8). The five sample-scoped snapshot sources remain unfetched — see correction 41 |
 
-P4's exit is **not** met. The vetting substrate exists and is gated; the
-vetting depth and the backlog adjudication that gate depends on do not.
+P4's exit is **not** met: the backlog resolves at 25.0% against the plan's
+≥80%. The vetting substrate exists and is gated; the vetting depth it was
+built to serve does not. The shortfall is not mysterious — 1,022 of the 1,363
+are still open for two identified and separately fixable reasons, **734 for
+catalog coverage and 288 for having no ephemeris in their deciding record** —
+so the plan's stated prediction ("if far fewer resolve, the vetting stack is
+weaker than designed") is not yet the right diagnosis. The vetting stack has
+not been given its inputs.
 
 ## Measured corrections to the plan (honesty ledger)
 
@@ -1332,6 +1340,38 @@ vetting depth and the backlog adjudication that gate depends on do not.
     relaunching on the documented path restored it. **Any future bulk import
     should checkpoint before the dashboard is expected to serve**, and the
     503 is the symptom to recognise.
+
+41. **The sample-scoped catalog extracts are blocked by a measured service
+    limit, not by the plan.** VizieR does not reject a 200-circle `CONTAINS`
+    union with an error; it drops the connection without a response
+    (`RemoteDisconnected`), which is a much less obvious failure than an HTTP
+    status. `_POSITIONS_PER_QUERY` is now 25 with that measurement recorded
+    beside it, which turns the 1,363-star backlog into roughly 55 queries per
+    source across five sources. That was not run in this session.
+
+    Its absence is the single largest term in P4's 25.0% resolution: **734 of
+    the 1,022 unresolved stars are unresolved only because five of the eight
+    declared sources have never been fetched**, so `adjudicate` correctly
+    refuses to call them `no_match`. Most backlog stars are faint and
+    uncatalogued by design, so the expected gain is not new kills — it is
+    converting `catalog_coverage_gap` into `unresolved_transit_like_signal`,
+    which is a genuine review lane and counts toward the exit gate.
+
+    The other 288 are a different problem: their deciding evidence is a
+    `context` record with no `result` block, so there is no ephemeris to match
+    on at all. Those need their ephemeris recovered from the per-target report
+    before any catalog can speak to them.
+
+42. **The first resolution number this runner produced, 46.15%, was wrong,
+    and the bug was in the measurement rather than the science.** The
+    adjudication record used one key, `blocked_reason`, for two opposite
+    situations: "adjudicated to a conclusion no automated status may express"
+    (a resolution awaiting human review) and "there was no ephemeris to
+    adjudicate" (the opposite of a resolution). Counting any `blocked_reason`
+    as resolved therefore promoted 288 unadjudicable stars. The keys are now
+    distinct (`unadjudicable_reason`), and the corrected figure is **25.02%**.
+    Recorded because the inflated number was the flattering one, and a gate
+    that reports 46% when the truth is 25% is worse than no gate.
 
 ## Owner notes
 

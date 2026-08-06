@@ -351,9 +351,23 @@ def relate(
 _AUTOMATED_STATUS = {
     "eclipsing_binary_signal": "known_eb_rediscovery",
     "eclipsing_binary_host": "known_eb_host_residual_review",
+    "variable_star": "known_variable_star_review",
     "coverage_gap": "catalog_coverage_gap",
     "unresolved": "unresolved_transit_like_signal",
 }
+
+# Object classes an entry may carry, grouped by what a match to one means.
+PLANET_CLASSES = frozenset({"confirmed_planet", "toi"})
+ECLIPSING_BINARY_CLASSES = frozenset({"eclipsing_binary"})
+# Variability catalogues (VSX, ASAS-SN) and the Gaia non-single-star orbit
+# tables publish a period but almost never a transit epoch, so section 4.3
+# leaves them at `period_only_match` by construction. That is the honest
+# strength of the claim: a period agreement with a catalogued variable is a
+# strong reason to route into the variability review lane and a poor reason to
+# declare the signal explained.
+VARIABILITY_CLASSES = frozenset(
+    {"variable_star", "spectroscopic_binary", "astrometric_binary"}
+)
 
 
 def adjudicate(
@@ -376,18 +390,22 @@ def adjudicate(
 
     killing = [item for item in relations if item.kills]
     eb_signal = [
-        item for item in killing if item.object_class == "eclipsing_binary"
+        item for item in killing if item.object_class in ECLIPSING_BINARY_CLASSES
     ]
     planet_signal = [
-        item
-        for item in killing
-        if item.object_class in {"confirmed_planet", "toi"}
+        item for item in killing if item.object_class in PLANET_CLASSES
     ]
     eb_host = [
         item
         for item in relations
-        if item.object_class == "eclipsing_binary"
+        if item.object_class in ECLIPSING_BINARY_CLASSES
         and item.match_level in {MATCH_HOST, MATCH_PERIOD_ONLY}
+    ]
+    variability = [
+        item
+        for item in relations
+        if item.object_class in VARIABILITY_CLASSES
+        and item.match_level in {MATCH_SIGNAL, MATCH_PERIOD_ONLY}
     ]
 
     conflicts = _conflicts(relations)
@@ -407,6 +425,8 @@ def adjudicate(
         status = _AUTOMATED_STATUS["eclipsing_binary_signal"]
     elif eb_host:
         status = _AUTOMATED_STATUS["eclipsing_binary_host"]
+    elif variability:
+        status = _AUTOMATED_STATUS["variable_star"]
     elif gaps and not relations:
         status = _AUTOMATED_STATUS["coverage_gap"]
     elif not relations and consulted:

@@ -196,6 +196,53 @@ def test_human_stage_statuses_are_rejected_at_the_boundary() -> None:
         adjudicate._assert_automated_status(slug)
 
 
+def test_a_catalogued_variable_routes_to_the_variability_lane() -> None:
+    """VSX and the Gaia NSS tables publish a period but not a transit epoch.
+
+    Section 4.3 therefore leaves them at period-only by construction, which is
+    a strong reason to route into the variability review lane and a poor
+    reason to declare the signal explained.
+    """
+
+    variable = _entry(
+        source="vsx",
+        identifier="V0123 Cyg",
+        object_class="variable_star",
+        epoch_bjd=None,
+    )
+    relation = adjudicate.relate(CANDIDATE, variable)
+    assert relation.match_level == adjudicate.MATCH_PERIOD_ONLY
+    assert relation.kills is False
+
+    result = adjudicate.adjudicate(
+        CANDIDATE, [variable], consulted_sources=["vsx"]
+    )
+    assert result.recommended_status == "known_variable_star_review"
+    # Period-only never kills, so nothing here is a terminal verdict.
+    assert result.killing_relations() == []
+
+
+def test_an_eclipsing_binary_outranks_a_variability_hint() -> None:
+    variable = _entry(
+        source="vsx", identifier="V1", object_class="variable_star", epoch_bjd=None
+    )
+    result = adjudicate.adjudicate(
+        CANDIDATE, [variable, _entry()], consulted_sources=["vsx", "tess_eb"]
+    )
+    assert result.recommended_status == "known_eb_rediscovery"
+
+
+def test_object_class_groups_are_disjoint() -> None:
+    groups = (
+        adjudicate.PLANET_CLASSES,
+        adjudicate.ECLIPSING_BINARY_CLASSES,
+        adjudicate.VARIABILITY_CLASSES,
+    )
+    for index, group in enumerate(groups):
+        for other in groups[index + 1 :]:
+            assert not (group & other)
+
+
 def test_nothing_found_is_unresolved_when_sources_were_consulted() -> None:
     result = adjudicate.adjudicate(
         CANDIDATE, [], consulted_sources=["nasa_ps", "nasa_toi", "tess_eb"]

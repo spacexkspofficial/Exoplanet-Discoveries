@@ -55,10 +55,13 @@ _USER_AGENT = "exohunt-starter/0.1"
 # Degrees per arcsecond, used to express the match radius as an ADQL circle.
 _ARCSEC_PER_DEGREE = 3600.0
 # Position batching: an ADQL query is transported in a form body, but a union
-# of thousands of CIRCLE predicates still defeats the service's parser. Batches
-# are re-issued and concatenated; row identity is restored by de-duplicating on
-# the full row tuple.
-_POSITIONS_PER_QUERY = 200
+# of CIRCLE predicates still has to be planned, and a long one defeats the
+# service. Measured against VizieR on 2026-08-06: a 200-circle union over
+# B/vsx/vsx does not return an error, it drops the connection
+# (RemoteDisconnected, no response), so the batch size is a real service limit
+# rather than a tuning preference. Batches are re-issued and concatenated; row
+# identity is restored by de-duplicating on the full row tuple.
+_POSITIONS_PER_QUERY = 25
 
 
 class SnapshotError(RuntimeError):
