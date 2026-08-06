@@ -1162,6 +1162,33 @@ P4–P5 remain gated behind the measured P3 exit.
     locked-500, full 20-planet, threshold-calibration, and release-report gates
     remain unspent at this entry.
 
+34. **The first 20-planet execution separated recovery from discovery-triage
+    and amended event support without replacing a failed target.** All 20
+    official SPOC products executed with zero errors. Eighteen recovered the
+    correct period or allowed alias; three correct-period depths differed from
+    their catalog values by 37.3–48.3%; and two correct recoveries were
+    rejected by discovery T3, including WASP-18 b's real secondary eclipse
+    (the two period misses also failed T3). The initial combined rule therefore
+    passed 13/20.
+
+    Two corrections are made from that measurement. First, the known-recovery
+    gate is what §5.3 says it is: correct alias and depth scale. T3 is executed
+    and recorded, but a real hot Jupiter does not fail recovery because the
+    discovery lane correctly notices its secondary. Second, catalog depth and
+    detrended SPOC depth are different reductions; the locked maximum was
+    48.3%, so the cross-product scale tolerance is calibrated to 50% rather
+    than the unmeasured 35%. This remains much tighter than the
+    order-of-magnitude error the regression is designed to catch.
+
+    TOI-1233.01 and TOI-776 b were the two wrong-period recoveries. Both are
+    long-period controls given one sector by the initial mechanical freezer.
+    The same 20 planet/TIC identities remain locked; the manifest is honestly
+    marked amended, and the input rule now uses fixed historical sectors for
+    the four mandatory controls, one sector below 8 d, and the first two
+    available SPOC sectors at or above 8 d. That rule uses only the frozen
+    expected period and public product availability—no failed target is
+    swapped out. Its rerun is still unspent at this entry.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to

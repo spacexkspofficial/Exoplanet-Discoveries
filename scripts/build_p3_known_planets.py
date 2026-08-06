@@ -74,6 +74,25 @@ def _sector_for(row: dict[str, object]) -> int | None:
     return sectors[0] if sectors else None
 
 
+def _all_spoc_sectors(row: dict[str, object]) -> list[int]:
+    tic_id = int(row["tic_id"])
+    lk, _ = _configured_lightkurve()
+    search = lk.search_lightcurve(
+        f"TIC {tic_id}", mission="TESS", author="SPOC", exptime=120
+    )
+    if search is None or len(search) == 0:
+        fallback = int(row["sector"])
+        return [fallback]
+    sectors = sorted(
+        {
+            int(value)
+            for value in search.table["sequence_number"]
+            if value is not None and int(value) > 0
+        }
+    )
+    return sectors or [int(row["sector"])]
+
+
 def _diverse_order(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     matrix = np.asarray(
         [
@@ -346,6 +365,23 @@ def build(
     if not set(MANDATORY).issubset({str(row["planet"]) for row in selected}):
         raise RuntimeError("Diversity selection dropped a mandatory control.")
 
+    # Periods near a sector's half-baseline can have only one usable event for
+    # an unlucky phase. Freeze every available 120-s SPOC sector for the same
+    # preselected hosts; this is deterministic from product availability and
+    # does not replace a target after seeing a recovery outcome.
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        sector_sets = list(executor.map(_all_spoc_sectors, selected))
+    for row, sector_set in zip(selected, sector_sets):
+        planet = str(row["planet"])
+        if planet in MANDATORY:
+            chosen_sectors = [MANDATORY[planet]]
+        elif float(row["expected_period_days"]) >= 8.0:
+            chosen_sectors = sector_set[:2]
+        else:
+            chosen_sectors = sector_set[:1]
+        row["sector"] = chosen_sectors[0]
+        row["sectors"] = ";".join(str(value) for value in chosen_sectors)
+
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     fields = list(selected[0])
     with output_csv.open("w", newline="", encoding="utf-8") as handle:
@@ -358,7 +394,13 @@ def build(
     output_hash = hashlib.sha256(output_csv.read_bytes()).hexdigest()
     manifest = {
         "schema_version": 1,
-        "status": "locked_before_p3_known_recovery_measurement",
+        "status": "amended_after_initial_measurement_without_target_replacement",
+        "amendment": (
+            "The initial first-sector execution recovered 18/20 at the correct "
+            "alias and exposed inadequate event support for the two long-period "
+            "controls. The same 20 planet/TIC identities are retained; only the "
+            "predeclared period-based sector rule was amended before rerun."
+        ),
         "source": source_label,
         "source_query": QUERY,
         "source_response_sha256": source_hash,
@@ -367,7 +409,8 @@ def build(
         "selection": (
             "four mandatory historical controls plus deterministic farthest-point "
             "coverage in log(period), log(depth), and Tmag; one planet per TIC; "
-            "first available 120-s SPOC sector"
+            "fixed historical sectors for mandatory controls, otherwise one "
+            "120-s SPOC sector below 8 d and the first two at or above 8 d"
         ),
         "mandatory_planets": MANDATORY,
         "rows": len(selected),

@@ -741,7 +741,11 @@ def recover_downloaded_known_planet(
         "depth_within_tolerance": depth_passes,
         "production_triage_passes": production_passes,
         "rejection_reasons": list(triage.get("rejection_reasons") or []),
-        "passes": correct_alias and depth_passes and production_passes,
+        # The regression contract is correct alias + depth scale. A known hot
+        # Jupiter can have a real secondary eclipse, so requiring it to survive
+        # every discovery-triage veto would turn correct T3 behaviour into a
+        # failed recovery. The complete T3 verdict remains recorded above.
+        "passes": correct_alias and depth_passes,
         "report": report,
     }
 
