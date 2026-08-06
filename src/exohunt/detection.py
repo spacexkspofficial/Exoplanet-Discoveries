@@ -87,6 +87,141 @@ def signal_detection_efficiency(power: np.ndarray) -> float:
     return float((np.max(values) - np.mean(values)) / scatter)
 
 
+def _tls_period_agreement(
+    tls_period_days: float,
+    bls_period_days: float,
+    *,
+    tolerance_fraction: float | None = None,
+) -> dict[str, object]:
+    """Compare the TLS peak with the BLS alias ladder used by production."""
+
+    if tls_period_days <= 0 or bls_period_days <= 0:
+        raise ValueError("TLS and BLS periods must be positive.")
+    tolerance = (
+        CURRENT_CONFIG.search.tls_bls_period_tolerance_fraction
+        if tolerance_fraction is None
+        else float(tolerance_fraction)
+    )
+    if tolerance <= 0:
+        raise ValueError("TLS/BLS period tolerance must be positive.")
+    rows = []
+    for ratio in CURRENT_CONFIG.search.alias_ratios:
+        reference = bls_period_days * ratio
+        rows.append(
+            (
+                abs(tls_period_days - reference) / reference,
+                ratio,
+                reference,
+            )
+        )
+    error, ratio, reference = min(rows, key=lambda row: row[0])
+    agrees = error <= tolerance
+    return {
+        "agrees": agrees,
+        "relation": (
+            "exact"
+            if agrees and np.isclose(ratio, 1.0)
+            else f"{ratio:g}x BLS harmonic"
+            if agrees
+            else "miss"
+        ),
+        "bls_period_ratio": float(ratio),
+        "reference_period_days": float(reference),
+        "fractional_error_to_relation": float(error),
+        "tolerance_fraction": tolerance,
+    }
+
+
+def tls_signal_diagnostics(
+    time: np.ndarray,
+    flux: np.ndarray,
+    *,
+    bls_period_days: float,
+    min_period_days: float,
+    max_period_days: float,
+    single_sector: bool,
+    stellar_radius_solar: float | None = None,
+    stellar_mass_solar: float | None = None,
+) -> dict[str, object]:
+    """Run TLS as the promotion decider after the cheap BLS/T3 screen.
+
+    TLS is intentionally single-threaded here. Campaign workers already run
+    concurrently, and nested TLS pools oversubscribed Windows badly during the
+    P3 calibration. The full report keeps the TLS period, SDE, TLS S/N,
+    and its relation to the BLS peak so this gate remains auditable.
+    """
+
+    if min_period_days <= 0 or max_period_days <= min_period_days:
+        raise ValueError("TLS period bounds must satisfy 0 < min < max.")
+    t, y = _clean_arrays(time, flux)
+    point_noise = _point_noise(y)
+    from transitleastsquares import transitleastsquares
+
+    model = transitleastsquares(
+        t,
+        y,
+        dy=np.full_like(y, point_noise),
+        verbose=False,
+    )
+    kwargs: dict[str, object] = {
+        "period_min": float(min_period_days),
+        "period_max": float(max_period_days),
+        "n_transits_min": (
+            CURRENT_CONFIG.search.min_transits_single_sector
+            if single_sector
+            else CURRENT_CONFIG.search.min_transits_multisector
+        ),
+        "oversampling_factor": 3,
+        "use_threads": 1,
+        "show_progress_bar": False,
+        "verbose": False,
+    }
+    if (
+        stellar_radius_solar is not None
+        and stellar_mass_solar is not None
+        and stellar_radius_solar > 0
+        and stellar_mass_solar > 0
+    ):
+        kwargs["R_star"] = float(stellar_radius_solar)
+        kwargs["M_star"] = float(stellar_mass_solar)
+    result = model.power(**kwargs)
+    tls_period = float(result.period)
+    sde = float(result.SDE)
+    if not np.isfinite(tls_period) or not np.isfinite(sde):
+        raise RuntimeError("TLS did not return a finite period and SDE.")
+    threshold = (
+        CURRENT_CONFIG.search.sde_min_single_sector
+        if single_sector
+        else CURRENT_CONFIG.search.sde_min_multisector
+    )
+    agreement = _tls_period_agreement(tls_period, bls_period_days)
+    return {
+        "schema_version": 1,
+        "status": "measured",
+        "warning": (
+            "TLS is a promotion statistic, not confirmation of a planet. "
+            "The configured threshold is finalized through locked inverted "
+            "and scrambled null calibration."
+        ),
+        "tls_period_days": tls_period,
+        "tls_transit_time": float(result.T0),
+        "tls_duration_hours": float(result.duration) * 24.0,
+        "tls_sde": sde,
+        "tls_sde_threshold": float(threshold),
+        "tls_sde_passes": sde >= threshold,
+        "tls_snr": float(result.snr),
+        "tls_false_alarm_probability": float(result.FAP),
+        "period_agreement": agreement,
+        "passes": bool(sde >= threshold and agreement["agrees"]),
+        "execution": {
+            "use_threads": 1,
+            "oversampling_factor": 3,
+            "minimum_period_days": float(min_period_days),
+            "maximum_period_days": float(max_period_days),
+        },
+    }
+
+
 def _event_depths(
     time: np.ndarray,
     flux: np.ndarray,

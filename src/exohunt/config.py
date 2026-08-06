@@ -33,19 +33,21 @@ class SearchConfig:
 
     # Bump when search semantics change without changing a numeric threshold;
     # checkpoint reuse compares this complete config.
-    policy_version: str = "physical-grid-effective-rails-red-noise-gate-v2"
+    policy_version: str = "bls-screen-tls-red-noise-decider-v3"
     # Periodic claims need three transits in multi-sector data; two-transit
     # single-sector signals route to `needs_additional_sector` instead of
     # surviving. Two-transit "periods" are the alias factory (TOI-700 c was
     # recovered at exactly half its true period from one sector).
     min_transits_multisector: int = 3
     min_transits_single_sector: int = 2
-    # TLS signal-detection-efficiency floors. White-noise FAP ~1% sits near
-    # SDE 7 in the TLS literature; TESS red noise pushes the practical floor
-    # higher, and single-sector data is alias-richer than stitched data.
-    # Initial values; calibrated to <=0.1% inverted-data survivors in P3.
+    # TLS signal-detection-efficiency floors. The single-sector floor is the
+    # locked P3 Sector 100 calibration: 11.5 is above the largest inverted
+    # null (11.245) and below the retained baseline signal (12.621), producing
+    # 0/500 inverted and 0/500 scrambled survivors with a 1/500 baseline pass
+    # rate. The multi-sector value remains provisional until a locked stitched
+    # cohort measures it independently.
     sde_min_multisector: float = 8.0
-    sde_min_single_sector: float = 9.0
+    sde_min_single_sector: float = 11.5
     # Continuity with the historical gate, but applied to the red-noise
     # adjusted statistic that `signal_vetting_diagnostics` already measures,
     # not the optimistic white-noise BLS ratio.
@@ -66,6 +68,10 @@ class SearchConfig:
     duration_max_hours: float = 12.0
     # BLS pre-threshold above which TLS runs outside the faint-M lane.
     bls_sde_tls_trigger: float = 6.0
+    # TLS may choose the same ephemeris or one member of the configured BLS
+    # alias ladder. Wider disagreement means the two detectors did not confirm
+    # the same signal and cannot promote it automatically.
+    tls_bls_period_tolerance_fraction: float = 0.05
     # Alias ladder evaluated for every reported ephemeris.
     alias_ratios: tuple[float, ...] = (
         1.0 / 3.0,

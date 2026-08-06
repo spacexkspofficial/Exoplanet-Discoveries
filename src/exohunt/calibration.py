@@ -529,7 +529,11 @@ def recovery_status(
     )
     triage = report["automated_triage"]
     flags = report["screening_flags"]
-    assert isinstance(triage, dict) and isinstance(flags, dict)
+    grid = report["search_grid"]
+    tls = report["tls_decision"]
+    assert all(
+        isinstance(value, dict) for value in (triage, flags, grid, tls)
+    )
     period_recovered = comparison["status"] in {"exact", "harmonic_alias"}
     passes = bool(triage["passes"])
     detection_gate_passes = not bool(
@@ -552,6 +556,11 @@ def recovery_status(
         "recovered_period_days": float(signal["period_days"]),
         "recovered_depth_ppm": float(signal["depth_ppm"]),
         "recovered_depth_snr": float(signal["depth_snr"]),
+        "bls_sde_like": float(grid["bls_sde_like"]),
+        "tls_status": str(tls["status"]),
+        "tls_sde": tls.get("tls_sde"),
+        "tls_period_days": tls.get("tls_period_days"),
+        "tls_passes": bool(tls.get("passes")),
         "rejection_reasons": list(triage.get("rejection_reasons") or []),
     }
 
@@ -663,9 +672,10 @@ def calibrate_downloaded_target(
         triage = report["automated_triage"]
         vetting = report["deeper_vetting"]
         grid = report["search_grid"]
+        tls = report["tls_decision"]
         assert all(
             isinstance(value, dict)
-            for value in (signal, triage, vetting, grid)
+            for value in (signal, triage, vetting, grid, tls)
         )
         return {
             "tic_id": int(spec["tic_id"]),
@@ -677,6 +687,10 @@ def calibrate_downloaded_target(
             "bls_sde_like": float(grid["bls_sde_like"]),
             "red_noise_factor": float(vetting["red_noise_factor"]),
             "red_noise_adjusted_snr": float(vetting["red_noise_adjusted_snr"]),
+            "tls_status": str(tls["status"]),
+            "tls_sde": tls.get("tls_sde"),
+            "tls_period_days": tls.get("tls_period_days"),
+            "tls_passes": bool(tls.get("passes")),
             "vetting_flags": list(vetting.get("flags") or []),
             "rejection_reasons": list(triage.get("rejection_reasons") or []),
             "transform": transform,
@@ -686,6 +700,7 @@ def calibrate_downloaded_target(
     baseline_signal = baseline_report["strongest_residual_signal"]
     baseline_vetting = baseline_report["deeper_vetting"]
     baseline_grid = baseline_report["search_grid"]
+    baseline_tls = baseline_report["tls_decision"]
     assert all(
         isinstance(value, dict)
         for value in (
@@ -693,6 +708,7 @@ def calibrate_downloaded_target(
             baseline_signal,
             baseline_vetting,
             baseline_grid,
+            baseline_tls,
         )
     )
     baseline_row = {
@@ -708,6 +724,10 @@ def calibrate_downloaded_target(
         "red_noise_adjusted_snr": float(
             baseline_vetting["red_noise_adjusted_snr"]
         ),
+        "tls_status": str(baseline_tls["status"]),
+        "tls_sde": baseline_tls.get("tls_sde"),
+        "tls_period_days": baseline_tls.get("tls_period_days"),
+        "tls_passes": bool(baseline_tls.get("passes")),
         "vetting_flags": list(baseline_vetting.get("flags") or []),
         "rejection_reasons": list(baseline_triage.get("rejection_reasons") or []),
     }
@@ -863,7 +883,9 @@ def recover_downloaded_known_planet(
     )
     signal = report["strongest_residual_signal"]
     triage = report["automated_triage"]
-    assert isinstance(signal, dict) and isinstance(triage, dict)
+    grid = report["search_grid"]
+    tls = report["tls_decision"]
+    assert all(isinstance(value, dict) for value in (signal, triage, grid, tls))
     comparison = compare_period(
         float(signal["period_days"]),
         float(spec["expected_period_days"]),
@@ -889,6 +911,11 @@ def recover_downloaded_known_planet(
         "recovered_period_days": float(signal["period_days"]),
         "recovered_depth_ppm": recovered_depth,
         "recovered_depth_snr": float(signal["depth_snr"]),
+        "bls_sde_like": float(grid["bls_sde_like"]),
+        "tls_status": str(tls["status"]),
+        "tls_sde": tls.get("tls_sde"),
+        "tls_period_days": tls.get("tls_period_days"),
+        "tls_passes": bool(tls.get("passes")),
         "period_status": comparison["status"],
         "period_relation": comparison["relation"],
         "period_fractional_error": comparison["fractional_error_to_relation"],

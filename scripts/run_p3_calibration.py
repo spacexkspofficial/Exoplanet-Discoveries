@@ -267,7 +267,11 @@ def run(args: argparse.Namespace) -> int:
     if args.max_targets is not None:
         rows = rows[: args.max_targets]
     sample = select_calibration_sample(rows, seed=args.seed)
-    injection_tics = set(int(value) for value in sample["sample_tic_ids"])
+    injection_tics = (
+        set()
+        if args.nulls_only
+        else set(int(value) for value in sample["sample_tic_ids"])
+    )
 
     science_args = argparse.Namespace(
         author=args.author,
@@ -326,6 +330,11 @@ def run(args: argparse.Namespace) -> int:
             "calibration_science_settings": settings_payload,
             "calibration_settings": settings,
             "cohort_rows": len(rows),
+            "measurement_mode": (
+                "baseline_and_nulls_only"
+                if args.nulls_only
+                else "baseline_nulls_and_injections"
+            ),
             "expected_searches": len(rows) * 3 + len(injection_tics) * injection_searches,
         },
     )
@@ -515,6 +524,14 @@ def main() -> int:
     parser.add_argument("--max-targets", type=int)
     parser.add_argument("--dip-registry")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--nulls-only",
+        action="store_true",
+        help=(
+            "Run baseline, inverted, and scrambled searches without injections; "
+            "this diagnostic mode cannot satisfy the complete P3 release gate."
+        ),
+    )
     parser.add_argument(
         "--allow-dirty",
         action="store_true",

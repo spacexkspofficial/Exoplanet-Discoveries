@@ -3,6 +3,7 @@ import numpy as np
 from exohunt.config import CURRENT_CONFIG
 from exohunt.detection import (
     DetectionResult,
+    _tls_period_agreement,
     binned_phase_curve,
     fixed_ephemeris_injection_sensitivity,
     harmonic_diagnostics,
@@ -39,6 +40,18 @@ def test_signal_detection_efficiency_is_mean_std_peak_significance():
     assert signal_detection_efficiency(power) == (
         np.max(power) - np.mean(power)
     ) / np.std(power)
+
+
+def test_tls_period_agreement_accepts_configured_harmonics_only():
+    exact = _tls_period_agreement(4.01, 4.0)
+    harmonic = _tls_period_agreement(2.01, 4.0)
+    miss = _tls_period_agreement(3.1, 4.0)
+
+    assert exact["agrees"] is True
+    assert exact["relation"] == "exact"
+    assert harmonic["agrees"] is True
+    assert harmonic["relation"] == "0.5x BLS harmonic"
+    assert miss["agrees"] is False
 
 
 def test_recovers_synthetic_transit():

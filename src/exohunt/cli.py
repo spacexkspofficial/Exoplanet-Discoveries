@@ -60,6 +60,7 @@ from .detection import (
     phase_fold,
     search_transits,
     signal_vetting_diagnostics,
+    tls_signal_diagnostics,
 )
 from .detrending import DEFAULT_DETRENDING
 from .paths import resolve_cache_dir
@@ -1870,6 +1871,67 @@ def _hunt_from_light_curve(
         reason_text = str(reason)
         if reason_text not in rejection_reasons:
             rejection_reasons.append(reason_text)
+    bls_sde_like = float(arrays["bls_sde"])
+    bls_tls_trigger = CURRENT_CONFIG.search.bls_sde_tls_trigger
+    bls_sde_below_tls_trigger = bls_sde_like < bls_tls_trigger
+    tls_decision: dict[str, object]
+    if bls_sde_below_tls_trigger:
+        rejection_reasons.append(
+            "BLS SDE-like statistic is below the TLS trigger of "
+            f"{bls_tls_trigger:g}"
+        )
+        tls_decision = {
+            "schema_version": 1,
+            "status": "not_run_bls_below_trigger",
+            "bls_sde_like": bls_sde_like,
+            "bls_sde_tls_trigger": bls_tls_trigger,
+            "passes": False,
+        }
+    elif rejection_reasons:
+        tls_decision = {
+            "schema_version": 1,
+            "status": "not_run_prior_gate_rejection",
+            "bls_sde_like": bls_sde_like,
+            "bls_sde_tls_trigger": bls_tls_trigger,
+            "passes": False,
+        }
+    else:
+        TRACKER.stage(tic_id, "tls")
+        tls_decision = tls_signal_diagnostics(
+            cleaned_time,
+            cleaned_flux,
+            bls_period_days=result.period_days,
+            min_period_days=search_grid_plan.period.min_period_days,
+            max_period_days=search_grid_plan.period.max_report_days,
+            single_sector=search_grid_plan.single_sector,
+            stellar_radius_solar=_optional_float(
+                metadata.get("stellar_radius_solar")
+            ),
+            stellar_mass_solar=_optional_float(
+                metadata.get("stellar_mass_solar")
+            ),
+        )
+        if not bool(tls_decision["tls_sde_passes"]):
+            rejection_reasons.append(
+                "TLS SDE is below the calibrated threshold of "
+                f"{float(tls_decision['tls_sde_threshold']):g}"
+            )
+        period_agreement = tls_decision["period_agreement"]
+        assert isinstance(period_agreement, dict)
+        if not bool(period_agreement["agrees"]):
+            rejection_reasons.append(
+                "TLS does not recover the BLS period or a configured harmonic"
+            )
+    screening_flags["bls_sde_below_tls_trigger"] = bls_sde_below_tls_trigger
+    screening_flags["tls_sde_below_threshold"] = bool(
+        tls_decision.get("status") == "measured"
+        and not tls_decision.get("tls_sde_passes")
+    )
+    period_agreement = tls_decision.get("period_agreement")
+    screening_flags["tls_period_disagrees_with_bls"] = bool(
+        isinstance(period_agreement, dict)
+        and not period_agreement.get("agrees")
+    )
     classification = _classify_screening_result(
         result,
         rejection_reasons,
@@ -2000,6 +2062,7 @@ def _hunt_from_light_curve(
         },
         "sensitivity_probe": sensitivity,
         "deeper_vetting": deeper_vetting,
+        "tls_decision": tls_decision,
         "automated_triage": {
             "passes": not rejection_reasons,
             "rejection_reasons": rejection_reasons,

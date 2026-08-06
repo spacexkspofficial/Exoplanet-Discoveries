@@ -7,6 +7,7 @@ import pytest
 
 import exohunt.cli as cli_module
 from exohunt.cli import _hunt_from_light_curve
+from exohunt.config import CURRENT_CONFIG
 from exohunt.detection import DetectionResult
 from exohunt.vetoes import DEPTH_EB_LANE_REASON
 
@@ -230,6 +231,8 @@ def _shipping_catalog_report(
     effective_duration_grid_hours: np.ndarray | None = None,
     requested_duration_grid_hours: np.ndarray | None = None,
     deeper_flags: list[str] | None = None,
+    tls_sde: float = 12.0,
+    tls_period_days: float | None = None,
 ) -> dict[str, object]:
     monkeypatch.setattr(
         cli_module,
@@ -275,6 +278,29 @@ def _shipping_catalog_report(
         cli_module,
         "signal_vetting_diagnostics",
         lambda *_args, **_kwargs: {"flags": list(deeper_flags or [])},
+    )
+    measured_tls_period = tls_period_days or recovered_period
+    tls_threshold = CURRENT_CONFIG.search.sde_min_single_sector
+    monkeypatch.setattr(
+        cli_module,
+        "tls_signal_diagnostics",
+        lambda *_args, **_kwargs: {
+            "schema_version": 1,
+            "status": "measured",
+            "tls_period_days": measured_tls_period,
+            "tls_sde": tls_sde,
+            "tls_sde_threshold": tls_threshold,
+            "tls_sde_passes": tls_sde >= tls_threshold,
+            "period_agreement": {
+                "agrees": bool(
+                    np.isclose(measured_tls_period, recovered_period)
+                ),
+            },
+            "passes": (
+                tls_sde >= tls_threshold
+                and bool(np.isclose(measured_tls_period, recovered_period))
+            ),
+        },
     )
     monkeypatch.setattr(
         cli_module,
@@ -365,6 +391,26 @@ def test_shipping_hunt_gates_a_red_noise_vetting_failure(
     assert reason in report["automated_triage"]["rejection_reasons"]
     assert report["followup_classification"]["screening_class"] == (
         "screened_rejected"
+    )
+
+
+def test_shipping_hunt_gates_a_tls_sde_failure(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    report = _shipping_catalog_report(
+        tmp_path,
+        monkeypatch,
+        recovered_transit_time=101.5,
+        tls_sde=8.5,
+    )
+
+    assert report["automated_triage"]["passes"] is False
+    assert report["tls_decision"]["status"] == "measured"
+    assert report["screening_flags"]["tls_sde_below_threshold"] is True
+    assert any(
+        "TLS SDE is below" in reason
+        for reason in report["automated_triage"]["rejection_reasons"]
     )
 
 
