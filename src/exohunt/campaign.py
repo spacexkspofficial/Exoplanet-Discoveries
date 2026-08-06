@@ -764,8 +764,23 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
         _publish_followup_queue(output_dir, results)
         _refresh_dashboard_snapshot(state)
 
+    checkpoint_rows = (
+        {}
+        if args.force
+        else _reusable_checkpoint_rows(
+            previous_progress,
+            specs=specs,
+            args=args,
+            target_path=target_path,
+            output_dir=output_dir,
+        )
+    )
     pending_specs: deque[dict[str, object]] = deque()
     for spec in specs:
+        checkpoint_row = checkpoint_rows.get(int(spec["index"]))
+        if checkpoint_row is not None:
+            results_by_index[int(spec["index"])] = checkpoint_row
+            continue
         try:
             report = (
                 None
@@ -794,9 +809,37 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             pending_specs.append(spec)
 
     runtime_state["targets_remaining"] = len(pending_specs)
-    # Enforce storage before any new download is submitted. Subsequent rolling
-    # passes preserve headroom for the bounded prefetch queue.
-    roll_cache()
+    terminal_resume_storage = _terminal_resume_storage_snapshot(
+        previous_progress,
+        pending_targets=len(pending_specs),
+    )
+    fast_terminal_resume = (
+        bool(checkpoint_rows) and terminal_resume_storage is not None
+    )
+    if fast_terminal_resume:
+        # A terminal retry with at most a handful of missing rows just finished
+        # a measured retention pass. Re-walking the 90 GB cache and the entire
+        # workspace before and after those rows cost twenty-plus minutes. The
+        # checkpoint's bounded storage snapshot proves enough headroom for the
+        # small retry; the explicit rejected-plot pass still runs at finalization.
+        runtime_state["storage"] = dict(terminal_resume_storage)
+        cache_retention["last_bytes_after"] = int(
+            terminal_resume_storage.get("download_cache_bytes") or 0
+        )
+        cache_retention["effective_max_bytes"] = int(
+            terminal_resume_storage.get("download_cache_effective_max_bytes")
+            or cache_max_bytes
+        )
+        cache_retention["workspace_bytes_before"] = terminal_resume_storage.get(
+            "workspace_bytes"
+        )
+        cache_retention["workspace_bytes_after"] = terminal_resume_storage.get(
+            "workspace_bytes"
+        )
+    else:
+        # Enforce storage before any new download is submitted. Subsequent rolling
+        # passes preserve headroom for the bounded prefetch queue.
+        roll_cache()
     publish_progress()
 
     download_futures: dict[Future, dict[str, object]] = {}
@@ -1016,7 +1059,8 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
             maintenance_future.result()
             maintenance_future = None
 
-    roll_cache()
+    if not fast_terminal_resume:
+        roll_cache()
     results = ordered_results()
     common_mode_screen = _quarantine_invalid_common_mode(results)
     _publish_followup_queue(output_dir, results)
@@ -1119,10 +1163,11 @@ def _publish_dip_registries(
     payload: dict[str, object] = {"schema_version": 1, "cohorts": {}}
     try:
         keyed: list[tuple[str, object]] = []
-        for row in results:
+
+        def load_bins(row: dict[str, object]) -> tuple[str, object] | None:
             report_path = row.get("report")
             if not report_path:
-                continue
+                return None
             # Result rows record the report relative to the workspace root,
             # which is what the dashboard exporter also assumes; fall back to
             # the campaign directory so an absolute or relocated path still
@@ -1133,11 +1178,24 @@ def _publish_dip_registries(
             try:
                 report = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
-                continue
+                return None
             bins = report.get("population_bins")
             if not isinstance(bins, dict):
-                continue
-            keyed.append((str(bins.get("cohort") or "unknown"), bins))
+                return None
+            return str(bins.get("cohort") or "unknown"), bins
+
+        # Report files are independent, small, and already durable. Reading
+        # 64,000 of them serially made the registry dominate terminal
+        # publication (about thirteen minutes). Keep submission bounded so the
+        # speedup does not create 64,000 Future objects at once.
+        with ThreadPoolExecutor(
+            max_workers=min(16, max(4, (os.cpu_count() or 4))),
+            thread_name_prefix="dip-registry-read",
+        ) as executor:
+            for start in range(0, len(results), 512):
+                for loaded in executor.map(load_bins, results[start : start + 512]):
+                    if loaded is not None:
+                        keyed.append(loaded)
         payload["cohorts"] = registries_from_reports(keyed)
         payload["stars_contributing"] = len(keyed)
         payload["scope"] = (
@@ -1563,6 +1621,133 @@ def _legacy_checkpoint_matches(
         and float(settings.get("mask_width", -1)) == float(expected["mask_width"])
         and bool(settings.get("allow_no_known")) == bool(expected["allow_no_known"])
     )
+
+
+def _reusable_checkpoint_rows(
+    progress: dict[str, object],
+    *,
+    specs: list[dict[str, object]],
+    args: argparse.Namespace,
+    target_path: Path,
+    output_dir: Path,
+) -> dict[int, dict[str, object]]:
+    """Reuse an atomic checkpoint without reopening every report JSON.
+
+    A completed large campaign already paid the full report-validation cost
+    before atomically publishing ``batch_progress.json``. Repeating 64,000
+    JSON opens merely to retry a handful of error rows took 22 minutes on the
+    production workspace. The checkpoint is a safe fast path only when its
+    complete campaign identity still matches and every successful row still
+    has the expected durable artifact name in one directory inventory.
+
+    Error rows are never reused. Any identity or artifact mismatch falls back
+    to the ordinary per-report validation path for that target.
+    """
+
+    from . import cli as cli_module
+
+    if (
+        str(progress.get("target_list") or "") != str(target_path)
+        or int(progress.get("total_targets") or 0) != len(specs)
+        or not cli_module._legacy_checkpoint_matches(
+            progress,
+            args=args,
+            target_path=target_path,
+            total_targets=len(specs),
+        )
+        or progress.get("state")
+        not in {"running", "interrupted", "completed", "retry_pending"}
+    ):
+        return {}
+    rows = progress.get("results")
+    if not isinstance(rows, list) or len(rows) > len(specs):
+        return {}
+    try:
+        artifact_names = {entry.name for entry in output_dir.iterdir()}
+    except OSError:
+        return {}
+
+    specs_by_identity = {
+        (
+            int(spec["tic_id"]),
+            tuple(sorted(int(value) for value in spec["sectors"])),
+        ): spec
+        for spec in specs
+    }
+    reusable: dict[int, dict[str, object]] = {}
+    for raw_row in rows:
+        if not isinstance(raw_row, dict) or raw_row.get("status") == "error":
+            continue
+        expected_report: Path | None = None
+        try:
+            row_sectors = sorted(
+                int(value.strip())
+                for value in str(raw_row.get("sectors") or "")
+                .replace(",", ";")
+                .split(";")
+                if value.strip()
+            )
+            spec = specs_by_identity.get(
+                (int(raw_row.get("tic_id") or 0), tuple(row_sectors))
+            )
+            if spec is None:
+                continue
+            expected_report = Path(spec["expected_report"])
+            identity_matches = (
+                str(raw_row.get("target")) == str(spec["target"])
+                and int(raw_row.get("tic_id") or 0) == int(spec["tic_id"])
+                and row_sectors == cli_module._sector_values(spec["sectors"])
+                and bool(raw_row.get("scientific_configuration_verified"))
+                and Path(str(raw_row.get("report") or "")).name
+                == expected_report.name
+            )
+        except (TypeError, ValueError):
+            identity_matches = False
+        if (
+            not identity_matches
+            or expected_report is None
+            or expected_report.name not in artifact_names
+        ):
+            continue
+        if (
+            raw_row.get("status") == "survivor"
+            and expected_report.with_suffix(".png").name not in artifact_names
+        ):
+            continue
+        row = dict(raw_row)
+        row["run_state"] = "resumed"
+        reusable[int(spec["index"])] = row
+    return reusable
+
+
+def _terminal_resume_storage_snapshot(
+    progress: dict[str, object],
+    *,
+    pending_targets: int,
+) -> dict[str, object] | None:
+    """Return a safe recent storage snapshot for a tiny terminal retry."""
+
+    if pending_targets < 0 or pending_targets > 10:
+        return None
+    runtime = progress.get("runtime")
+    storage = runtime.get("storage") if isinstance(runtime, dict) else None
+    if not isinstance(storage, dict):
+        return None
+    try:
+        cache_bytes = int(storage["download_cache_bytes"])
+        cache_max = int(storage["download_cache_effective_max_bytes"])
+        workspace_bytes = int(storage["workspace_bytes"])
+        workspace_max = int(storage["workspace_max_bytes"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    # One processed TESS light curve is tens of MB. Keep an additional 100 MB
+    # floor so a snapshot exactly at its ceiling never authorizes a retry.
+    required_cache_headroom = pending_targets * 50_000_000 + 100_000_000
+    if cache_max - cache_bytes < required_cache_headroom:
+        return None
+    if workspace_max - workspace_bytes < 100_000_000:
+        return None
+    return dict(storage)
 
 
 def _load_reusable_report(

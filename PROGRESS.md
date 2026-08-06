@@ -1090,6 +1090,41 @@ record was written; `origin/main` and the research branch are synchronized at
     names, and the injection measurement is deferred to P3 rather than done.
     Both are stated here rather than quietly counted as passes.
 
+32. **The 64,614-target Sectors 94--104 diagnostic pass is closed with zero
+    errors, and its retry exposed three terminal-publication costs that are now
+    bounded.** The completed result is 417 automated survivors and 64,197
+    rejected strongest signals. These remain diagnostic, not candidates. Four
+    transient failures were retried: two interrupted/corrupt Sector 94 FITS
+    products and two Sector 99 remote disconnects; all four re-downloaded and
+    finished as rejections. The closeout manifest hashes the target list,
+    JSON/CSV summaries, progress/status checkpoint, and 64,614-star dip
+    registry at
+    `results/campaign/full_remaining_pool/closeout_manifest.json`.
+
+    A terminal retry originally spent about 22 minutes reopening every report,
+    then recursively walked the 90 GB cache and workspace twice, and finally
+    read every report serially for the dip registry. The measured fixes are:
+
+    - an atomic-checkpoint fast path validates the complete campaign identity
+      and one artifact-name inventory, never reuses error rows, and falls back
+      per target on any mismatch; the real 64,614-row checkpoint validated in
+      **5.3 s**, reusing 64,610 successes and selecting exactly four retries;
+    - a retry of at most ten rows may reuse a checkpointed storage snapshot
+      only with explicit cache/workspace headroom, avoiding redundant terminal
+      scans; a cache already below budget no longer performs a second empty-dir
+      walk;
+    - rejected plots are inventoried once instead of resolved/stat'ed once per
+      result, and the dip-registry report reads are bounded across 16 threads.
+      The complete recovery publisher, including registry, CSV, metrics
+      revision, terminal checkpoint, and SHA-256 manifest, finished in about
+      two minutes rather than the prior thirteen-minute registry gap.
+
+    The four-error campaign event was append-only invalidated and superseded by
+    the zero-error outcome. The durable file tree was re-imported into a backed
+    up ledger: 210,281 evidence rows / 83,555 star identities; the voting
+    projection contains 83,554 stars and matches the exporter exactly with zero
+    count, per-star-status, or payload differences.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to

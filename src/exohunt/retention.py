@@ -113,17 +113,21 @@ def prune_fits_cache(
             deleted_files += 1
             deleted_bytes += size
 
-        # Remove only directories proven empty, deepest first.
-        directories = sorted(
-            (item for item in root.rglob("*") if item.is_dir()),
-            key=lambda item: len(item.parts),
-            reverse=True,
-        )
-        for directory in directories:
-            try:
-                directory.rmdir()
-            except OSError:
-                pass
+        # Remove only directories proven empty, deepest first. When the cache
+        # is already below budget ``selected`` is empty; a second recursive
+        # walk then cannot remove anything and cost several minutes on the
+        # production 90 GB cache.
+        if selected:
+            directories = sorted(
+                (item for item in root.rglob("*") if item.is_dir()),
+                key=lambda item: len(item.parts),
+                reverse=True,
+            )
+            for directory in directories:
+                try:
+                    directory.rmdir()
+                except OSError:
+                    pass
     else:
         deleted_files = len(selected)
         deleted_bytes = selected_bytes
@@ -179,15 +183,29 @@ def prune_rejected_plots(
 
     root = _validated_root(results_root, label="results")
     workspace = Path(workspace_root).resolve()
+    # Inventory the actual files beneath the already-validated root once.
+    # Resolving and stat'ing the path named by every one of 64,000 rows took
+    # more than ten minutes even when rolling retention had already removed
+    # every rejected plot. A row can select only a path present in this
+    # inventory, which also preserves the containment guarantee without a
+    # filesystem lookup per row.
+    existing: dict[str, Path] = {}
+    if root.exists():
+        for directory, _, filenames in os.walk(root):
+            for name in filenames:
+                if not name.casefold().endswith(".png"):
+                    continue
+                candidate = Path(directory) / name
+                existing[os.path.normcase(os.path.abspath(candidate))] = candidate
+
     selected: dict[Path, int] = {}
     for row in rows:
         if row.get("status") != "rejected" or not row.get("plot"):
             continue
         raw = Path(str(row["plot"]))
-        candidate = (raw if raw.is_absolute() else workspace / raw).resolve()
-        if candidate.suffix.casefold() != ".png" or not _within(candidate, root):
-            continue
-        if candidate.exists() and candidate.is_file():
+        requested = raw if raw.is_absolute() else workspace / raw
+        candidate = existing.get(os.path.normcase(os.path.abspath(requested)))
+        if candidate is not None:
             selected[candidate] = candidate.stat().st_size
 
     deleted_files = 0

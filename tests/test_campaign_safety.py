@@ -25,6 +25,7 @@ from exohunt.cli import (
     _performance_snapshot,
     _quarantine_invalid_common_mode,
     _read_target_rows,
+    _reusable_checkpoint_rows,
     _run_batch_hunt,
     _thread_safe_lightkurve_download,
     _vetting_coverage,
@@ -240,6 +241,206 @@ def test_report_reuse_requires_matching_identity_and_complete_plot(
             sectors=[105],
             args=args,
             allow_legacy=False,
+        )
+        is None
+    )
+
+
+def test_final_checkpoint_fast_path_reuses_successes_and_requeues_errors(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "campaign"
+    output_dir.mkdir()
+    target_path = tmp_path / "targets.csv"
+    target_path.write_text(
+        "target,tic_id,sectors\nTIC 42,42,105\nTIC 43,43,105\n",
+        encoding="utf-8",
+    )
+    args = _args(output_dir)
+    args.workers = 2
+    args.download_workers = 2
+    args.prefetch = 4
+    args.cache_max_gb = 10.0
+    args.workspace_max_gb = None
+    args.retain_rejected_plots = False
+    specs = [
+        _batch_target_spec(
+            index,
+            row,
+            output_dir,
+        )
+        for index, row in enumerate(_read_target_rows(target_path), start=1)
+    ]
+    Path(specs[0]["expected_report"]).write_text("{}", encoding="utf-8")
+    progress = {
+        "state": "retry_pending",
+        "target_list": str(target_path),
+        "total_targets": 2,
+        "settings": _campaign_settings(args),
+        "results": [
+            {
+                "target": "TIC 42",
+                "tic_id": 42,
+                "sectors": "105",
+                "status": "rejected",
+                "report": str(specs[0]["expected_report"]),
+                "scientific_configuration_verified": True,
+            },
+            {
+                "target": "TIC 43",
+                "tic_id": 43,
+                "sectors": "105",
+                "status": "error",
+                "report": "",
+                "scientific_configuration_verified": False,
+            },
+        ],
+    }
+
+    reused = _reusable_checkpoint_rows(
+        progress,
+        specs=specs,
+        args=args,
+        target_path=target_path,
+        output_dir=output_dir,
+    )
+
+    assert list(reused) == [1]
+    assert reused[1]["run_state"] == "resumed"
+
+
+def test_final_checkpoint_fast_path_requires_exact_settings_and_artifacts(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "campaign"
+    output_dir.mkdir()
+    target_path = tmp_path / "targets.csv"
+    target_path.write_text(
+        "target,tic_id,sectors\nTIC 42,42,105\n",
+        encoding="utf-8",
+    )
+    args = _args(output_dir)
+    args.workers = 1
+    args.download_workers = 1
+    args.prefetch = 1
+    args.cache_max_gb = 10.0
+    args.workspace_max_gb = None
+    args.retain_rejected_plots = False
+    spec = _batch_target_spec(1, _read_target_rows(target_path)[0], output_dir)
+    row = {
+        "target": "TIC 42",
+        "tic_id": 42,
+        "sectors": "105",
+        "status": "survivor",
+        "report": str(spec["expected_report"]),
+        "scientific_configuration_verified": True,
+    }
+    progress = {
+        "state": "completed",
+        "target_list": str(target_path),
+        "total_targets": 1,
+        "settings": _campaign_settings(args),
+        "results": [row],
+    }
+    Path(spec["expected_report"]).write_text("{}", encoding="utf-8")
+
+    # Survivor reuse requires both its report and durable plot.
+    assert not _reusable_checkpoint_rows(
+        progress,
+        specs=[spec],
+        args=args,
+        target_path=target_path,
+        output_dir=output_dir,
+    )
+    Path(spec["expected_report"]).with_suffix(".png").write_bytes(b"plot")
+    assert list(
+        _reusable_checkpoint_rows(
+            progress,
+            specs=[spec],
+            args=args,
+            target_path=target_path,
+            output_dir=output_dir,
+        )
+    ) == [1]
+
+    changed = argparse.Namespace(**vars(args))
+    changed.max_period = 12.0
+    assert not _reusable_checkpoint_rows(
+        progress,
+        specs=[spec],
+        args=changed,
+        target_path=target_path,
+        output_dir=output_dir,
+    )
+
+
+def test_partial_checkpoint_maps_rows_by_identity_and_requires_storage_headroom(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "campaign"
+    output_dir.mkdir()
+    target_path = tmp_path / "targets.csv"
+    target_path.write_text(
+        "target,tic_id,sectors\nTIC 41,41,104\nTIC 42,42,105\n",
+        encoding="utf-8",
+    )
+    args = _args(output_dir)
+    args.workers = 1
+    args.download_workers = 1
+    args.prefetch = 1
+    args.cache_max_gb = 10.0
+    args.workspace_max_gb = 20.0
+    args.retain_rejected_plots = False
+    specs = [
+        _batch_target_spec(index, row, output_dir)
+        for index, row in enumerate(_read_target_rows(target_path), start=1)
+    ]
+    Path(specs[1]["expected_report"]).write_text("{}", encoding="utf-8")
+    progress = {
+        "state": "running",
+        "target_list": str(target_path),
+        "total_targets": 2,
+        "settings": _campaign_settings(args),
+        # The first target is absent, exactly as in an atomic checkpoint taken
+        # between two out-of-order worker completions.
+        "results": [
+            {
+                "target": "TIC 42",
+                "tic_id": 42,
+                "sectors": "105",
+                "status": "rejected",
+                "report": str(specs[1]["expected_report"]),
+                "scientific_configuration_verified": True,
+            }
+        ],
+        "runtime": {
+            "storage": {
+                "workspace_bytes": 1_000_000_000,
+                "workspace_max_bytes": 20_000_000_000,
+                "download_cache_bytes": 8_000_000_000,
+                "download_cache_effective_max_bytes": 10_000_000_000,
+            }
+        },
+    }
+
+    reused = _reusable_checkpoint_rows(
+        progress,
+        specs=specs,
+        args=args,
+        target_path=target_path,
+        output_dir=output_dir,
+    )
+    assert list(reused) == [2]
+    assert (
+        campaign_module._terminal_resume_storage_snapshot(
+            progress, pending_targets=1
+        )
+        == progress["runtime"]["storage"]
+    )
+    progress["runtime"]["storage"]["download_cache_bytes"] = 9_900_000_001
+    assert (
+        campaign_module._terminal_resume_storage_snapshot(
+            progress, pending_targets=1
         )
         is None
     )

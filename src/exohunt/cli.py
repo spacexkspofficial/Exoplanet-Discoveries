@@ -42,6 +42,7 @@ from .campaign import (
     _publish_followup_queue,
     _quarantine_invalid_common_mode,
     _read_target_rows,
+    _reusable_checkpoint_rows,
     _result_row_from_report,
     _run_batch_hunt,
     _vetting_coverage,
