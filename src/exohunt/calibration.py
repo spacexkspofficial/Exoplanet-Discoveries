@@ -315,6 +315,85 @@ def inject_limb_darkened_transit(
     }
 
 
+def paired_fixed_ephemeris_depth_transfer(
+    raw_time: np.ndarray,
+    raw_flux: np.ndarray,
+    injected_raw_flux: np.ndarray,
+    prepared_time: np.ndarray,
+    prepared_flux: np.ndarray,
+    prepared_injected_time: np.ndarray,
+    prepared_injected_flux: np.ndarray,
+    *,
+    period_days: float,
+    transit_time_btjd: float,
+    duration_hours: float,
+) -> dict[str, object]:
+    """Measure the injection's depth transfer through preparation.
+
+    The same fixed-ephemeris box estimator is evaluated before and after the
+    shipping detrending path.  Subtracting the uninjected measurement in each
+    state removes the star's real variability and any coincident astrophysical
+    signal.  This paired quantity isolates the depth erosion that P2 section
+    2.3 assigns to the P3 injection gate; the blind BLS fit remains a separate
+    search-performance diagnostic.
+    """
+
+    # Imported lazily to keep the calibration primitives independent of the
+    # detection module at import time.
+    from .detection import evaluate_ephemeris
+
+    arguments = {
+        "period_days": period_days,
+        "transit_time": transit_time_btjd,
+        "duration_hours": duration_hours,
+    }
+    raw_baseline = evaluate_ephemeris(raw_time, raw_flux, **arguments)
+    raw_injected = evaluate_ephemeris(raw_time, injected_raw_flux, **arguments)
+    prepared_baseline = evaluate_ephemeris(
+        prepared_time, prepared_flux, **arguments
+    )
+    prepared_injected = evaluate_ephemeris(
+        prepared_injected_time, prepared_injected_flux, **arguments
+    )
+    sampled = all(
+        bool(measurement["sampled"])
+        for measurement in (
+            raw_baseline,
+            raw_injected,
+            prepared_baseline,
+            prepared_injected,
+        )
+    )
+    if not sampled:
+        return {
+            "depth_transfer_status": "insufficient_fixed_ephemeris_samples",
+            "input_fixed_ephemeris_depth_ppm": None,
+            "prepared_fixed_ephemeris_depth_ppm": None,
+            "detrending_depth_bias_fraction": None,
+        }
+
+    input_depth = float(raw_injected["depth_ppm"]) - float(
+        raw_baseline["depth_ppm"]
+    )
+    prepared_depth = float(prepared_injected["depth_ppm"]) - float(
+        prepared_baseline["depth_ppm"]
+    )
+    if not np.isfinite(input_depth) or input_depth <= 0:
+        return {
+            "depth_transfer_status": "nonpositive_input_depth",
+            "input_fixed_ephemeris_depth_ppm": input_depth,
+            "prepared_fixed_ephemeris_depth_ppm": prepared_depth,
+            "detrending_depth_bias_fraction": None,
+        }
+    return {
+        "depth_transfer_status": "measured",
+        "input_fixed_ephemeris_depth_ppm": input_depth,
+        "prepared_fixed_ephemeris_depth_ppm": prepared_depth,
+        "detrending_depth_bias_fraction": abs(prepared_depth - input_depth)
+        / input_depth,
+    }
+
+
 def invert_prepared_flux(flux: np.ndarray) -> np.ndarray:
     """Flip residual sign about the median after preparation."""
 
@@ -673,6 +752,18 @@ def calibrate_downloaded_target(
             injected_time, prepared_injected_flux, injected_metadata = (
                 prepare_search_arrays(raw_time, injected_flux, raw_metadata)
             )
+            depth_transfer = paired_fixed_ephemeris_depth_transfer(
+                raw_time,
+                raw_flux,
+                injected_flux,
+                prepared_time,
+                prepared_flux,
+                injected_time,
+                prepared_injected_flux,
+                period_days=trial.period_days,
+                transit_time_btjd=trial.transit_time_btjd,
+                duration_hours=float(model["duration_hours"]),
+            )
             report = _run_production_trial(
                 spec,
                 settings,
@@ -691,6 +782,7 @@ def calibrate_downloaded_target(
                     "period_grid_value_days": trial.period_days,
                     "noise_3h_ppm": noise_ppm,
                     **model,
+                    **depth_transfer,
                     **outcome,
                 }
             )
@@ -810,11 +902,17 @@ def summarize_calibration(
         )
 
     recovered = [row for row in rows if bool(row.get("recovered"))]
-    depth_biases = [
+    blind_search_depth_errors = [
         abs(float(row["recovered_depth_ppm"]) - float(row["realized_depth_ppm"]))
         / float(row["realized_depth_ppm"])
         for row in recovered
         if float(row.get("realized_depth_ppm") or 0) > 0
+    ]
+    depth_biases = [
+        float(row["detrending_depth_bias_fraction"])
+        for row in recovered
+        if row.get("detrending_depth_bias_fraction") is not None
+        and np.isfinite(float(row["detrending_depth_bias_fraction"]))
     ]
     random_rows = [row for row in rows if row.get("phase_class") == "random"]
     edge_rows = [row for row in rows if row.get("phase_class") == "segment_edge"]
@@ -831,6 +929,11 @@ def summarize_calibration(
     scrambled_rate = rate(scrambled_rows, "survivor")
     baseline_rate = rate(baseline_rows, "survivor")
     median_depth_bias = float(np.nanmedian(depth_biases)) if depth_biases else None
+    median_blind_search_depth_error = (
+        float(np.nanmedian(blind_search_depth_errors))
+        if blind_search_depth_errors
+        else None
+    )
 
     surface: list[dict[str, object]] = []
     keys = sorted(
@@ -890,6 +993,8 @@ def summarize_calibration(
         "median_recovered_depth_bias": {
             "value": median_depth_bias,
             "maximum": cfg.maximum_median_depth_bias_fraction,
+            "measurement": "paired_fixed_ephemeris_detrending_depth_transfer",
+            "measured_recoveries": len(depth_biases),
             "passes": (
                 median_depth_bias is not None
                 and median_depth_bias <= cfg.maximum_median_depth_bias_fraction
@@ -926,6 +1031,7 @@ def summarize_calibration(
         "random_phase_promotion_completeness": random_promotion_rate,
         "edge_promotion_completeness": edge_promotion_rate,
         "median_recovered_depth_bias_fraction": median_depth_bias,
+        "median_blind_search_depth_error_fraction": median_blind_search_depth_error,
         "completeness_surface": surface,
         "gates": gates,
         "release_gate_passes": all(bool(gate["passes"]) for gate in gates.values()),

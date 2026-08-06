@@ -7,6 +7,7 @@ from exohunt.calibration import (
     inject_limb_darkened_transit,
     injection_trials,
     invert_prepared_flux,
+    paired_fixed_ephemeris_depth_transfer,
     segment_shift_scramble,
     select_calibration_sample,
     summarize_calibration,
@@ -56,6 +57,34 @@ def test_null_transforms_flip_and_break_global_coherence() -> None:
     assert sorted(shifted.tolist()) == sorted(flux.tolist())
     assert len(metadata["segments"]) == 2
     assert all(row["shift_cadences"] != 0 for row in metadata["segments"])
+
+
+def test_paired_depth_transfer_isolates_preparation_erosion() -> None:
+    time = np.arange(0.0, 12.0, 10.0 / (24 * 60))
+    raw = 1.0 + np.random.default_rng(19).normal(0.0, 1e-4, time.size)
+    injected = raw.copy()
+    phase = ((time - 0.8 + 1.5) % 3.0) - 1.5
+    injected[np.abs(phase) <= (2.0 / 24.0) / 2] -= 0.002
+    prepared_injected = raw.copy()
+    prepared_injected[np.abs(phase) <= (2.0 / 24.0) / 2] -= 0.001
+
+    result = paired_fixed_ephemeris_depth_transfer(
+        time,
+        raw,
+        injected,
+        time,
+        raw,
+        time,
+        prepared_injected,
+        period_days=3.0,
+        transit_time_btjd=0.8,
+        duration_hours=2.0,
+    )
+
+    assert result["depth_transfer_status"] == "measured"
+    assert abs(float(result["input_fixed_ephemeris_depth_ppm"]) - 2_000) < 0.1
+    assert abs(float(result["prepared_fixed_ephemeris_depth_ppm"]) - 1_000) < 0.1
+    assert abs(float(result["detrending_depth_bias_fraction"]) - 0.5) < 1e-4
 
 
 def test_sampling_and_trial_plan_are_reproducible() -> None:
@@ -119,6 +148,7 @@ def test_release_summary_fails_an_intentionally_broken_null() -> None:
         "depth_multiplier": 2.0,
         "realized_depth_ppm": 1_000.0,
         "recovered_depth_ppm": 1_010.0,
+        "detrending_depth_bias_fraction": 0.01,
     }
     baseline = [{"survivor": index == 0} for index in range(500)]
     clean_null = [{"survivor": False} for _ in range(500)]

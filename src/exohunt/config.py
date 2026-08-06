@@ -229,7 +229,7 @@ class InstrumentConfig:
 class CalibrationConfig:
     """P3 sampling design and release-gate budgets."""
 
-    policy_version: str = "p3-limb-darkened-production-path-v1"
+    policy_version: str = "p3-paired-depth-transfer-v2"
     random_sample_fraction: float = 0.05
     archetype_count: int = 50
     random_phase_injections_per_star: int = 20
