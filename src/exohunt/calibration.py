@@ -477,6 +477,39 @@ def recovery_status(
     }
 
 
+def catalog_without_expected_signal(
+    catalog: dict[str, object],
+    *,
+    expected_period_days: float,
+    tolerance_fraction: float | None = None,
+) -> dict[str, object]:
+    """Leave one regression truth exposed while retaining sibling masks."""
+
+    tolerance = (
+        tolerance_fraction
+        if tolerance_fraction is not None
+        else CURRENT_CONFIG.calibration.known_period_tolerance_fraction
+    )
+
+    def other_period(row: object) -> bool:
+        if not isinstance(row, dict):
+            return False
+        period = _optional_float(row.get("pl_orbper"))
+        return (
+            period is not None
+            and abs(period - expected_period_days) / expected_period_days > tolerance
+        )
+
+    return {
+        **catalog,
+        "tois": [row for row in catalog.get("tois", []) if other_period(row)],
+        "confirmed_planets": [
+            row for row in catalog.get("confirmed_planets", []) if other_period(row)
+        ],
+        "known_recovery_exposed_period_days": expected_period_days,
+    }
+
+
 def _calibration_hunt_args(
     spec: dict[str, object],
     settings: dict[str, object],
@@ -686,6 +719,7 @@ def recover_downloaded_known_planet(
     """Run one known planet through the shipping preparation/search/veto path."""
 
     from .benchmarks import compare_period
+    from .catalogs import check_tic
     from .photometry import prepare_search_arrays
 
     raw_time, raw_flux, downloaded_metadata = downloaded
@@ -694,13 +728,18 @@ def recover_downloaded_known_planet(
     prepared_time, prepared_flux, metadata = prepare_search_arrays(
         raw_time, raw_flux, metadata
     )
-    # The regression deliberately exposes the known signal; catalog masking
-    # would remove the truth it is intended to recover. All subsequent T2-T3
-    # code is the exact shipping function.
+    # Expose only the frozen truth signal. Sibling planets remain in the
+    # catalog so the shipping mask removes them exactly as it would before a
+    # residual search; otherwise a multi-planet host asks one BLS peak to
+    # recover several truths simultaneously and tests an undefined mixture.
+    catalog = catalog_without_expected_signal(
+        check_tic(int(spec["tic_id"])),
+        expected_period_days=float(spec["expected_period_days"]),
+    )
     report = _run_production_trial(
         spec,
         settings,
-        {"tic_id": int(spec["tic_id"]), "tois": [], "confirmed_planets": []},
+        catalog,
         prepared_time,
         prepared_flux,
         metadata,

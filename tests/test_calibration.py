@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from exohunt.calibration import (
+    catalog_without_expected_signal,
     inject_limb_darkened_transit,
     injection_trials,
     invert_prepared_flux,
@@ -138,3 +139,22 @@ def test_release_summary_fails_an_intentionally_broken_null() -> None:
         maximum_epoch_enrichment=1.1,
     )
     assert not broken["gates"]["inverted_survivor_rate"]["passes"]
+
+
+def test_known_recovery_exposes_only_expected_period() -> None:
+    catalog = {
+        "tic_id": 1,
+        "tois": [
+            {"pl_orbper": "3.0", "toi": "1.01"},
+            {"pl_orbper": "7.0", "toi": "1.02"},
+        ],
+        "confirmed_planets": [
+            {"pl_orbper": "3.001", "pl_name": "target b"},
+            {"pl_orbper": "12.0", "pl_name": "target d"},
+        ],
+    }
+    filtered = catalog_without_expected_signal(
+        catalog, expected_period_days=3.0
+    )
+    assert [row["pl_orbper"] for row in filtered["tois"]] == ["7.0"]
+    assert [row["pl_orbper"] for row in filtered["confirmed_planets"]] == ["12.0"]

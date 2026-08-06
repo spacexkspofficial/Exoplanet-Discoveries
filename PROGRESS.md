@@ -1189,6 +1189,22 @@ P4–P5 remain gated behind the measured P3 exit.
     expected period and public product availability—no failed target is
     swapped out. Its rerun is still unspent at this entry.
 
+35. **The amended known-planet run reached 19/20 and exposed a multi-planet
+    harness error, not a period threshold.** TOI-776 b recovered exactly after
+    receiving its second sector. The remaining miss, TOI-1233.01, is one of
+    five known transiting planets on HD 108236. The harness had disabled the
+    whole host catalog to expose the test signal, so a single-peak search saw
+    all five truths at once and selected a 9.81-day mixture instead of the
+    frozen 14.18-day member.
+
+    The production-path regression now removes only the expected-period rows
+    from that host's catalog and retains every sibling ephemeris for the normal
+    shipping mask. This is the defined question—can T1–T3 recover this known
+    planet after treating other known planets exactly as a residual campaign
+    does?—and does not change the target, expected period, tolerance, or search
+    threshold. The resulting signature explicitly records this masking rule;
+    its rerun is unspent at this entry.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to

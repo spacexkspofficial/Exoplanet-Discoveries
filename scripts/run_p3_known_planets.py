@@ -73,7 +73,10 @@ def run(args: argparse.Namespace) -> int:
     settings_payload = {
         **_scientific_settings(science_args),
         "calibration": asdict(CURRENT_CONFIG.calibration),
-        "known_recovery_catalog_masking": "disabled_to_expose_frozen_truth_signal",
+        "known_recovery_catalog_masking": (
+            "frozen truth period exposed; all sibling transiting ephemerides "
+            "retained for shipping-path masking"
+        ),
     }
     running_code_version = code_version(ROOT)
     signature = settings_signature(
