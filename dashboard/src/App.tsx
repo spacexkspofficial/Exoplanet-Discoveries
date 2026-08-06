@@ -157,6 +157,22 @@ type SurveyData = {
   stars_total: number;
   stats: Record<string, number | string | Record<string, number>>;
   status_counts: Record<string, number>;
+  health_flags?: {
+    diagnostic_only: boolean;
+    calibration_gate_complete: boolean;
+  };
+  trusted_release?: {
+    status: "trusted_release";
+    scientific_signature: string;
+    code_version?: string | null;
+    created_at_utc: string;
+    known_planet_counts?: {
+      total?: number;
+      passed?: number;
+      failed?: number;
+      errors?: number;
+    } | null;
+  } | null;
   common_mode_screen?: {
     screened_targets: number;
     flagged_targets: number;
@@ -2582,7 +2598,9 @@ export default function App() {
               </div>
             ) : (
               <b>
-                {coordinatorLive
+                {survey?.health_flags?.calibration_gate_complete
+                  ? "P3 TRUSTED"
+                  : coordinatorLive
                   ? "LIVE"
                   : ops?.liveness === "stale"
                     ? "STALE"
@@ -2683,6 +2701,14 @@ export default function App() {
               >
                 <i style={{ "--campaign-progress": `${activePercent}%` } as React.CSSProperties} />
                 {activePercent}% {activeWorkflowLabel}
+              </InfoTerm>
+            ) : null}
+            {survey?.trusted_release ? (
+              <InfoTerm
+                description={`P3 release gate passed for exact signature ${survey.trusted_release.scientific_signature}. Other signatures remain diagnostic.`}
+              >
+                Trusted release · {fmtInteger(survey.trusted_release.known_planet_counts?.passed)}/
+                {fmtInteger(survey.trusted_release.known_planet_counts?.total)} known planets
               </InfoTerm>
             ) : null}
             <InfoTerm description={HELP.sectorsRepresented}>

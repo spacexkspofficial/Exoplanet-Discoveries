@@ -2,7 +2,7 @@
 
 Tracks execution of [MASTER_PLAN.md](MASTER_PLAN.md) against its own gates.
 Started 2026-07-27 after owner approval of all seven §10 decisions.
-Test suite at last update: **326 passed**, bare
+Test suite at last update: **327 passed**, bare
 `pytest` from a clean checkout.
 
 ## Phase status

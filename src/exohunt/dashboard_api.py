@@ -488,6 +488,37 @@ def _common_mode_summary(conn: sqlite3.Connection) -> dict[str, Any]:
     }
 
 
+def _latest_trusted_release(conn: sqlite3.Connection) -> dict[str, Any] | None:
+    """Return the compact, display-safe state of the newest P3 release."""
+
+    row = conn.execute(
+        "SELECT signature, report_sha256, payload, created_at_utc "
+        "FROM release_report WHERE status = 'trusted' "
+        "ORDER BY created_at_utc DESC LIMIT 1"
+    ).fetchone()
+    payload = _payload(row)
+    if row is None or payload.get("release_gate_passes") is not True:
+        return None
+    calibration = payload.get("calibration_gate")
+    known = payload.get("known_planet_gate")
+    return {
+        "status": "trusted_release",
+        "scientific_signature": str(row["signature"]),
+        "code_version": payload.get("code_version"),
+        "created_at_utc": row["created_at_utc"],
+        "report_sha256": row["report_sha256"],
+        "calibration_counts": (
+            calibration.get("counts") if isinstance(calibration, dict) else None
+        ),
+        "calibration_gates": (
+            calibration.get("gates") if isinstance(calibration, dict) else None
+        ),
+        "known_planet_counts": (
+            known.get("counts") if isinstance(known, dict) else None
+        ),
+    }
+
+
 def summary_payload(
     conn: sqlite3.Connection, *, now: datetime | None = None
 ) -> dict[str, Any]:
@@ -522,6 +553,7 @@ def summary_payload(
             "SELECT DISTINCT signature FROM evidence ORDER BY signature"
         )
     ]
+    trusted_release = _latest_trusted_release(conn)
     return {
         "schema_version": 3,
         "generated_at_utc": _utc_now(now),
@@ -550,8 +582,8 @@ def summary_payload(
             ),
         },
         "health_flags": {
-            "diagnostic_only": True,
-            "calibration_gate_complete": False,
+            "diagnostic_only": trusted_release is None,
+            "calibration_gate_complete": trusted_release is not None,
             "unknown_signature_count": sum(
                 not (
                     signature == "unversioned"
@@ -569,8 +601,14 @@ def summary_payload(
         "observed_sectors": [],
         "sector_coverage": [],
         "active_campaigns": [],
+        "trusted_release": trusted_release,
         "warnings": [
-            "Every result remains diagnostic until the Phase 3 calibration gate.",
+            (
+                "P3 calibration is complete only for the exact trusted signature; "
+                "other signatures remain diagnostic."
+                if trusted_release is not None
+                else "Every result remains diagnostic until the Phase 3 calibration gate."
+            ),
             "Automated survivors are not planet candidates.",
             "Current-best states and conclusions logged are distinct readings.",
             "Scientific evidence counts are partitioned by signature.",

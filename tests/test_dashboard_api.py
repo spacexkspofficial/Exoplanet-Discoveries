@@ -227,6 +227,69 @@ def test_ops_liveness_comes_only_from_heartbeat_age(tmp_path: Path) -> None:
         empty_conn.close()
 
 
+def test_summary_surfaces_only_a_stored_trusted_p3_release(tmp_path: Path) -> None:
+    db_path = tmp_path / "ledger.db"
+    conn = ledger.connect(db_path)
+    report_path = tmp_path / "release.json"
+    report_path.write_text("{}", encoding="utf-8")
+    report = {
+        "scientific_signature": "sig1:released",
+        "code_version": "git:abc123",
+        "release_gate_passes": True,
+        "execution_complete": True,
+        "errors": [],
+        "calibration_gate": {
+            "passes": True,
+            "counts": {"baseline": 500, "inverted": 500, "scrambled": 500},
+            "gates": {"inverted_survivor_rate": {"value": 0.0, "passes": True}},
+        },
+        "known_planet_gate": {
+            "passes": True,
+            "counts": {"total": 20, "passed": 20, "failed": 0, "errors": 0},
+        },
+    }
+    try:
+        before = summary_payload(conn)
+        assert before["health_flags"]["diagnostic_only"] is True
+        assert before["trusted_release"] is None
+
+        ledger.store_release_report(
+            conn,
+            signature="sig1:released",
+            report_path=report_path,
+            payload=report,
+        )
+        conn.commit()
+        after = summary_payload(conn)
+    finally:
+        conn.close()
+
+    assert after["health_flags"]["diagnostic_only"] is False
+    assert after["health_flags"]["calibration_gate_complete"] is True
+    assert after["trusted_release"] == {
+        "status": "trusted_release",
+        "scientific_signature": "sig1:released",
+        "code_version": "git:abc123",
+        "created_at_utc": after["trusted_release"]["created_at_utc"],
+        "report_sha256": after["trusted_release"]["report_sha256"],
+        "calibration_counts": {
+            "baseline": 500,
+            "inverted": 500,
+            "scrambled": 500,
+        },
+        "calibration_gates": {
+            "inverted_survivor_rate": {"value": 0.0, "passes": True}
+        },
+        "known_planet_counts": {
+            "total": 20,
+            "passed": 20,
+            "failed": 0,
+            "errors": 0,
+        },
+    }
+    assert after["warnings"][0].startswith("P3 calibration is complete")
+
+
 def test_systematics_endpoint_reads_common_mode_evidence(tmp_path: Path) -> None:
     db_path = tmp_path / "ledger.db"
     _seed_ledger(db_path)
