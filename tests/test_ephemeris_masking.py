@@ -140,6 +140,7 @@ def test_recovery_only_report_names_the_uncertain_unmasked_signal(
         "power": np.array([0.1, 1.0, 0.2]),
         "effective_frequency_factor": 1.0,
         "period_grid_was_capped": False,
+        "bls_sde": np.asarray(10.0),
     }
     monkeypatch.setattr(
         cli_module,
@@ -258,6 +259,7 @@ def _shipping_catalog_report(
         "power": np.array([0.1, 1.0, 0.2]),
         "effective_frequency_factor": 1.0,
         "period_grid_was_capped": False,
+        "bls_sde": np.asarray(10.0),
     }
     if effective_duration_grid_hours is not None:
         arrays["duration_grid_hours"] = effective_duration_grid_hours

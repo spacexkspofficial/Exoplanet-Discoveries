@@ -252,6 +252,7 @@ def _analyze(args: argparse.Namespace) -> int:
         "strongest_signal": result.to_dict(),
         "search_grid": {
             "period_samples": int(len(arrays["period_grid"])),
+            "bls_sde_like": float(arrays["bls_sde"]),
             "effective_frequency_factor": float(arrays["effective_frequency_factor"]),
             "capped_for_long_baseline": bool(arrays["period_grid_was_capped"]),
         },
@@ -1955,6 +1956,7 @@ def _hunt_from_light_curve(
         "strongest_residual_signal": result.to_dict(),
         "search_grid": {
             "period_samples": int(len(arrays["period_grid"])),
+            "bls_sde_like": float(arrays["bls_sde"]),
             "effective_frequency_factor": float(arrays["effective_frequency_factor"]),
             "capped_for_long_baseline": bool(arrays["period_grid_was_capped"]),
             **search_grid_plan.to_dict(),

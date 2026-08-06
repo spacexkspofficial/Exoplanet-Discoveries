@@ -661,7 +661,12 @@ def calibrate_downloaded_target(
     def null_row(kind: str, report: dict[str, object], transform: object) -> dict[str, object]:
         signal = report["strongest_residual_signal"]
         triage = report["automated_triage"]
-        assert isinstance(signal, dict) and isinstance(triage, dict)
+        vetting = report["deeper_vetting"]
+        grid = report["search_grid"]
+        assert all(
+            isinstance(value, dict)
+            for value in (signal, triage, vetting, grid)
+        )
         return {
             "tic_id": int(spec["tic_id"]),
             "kind": kind,
@@ -669,13 +674,27 @@ def calibrate_downloaded_target(
             "period_days": float(signal["period_days"]),
             "depth_ppm": float(signal["depth_ppm"]),
             "depth_snr": float(signal["depth_snr"]),
+            "bls_sde_like": float(grid["bls_sde_like"]),
+            "red_noise_factor": float(vetting["red_noise_factor"]),
+            "red_noise_adjusted_snr": float(vetting["red_noise_adjusted_snr"]),
+            "vetting_flags": list(vetting.get("flags") or []),
             "rejection_reasons": list(triage.get("rejection_reasons") or []),
             "transform": transform,
         }
 
     baseline_triage = baseline_report["automated_triage"]
     baseline_signal = baseline_report["strongest_residual_signal"]
-    assert isinstance(baseline_triage, dict) and isinstance(baseline_signal, dict)
+    baseline_vetting = baseline_report["deeper_vetting"]
+    baseline_grid = baseline_report["search_grid"]
+    assert all(
+        isinstance(value, dict)
+        for value in (
+            baseline_triage,
+            baseline_signal,
+            baseline_vetting,
+            baseline_grid,
+        )
+    )
     baseline_row = {
         "tic_id": int(spec["tic_id"]),
         "survivor": bool(baseline_triage["passes"]),
@@ -684,6 +703,12 @@ def calibrate_downloaded_target(
         "duration_hours": float(baseline_signal["duration_hours"]),
         "depth_ppm": float(baseline_signal["depth_ppm"]),
         "depth_snr": float(baseline_signal["depth_snr"]),
+        "bls_sde_like": float(baseline_grid["bls_sde_like"]),
+        "red_noise_factor": float(baseline_vetting["red_noise_factor"]),
+        "red_noise_adjusted_snr": float(
+            baseline_vetting["red_noise_adjusted_snr"]
+        ),
+        "vetting_flags": list(baseline_vetting.get("flags") or []),
         "rejection_reasons": list(baseline_triage.get("rejection_reasons") or []),
     }
 

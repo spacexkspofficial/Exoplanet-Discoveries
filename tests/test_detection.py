@@ -9,6 +9,7 @@ from exohunt.detection import (
     inject_box_transit,
     mask_periodic_events,
     search_transits,
+    signal_detection_efficiency,
     signal_vetting_diagnostics,
 )
 
@@ -30,6 +31,14 @@ def test_binned_phase_curve_preserves_actual_transit_shape_compactly():
     assert sum(curve["count"]) == curve["measurements_in_range"]
     center_index = int(np.argmin(np.abs(curve["phase"])))
     assert curve["median_residual_flux_ppm"][center_index] < -3_500
+
+
+def test_signal_detection_efficiency_is_mean_std_peak_significance():
+    power = np.asarray([1.0, 2.0, 3.0, 8.0])
+
+    assert signal_detection_efficiency(power) == (
+        np.max(power) - np.mean(power)
+    ) / np.std(power)
 
 
 def test_recovers_synthetic_transit():

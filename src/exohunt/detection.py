@@ -69,6 +69,24 @@ def _point_noise(flux: np.ndarray) -> float:
     return float(sigma)
 
 
+def signal_detection_efficiency(power: np.ndarray) -> float:
+    """Return the conventional mean/std peak significance of a periodogram.
+
+    This is explicitly a BLS SDE-like diagnostic, not TLS SDE.  P3 records it
+    on every real and null search so a promotion threshold can be derived from
+    the locked null distributions rather than copied from TLS literature.
+    """
+
+    values = np.asarray(power, dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size < 2:
+        raise ValueError("SDE requires at least two finite periodogram powers.")
+    scatter = float(np.std(values))
+    if not np.isfinite(scatter) or scatter <= 0:
+        raise ValueError("SDE requires non-constant periodogram powers.")
+    return float((np.max(values) - np.mean(values)) / scatter)
+
+
 def _event_depths(
     time: np.ndarray,
     flux: np.ndarray,
@@ -393,6 +411,7 @@ def search_transits(
             dtype=float,
         ),
         "power": np.asarray(power.power, dtype=float),
+        "bls_sde": np.asarray(signal_detection_efficiency(power.power)),
         "effective_frequency_factor": np.asarray(effective_frequency_factor),
         "period_grid_was_capped": np.asarray(required_factor > frequency_factor),
     }
