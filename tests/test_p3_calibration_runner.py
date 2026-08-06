@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 
@@ -27,3 +28,6 @@ def test_epoch_histogram_detects_shared_epoch() -> None:
     result = MODULE._epoch_histogram(reports)
     assert result["maximum_enrichment"] > 2.0
     assert result["maximum_bin"]["aligned_signals"] == 50
+    # Release evidence must remain plain-JSON serializable rather than leaking
+    # NumPy scalar types from the histogram grid.
+    json.dumps(result)

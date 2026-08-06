@@ -112,7 +112,10 @@ def _epoch_histogram(
                 CURRENT_CONFIG.calibration.epoch_alignment_minimum_tolerance_days,
             )
             offset = abs((epoch - transit_time + period / 2.0) % period - period / 2.0)
-            observed += offset <= tolerance
+            # ``epoch`` is a NumPy scalar, so the comparison is np.bool_.
+            # Coerce before accumulation or ``observed`` becomes np.int64 and
+            # the otherwise complete release summary cannot be serialized.
+            observed += int(offset <= tolerance)
             expected += min(1.0, 2.0 * tolerance / period)
             covered += 1
         if covered < 20 or expected <= 0:
