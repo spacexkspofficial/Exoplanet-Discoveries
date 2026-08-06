@@ -105,7 +105,10 @@ button {
 .app-shell {
   min-height: 100vh;
   padding: 0 10px 10px;
-  overflow: hidden;
+  /* The live campaign panels can legitimately make the page taller than the
+     viewport. Clipping the shell made every row below the first metric tiles
+     unreachable on wide, short windows. */
+  overflow: visible;
 }
 
 .topbar {
@@ -941,9 +944,13 @@ button {
 }
 
 .bottom-grid {
-  height: 133px;
+  /* Metric tiles wrap according to the available column width, and the live
+     queue has its own bounded scroller. Let the footer row take that real
+     height so the page can scroll instead of clipping campaign progress. */
+  height: auto;
   display: grid;
   grid-template-columns: minmax(520px, 0.86fr) minmax(600px, 1.3fr);
+  align-items: start;
   gap: 10px;
   padding-top: 8px;
 }
@@ -1327,6 +1334,11 @@ button {
 .inflight-rows {
   display: grid;
   gap: 3px;
+  max-height: clamp(170px, 30vh, 280px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding-right: 4px;
 }
 
 .inflight-row {
@@ -1394,9 +1406,46 @@ button {
 }
 
 @media (max-width: 1100px) {
+  /* Removing the module also removes its grid item. Without a matching
+     four-column template, the progress bar falls into the old fixed-width
+     module track and collapses to ~92px while the flexible track sits empty. */
+  .inflight-row {
+    grid-template-columns: minmax(88px, auto) minmax(72px, auto) minmax(60px, 1fr) max-content;
+  }
+
   .inflight-module,
   .inflight-elapsed em {
     display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  /* Preserve both the stage label and elapsed time on phone-width windows;
+     the bar gets a full second row instead of being squeezed off-screen. */
+  .inflight-row {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    grid-template-areas:
+      "tic stage"
+      "bar elapsed";
+    gap: 4px 8px;
+    padding: 3px 0;
+  }
+
+  .inflight-tic {
+    grid-area: tic;
+  }
+
+  .inflight-stage {
+    grid-area: stage;
+    text-align: right;
+  }
+
+  .inflight-bar {
+    grid-area: bar;
+  }
+
+  .inflight-elapsed {
+    grid-area: elapsed;
   }
 }
 
