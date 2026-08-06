@@ -324,6 +324,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     budget_bytes = int(args.max_gb * 1_000_000_000) if args.max_gb else None
+    current_cache_bytes = 0
     if budget_bytes is not None:
         current = cache_bytes(cache_root)
         print(
@@ -351,6 +352,7 @@ def main(argv: list[str] | None = None) -> int:
                 flush=True,
             )
             return 0
+        current_cache_bytes = current
 
     index: dict[int, tuple[str, str]] = {}
     if args.direct:
@@ -376,18 +378,22 @@ def main(argv: list[str] | None = None) -> int:
     started = clock.monotonic()
     last_report = [started]
     done = 0
+    downloaded_bytes = 0
     failed: list[dict[str, str]] = []
     stop = threading.Event()
 
     def fetch(spec: dict[str, Any]) -> None:
-        nonlocal done
+        nonlocal done, downloaded_bytes
         if stop.is_set():
             return
+        written = 0
         try:
             entry = index.get(int(spec["tic_id"])) if args.direct else None
             if entry is not None:
-                direct_download(spec, cache_root, entry[0], entry[1])
+                written = direct_download(spec, cache_root, entry[0], entry[1])
             else:
+                namespace = cache_root / "batch_targets" / cache_namespace(spec)
+                before = cache_bytes(namespace) if budget_bytes is not None else 0
                 _download_light_curve(
                     str(spec["target"]),
                     list(spec["sectors"]),
@@ -395,13 +401,17 @@ def main(argv: list[str] | None = None) -> int:
                     args.cadence_seconds,
                     cache_namespace=cache_namespace(spec),
                 )
+                if budget_bytes is not None:
+                    written = max(0, cache_bytes(namespace) - before)
         except Exception as error:  # noqa: BLE001 - recorded, not swallowed
             with lock:
                 failed.append({"target": str(spec["target"]), "error": repr(error)})
         finally:
             with lock:
                 done += 1
+                downloaded_bytes += written
                 count = done
+                estimated_cache_bytes = current_cache_bytes + downloaded_bytes
                 # Report on a clock rather than every N targets: a slow search
                 # path can leave minutes of silence between count milestones,
                 # which reads as a hung process.
@@ -418,7 +428,12 @@ def main(argv: list[str] | None = None) -> int:
                     f"{len(failed)} failed  ETA {eta:.0f} min",
                     flush=True,
                 )
-                if budget_bytes is not None and cache_bytes(cache_root) >= budget_bytes:
+                # A full recursive scan of a large cache can take longer than
+                # the reporting interval. Doing that scan here allowed several
+                # worker threads to overlap scans until downloads stalled. The
+                # initial size plus bytes written is a conservative, constant-
+                # time budget check; the next sector refreshes the exact size.
+                if budget_bytes is not None and estimated_cache_bytes >= budget_bytes:
                     print("cache budget reached; stopping", flush=True)
                     stop.set()
 
