@@ -33,7 +33,7 @@ class SearchConfig:
 
     # Bump when search semantics change without changing a numeric threshold;
     # checkpoint reuse compares this complete config.
-    policy_version: str = "physical-grid-effective-rails-v1"
+    policy_version: str = "physical-grid-effective-rails-red-noise-gate-v2"
     # Periodic claims need three transits in multi-sector data; two-transit
     # single-sector signals route to `needs_additional_sector` instead of
     # surviving. Two-transit "periods" are the alias factory (TOI-700 c was

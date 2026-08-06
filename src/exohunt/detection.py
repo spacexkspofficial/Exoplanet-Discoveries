@@ -135,8 +135,9 @@ def signal_vetting_diagnostics(
 ) -> dict[str, object]:
     """Run inexpensive second-stage checks on the already-loaded light curve.
 
-    These diagnostics rank follow-up work; they do not confirm or exclude a
-    planet. In particular, a single event cannot establish an orbital period.
+    These diagnostics feed the reversible T3 signal gate; they do not confirm
+    or exclude a planet. In particular, a single event cannot establish an
+    orbital period.
     """
 
     t, y = _clean_arrays(time, flux)
@@ -224,8 +225,12 @@ def signal_vetting_diagnostics(
         )
 
     flags: list[str] = []
-    if red_noise_adjusted_snr < 7.1:
-        flags.append("red-noise-adjusted depth S/N is below 7.1")
+    red_noise_snr_min = CURRENT_CONFIG.search.red_noise_snr_min
+    if red_noise_adjusted_snr < red_noise_snr_min:
+        flags.append(
+            "red-noise-adjusted depth S/N is below "
+            f"{red_noise_snr_min:g}"
+        )
     if depths.size >= 3 and positive_fraction < 0.75:
         flags.append("fewer than 75% of sampled events have positive depth")
     if (
@@ -256,8 +261,9 @@ def signal_vetting_diagnostics(
         "schema_version": 1,
         "outcome": outcome,
         "warning": (
-            "Additional automated vetting ranks follow-up only; it does not "
-            "confirm a planet or establish that another planet is absent."
+            "Additional automated vetting can reject this signal from automated "
+            "promotion; it does not confirm a planet or establish that another "
+            "planet is absent."
         ),
         "red_noise_factor": round(float(red_noise_factor), 3),
         "red_noise_adjusted_snr": round(red_noise_adjusted_snr, 3),

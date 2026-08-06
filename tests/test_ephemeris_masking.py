@@ -228,6 +228,7 @@ def _shipping_catalog_report(
     recovered_duration_hours: float = 2.4,
     effective_duration_grid_hours: np.ndarray | None = None,
     requested_duration_grid_hours: np.ndarray | None = None,
+    deeper_flags: list[str] | None = None,
 ) -> dict[str, object]:
     monkeypatch.setattr(
         cli_module,
@@ -271,7 +272,7 @@ def _shipping_catalog_report(
     monkeypatch.setattr(
         cli_module,
         "signal_vetting_diagnostics",
-        lambda *_args, **_kwargs: {"flags": []},
+        lambda *_args, **_kwargs: {"flags": list(deeper_flags or [])},
     )
     monkeypatch.setattr(
         cli_module,
@@ -344,6 +345,25 @@ def test_shipping_hunt_allows_exact_phase_distinct_signal_to_other_gates(
     assert relation["catalog_match_rejects"] is False
     assert report["automated_triage"]["passes"] is True
     assert report["automated_triage"]["rejection_reasons"] == []
+
+
+def test_shipping_hunt_gates_a_red_noise_vetting_failure(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    reason = "red-noise-adjusted depth S/N is below 7.1"
+    report = _shipping_catalog_report(
+        tmp_path,
+        monkeypatch,
+        recovered_transit_time=101.5,
+        deeper_flags=[reason],
+    )
+
+    assert report["automated_triage"]["passes"] is False
+    assert reason in report["automated_triage"]["rejection_reasons"]
+    assert report["followup_classification"]["screening_class"] == (
+        "screened_rejected"
+    )
 
 
 def test_shipping_hunt_keeps_aligned_half_period_alias_rejected(

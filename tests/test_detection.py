@@ -1,5 +1,6 @@
 import numpy as np
 
+from exohunt.config import CURRENT_CONFIG
 from exohunt.detection import (
     DetectionResult,
     binned_phase_curve,
@@ -252,6 +253,7 @@ def test_deeper_vetting_measures_event_consistency_and_coverage():
     assert diagnostics["positive_depth_event_fraction"] > 0.9
     assert diagnostics["red_noise_factor"] >= 1
     assert "does not confirm a planet" in diagnostics["warning"]
+    assert CURRENT_CONFIG.search.red_noise_snr_min == 7.1
 
 
 def test_single_event_near_boundary_is_kept_as_a_fragile_lead():

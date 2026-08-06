@@ -1859,6 +1859,16 @@ def _hunt_from_light_curve(
         cleaned_flux,
         result,
     )
+    # P3 calibrates the complete production T2-T3 path against inverted and
+    # scrambled light curves.  These checks were historically displayed as
+    # advisory diagnostics, but MASTER_PLAN 3.1 makes the red-noise statistic
+    # (and the event-consistency checks produced beside it) part of the T3
+    # promotion gate.  Keeping them outside this list would make the displayed
+    # checks disagree with the release-gate survivor count.
+    for reason in deeper_vetting.get("flags", []):
+        reason_text = str(reason)
+        if reason_text not in rejection_reasons:
+            rejection_reasons.append(reason_text)
     classification = _classify_screening_result(
         result,
         rejection_reasons,
