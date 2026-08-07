@@ -112,7 +112,8 @@ own exit gates.
 | T8 transit fit and physical sanity (§4.6) | Built and tested | `transitfit.py`: batman + emcee posteriors with quadratic limb darkening, and the check that actually catches false positives — **stellar density from the transit geometry alone**. (a/R\*) with the period gives the mean density of the star being transited independently of any catalogue, and the same light curve is fit equally well by a small planet on a dwarf or a grazing binary on a giant; those solutions differ by orders of magnitude in density and nothing else in the light curve separates them. The relation is anchored by a test: Earth's orbit at P=365.25 d returns **1.0013 solar densities**. Posteriors are reported **only when the chain mixed** — an unconverged interval is indistinguishable on inspection from a converged one, so a starved chain returns `not_run` with the diagnostic attached rather than a plausible-looking number. Also SED giant-impostor check from the Gaia colour-magnitude position, and a walker-count guard so an emcee configuration error is reported rather than raised. `emcee`/`corner` installed from the existing `[fits]` extra. 15 tests |
 | Review queue (§8) | Built, tested, live | `/api/review-queue` plus a dashboard panel. **1,033 entries** from the 1,363-star backlog — the 330 the calibrated T3 re-gate killed are excluded outright, because they are resolved and human attention is the scarcest resource here. Ranked by contested evidence first (disagreeing sources, then signals matching a catalogued planet or TOI, which need a human because every rediscovery status is human-stage), and every entry states what it waits on: **413 ambiguous identity, 26 no ephemeris, 2 sources disagree**. Scoped to the newest vetting generation; reads only non-voting rows, so opening it moves nothing. 8 tests |
 | Pixel vetting v2 on real pixels | **Run on a 60-star pilot; 57 measured** | `results/p4/pixel_pilot_v3/`, all 57 on the target's own discovery sector (corrections 46 and 47 cover two earlier runs that were not). **11 stars localize significantly off target** — offsets 0.72–4.31 px at 4.6σ–42.5σ, the first real `pixel_offset_contamination` candidates this stack has produced. **3 more** show aperture growth consistent with a contaminant. The two tests flag **disjoint sets**, which is informative rather than contradictory: they have different sensitivity regimes, and the aperture curve is limited by the same sub-pixel problem as correction 46. **0 host reassignments**: 46 `not_resolvable`, 11 with no counterpart. Caveat on the 31 `no_depth_in_target_aperture` — those are raw undetrended TESScut aperture sums, and the campaign detected these signals in *detrended* photometry, so a shallow signal is expected to be invisible here and this is **not** evidence against it |
-| **Not yet done** | — | T7 on real alternate reductions (QLP/TGLC/TESS-SPOC products for the pilot cohort); TRICERATOPS itself (deferred by owner decision, and its `not_run` FPP currently blocks every packet from reaching `ready`); promoting any of this to voting evidence, which waits on correction 38 |
+| T7 on real reductions | **Attempted, not measured — see correction 48** | The runner exists (`scripts/run_p4_t7_pilot.py`) and is correct, but MAST began closing connections on this session after three 60-target pixel runs plus the catalog snapshots. Four targets took over ten minutes with backoff in place. No numbers are reported, because the only numbers available would have been an artifact of my own request rate |
+| **Not yet done** | — | T7 measured on real alternate reductions (needs an unthrottled MAST session); TRICERATOPS itself (deferred by owner decision, and its `not_run` FPP currently blocks every packet from reaching `ready`); promoting any P4 evidence to voting, which waits on correction 38 |
 
 P4's exit is **not** met. The backlog gate reads 98.1% against the plan's
 ≥80%, but that number passes on the strength of catalog coverage alone: 94% of
@@ -1535,6 +1536,48 @@ the current stack can settle.
     sectors, the fetch requests that sector explicitly, and a
     `sector_mismatch` state refuses any cutout that comes back from a
     different one, so this cannot recur silently.
+
+48. **A throttled archive reported itself as an empty sky.** The T7 pilot's
+    first smoke run returned zero alternate reductions for every star, which
+    reads exactly like "these targets have no independent products". MAST was
+    closing connections on this session, and a bare `except: continue` around
+    the search collapsed "no such product" and "the archive dropped the
+    connection" into one silent answer.
+
+    One of those is a fact about the sky worth recording; the other is a fact
+    about this session's request rate. Writing the second into the evidence
+    record as the first would have established "no independent reductions
+    exist for these stars" on no evidence at all — the same class of error as
+    corrections 46 and 47, and the third time in this phase that a plausible
+    result turned out to be an artifact of how it was obtained.
+
+    Connection faults are now retried with backoff and recorded per author in
+    `search_failures`; an empty search is recorded as an absence; the run
+    pauses between targets. **No T7 numbers are reported from this session.**
+    One clean signal survives and is worth carrying forward: TIC 7146022 in
+    Sector 105 returned zero products from every author on a connection that
+    worked, so part of the answer may be genuine — these are faint FFI targets
+    in recent sectors, where QLP and TESS-SPOC processing lags. Distinguishing
+    "no products exist" from "I was throttled" needs an unthrottled session.
+
+49. **The P3 trusted release is not actually in the live ledger, despite this
+    document saying it is.** `results/p3/release_report.json` exists and reads
+    `trusted_release` with every gate green, but the `release_report` table in
+    `%LOCALAPPDATA%\exohunt\exohunt.db` holds **zero rows**. The P3 entry above
+    claims it "is recorded in the ledger for the exact calibration signature";
+    that claim is wrong as of this session.
+
+    Most likely the finalizer ran against a different state root — the test
+    fixture redirects `EXOHUNT_STATE_DIR`, and a stray environment would send
+    the write to a temporary database. Nothing was lost: the report file is
+    the durable artifact and re-recording it is a single idempotent call.
+
+    It was not re-recorded here, deliberately. `store_release_report` is a
+    science-governance action, and correction 39 shows the signature it would
+    be keyed to is already unreachable at HEAD, so writing one now would
+    register a release for a signature no campaign can produce. Both need
+    settling together, before P5 asks for a trusted first pass — which today
+    would be refused for two independent reasons.
 
 ## Owner notes
 
