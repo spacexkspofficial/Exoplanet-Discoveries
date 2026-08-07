@@ -1608,6 +1608,32 @@ the current stack can settle.
     enrichment reported — is a change that deserves its own session and its
     own tests, not a wrap-up edit.
 
+53. **The backlog resolution is now split by what it actually means, which
+    answers correction 43 in numbers instead of prose.** "Resolved" was
+    covering two very different states. A *terminal* lane is a statement about
+    the signal — it failed a calibrated gate, a catalogue explains it, or the
+    light was lost somewhere else. A *review* lane is a statement about our
+    search — every source we checked was checked, and none explains it. Both
+    count toward P4's exit; only the first is an answer.
+
+    Under policy `v4`, on the same 1,363 stars:
+
+    | lane | stars | |
+    |---|---|---|
+    | terminal | **351** | 330 fail the calibrated red-noise floor, 11 localize off target, 10 are EB rediscoveries |
+    | review | 986 | overwhelmingly `unresolved_transit_like_signal` |
+    | open | 26 | no ephemeris anywhere in the ledger |
+
+    So the headline is unchanged at **98.09% resolved**, but **25.8% of the
+    backlog now carries a terminal verdict** rather than a filed lead. That is
+    the honest form of the exit measurement, and it is the number to quote.
+
+    Two accounting fixes were needed to see it. The pixel override was applied
+    *after* the outcome counter, so 11 measured off-target localizations
+    changed statuses without appearing in any total. And a star killed by the
+    calibrated red-noise floor was being filed under whatever the catalogues
+    said about it — counting 330 decided cases as open leads.
+
 51. **TIC 234994474 now carries a real verdict, and it is a downgrade.** P4's
     named exit item. The star held `science_vetted_lead` from the pre-P4
     two-gate rule — centroid on target, "2 of 3 tested sectors support the

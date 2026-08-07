@@ -67,7 +67,55 @@ VETTING_MODULES = ("adjudicate.py", "identity.py", "snapshots.py")
 #       contributes ephemerides. gaia_dr3 supplies the neighbour scene and no
 #       periods, so v2 filed it as an unfetched coverage gap and reported 995
 #       stars as uncheckable against catalogs that had in fact been checked.
-READJUDICATION_POLICY = "p4-readjudication-v3-consulted-is-fetched"
+#   v4: folds measured pixel localization in. An off-target centroid is a
+#       terminal verdict about where the light was lost, and it outranks a
+#       catalog lane that only says no source explains the signal.
+READJUDICATION_POLICY = "p4-readjudication-v4-pixel-localization"
+
+# Pixel localization is a measured_science verdict, above the catalog-context
+# lane the T5 pass produces: knowing the light was lost off target settles
+# more than knowing no catalogue claims it.
+PIXEL_RECORDS = Path("results/p4/pixel_pilot_v3/pixel_pilot_records.json")
+PIXEL_OFF_TARGET_STATUS = "pixel_offset_contamination"
+
+# Correction 43's complaint, answered in the numbers instead of the prose: a
+# "resolved" star can mean two very different things. A terminal lane is a
+# statement about the signal -- it failed a calibrated gate, or a catalogue
+# explains it, or the light was lost somewhere else. A review lane is a
+# statement about our search: every source we checked was checked, and none of
+# them explains it. Both count toward P4's exit; only the first is an answer.
+LANE_OF = {
+    "pixel_offset_contamination": "terminal",
+    "known_eb_rediscovery": "terminal",
+    "known_eb_host_residual_review": "review",
+    "known_variable_star_review": "review",
+    "unresolved_transit_like_signal": "review",
+    "catalog_coverage_gap": "open",
+    "no_ephemeris": "open",
+}
+
+
+def load_pixel_verdicts(path: Path) -> dict[int, dict[str, Any]]:
+    """Measured pixel localizations, keyed by TIC."""
+
+    if not path.is_file():
+        return {}
+    verdicts: dict[int, dict[str, Any]] = {}
+    for record in json.loads(path.read_text(encoding="utf-8")):
+        if record.get("state") != "measured":
+            continue
+        localization = record.get("localization") or {}
+        if not localization.get("verdict"):
+            continue
+        verdicts[int(record["tic_id"])] = {
+            "verdict": localization["verdict"],
+            "offset_pixels": localization.get("offset_pixels"),
+            "significance": localization.get("significance"),
+            "sector": record.get("sector"),
+            "aperture_growth": (record.get("aperture_growth") or {}).get("verdict"),
+            "neighbour": (record.get("neighbour_extraction") or {}).get("verdict"),
+        }
+    return verdicts
 
 
 def _f(value: Any) -> float | None:
@@ -537,6 +585,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         backlog = load_backlog(conn)
         print(f"backlog stars: {len(backlog)}")
+        pixel_verdicts = load_pixel_verdicts(PIXEL_RECORDS)
+        off_target = sum(
+            1 for v in pixel_verdicts.values() if v["verdict"] == "off_target"
+        )
+        print(
+            f"pixel localizations available: {len(pixel_verdicts)} "
+            f"({off_target} off target)"
+        )
         positions = {
             int(row["tic_id"]): (float(row["ra_deg"]), float(row["dec_deg"]))
             for row in conn.execute(
@@ -640,7 +696,30 @@ def main(argv: list[str] | None = None) -> int:
                     "unadjudicable_reason": "no ephemeris in the deciding evidence",
                 }
                 outcome = "no_ephemeris"
+
+            # Measured pixel localization outranks the catalog lane, and must
+            # be applied before the outcome is counted. "The light was lost
+            # 2.4 pixels off target" is a terminal statement about this
+            # signal; "no checked catalogue explains it" is not.
+            pixel_verdict = pixel_verdicts.get(star["tic_id"])
+            if pixel_verdict:
+                t5["pixel_localization"] = pixel_verdict
+                if pixel_verdict["verdict"] == "off_target":
+                    adjudicate._assert_automated_status(PIXEL_OFF_TARGET_STATUS)
+                    t5["recommended_status"] = PIXEL_OFF_TARGET_STATUS
+                    outcome = PIXEL_OFF_TARGET_STATUS
+
             t5_counter[outcome] += 1
+            # A star the calibrated red-noise floor kills is terminally
+            # resolved whatever the catalogues say about it: the signal did
+            # not survive a gate P3 calibrated against nulls. Filing it under
+            # its catalog outcome would count a decided case as an open lead.
+            lane = (
+                "terminal"
+                if t3["verdict"] == "fails_calibrated_red_noise_floor"
+                else LANE_OF.get(outcome, "open")
+            )
+            lane_counter[f"lane:{lane}"] += 1
 
             # P4's exit asks how many "resolve into a terminal or review lane
             # with full evidence chains". `unresolved_transit_like_signal` is
@@ -703,6 +782,19 @@ def main(argv: list[str] | None = None) -> int:
         "backlog_size": len(backlog),
         "source_diagnostics": diagnostics,
         "gaia_scene": scene,
+        "lanes": {
+            key.split(":", 1)[1]: count
+            for key, count in sorted(lane_counter.items())
+            if key.startswith("lane:")
+        },
+        "terminal_fraction": (
+            round(lane_counter["lane:terminal"] / len(backlog), 4)
+            if backlog else None
+        ),
+        "pixel_localizations_applied": len(pixel_verdicts),
+        "pixel_off_target": sum(
+            1 for v in pixel_verdicts.values() if v["verdict"] == "off_target"
+        ),
         "ephemeris_sources": dict(
             sorted(Counter(star["ephemeris_source"] for star in backlog).items())
         ),
