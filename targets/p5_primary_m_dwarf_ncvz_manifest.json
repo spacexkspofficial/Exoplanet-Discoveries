@@ -1,0 +1,27 @@
+{
+  "counts": {
+    "cohort": 1000,
+    "eligible": 8768,
+    "rejected": {
+      "contamination_above_threshold": 412,
+      "no_parallax": 597
+    },
+    "tic_returned": 9777
+  },
+  "kernel_version": "kernel1:29e80e4f452135af6e4ad4a13102067e75e3f2ecc36b9e801849672d40d705ac",
+  "lane": "6.1_primary_faint_m_dwarf",
+  "selection": {
+    "coverage": "northern continuous viewing zone, 12.0 deg around RA 270.0, Dec 66.56 -- >=3 sectors by construction",
+    "known_ephemerides": "not excluded: a catalogued host may still yield a second signal, so these are signal-kills at T5 rather than sample exclusions",
+    "max_contamination_ratio": 1.0,
+    "max_radius_solar": 0.6,
+    "max_teff_k": 4000.0,
+    "northern_preference": "ZTF overlap for ground EB unmasking (6.1)",
+    "tmag_range": [
+      12.5,
+      15.0
+    ]
+  },
+  "target_list": "targets\\p5_primary_m_dwarf_ncvz.csv",
+  "target_list_sha256": "0358d9f819a161743b72f75aaf984f48e9838e3fbff1bfab6cedbb782accaf3d"
+}
