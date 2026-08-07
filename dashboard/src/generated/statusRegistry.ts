@@ -232,6 +232,16 @@ export const STATUS_REGISTRY = {
     evidenceStage: "human_outcome",
     precedence: 2,
   },
+  "packet_ready_for_review": {
+    label: "Review Packet Assembled",
+    short: "Packet ready",
+    help: "Every automated check this pipeline can run has been run and its evidence collected into one packet: ephemeris and fit posteriors, T3 gate values, population screen, catalog adjudication with the snapshot hashes it was decided against, pixel localization, the multi-reduction depth table, completeness at this period and depth, and the full provenance chain. This is the strongest state the system may assign on its own. It is not a candidate and not a detection: calling it either requires a human, and calling it a validated planet requires evidence this pipeline cannot produce.",
+    symbol: "▣",
+    color: "#22d3ee",
+    className: "cyan",
+    evidenceStage: "measured_science",
+    precedence: 1,
+  },
 } as const;
 
 export type Status = keyof typeof STATUS_REGISTRY;

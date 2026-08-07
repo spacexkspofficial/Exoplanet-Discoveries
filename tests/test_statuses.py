@@ -16,7 +16,12 @@ from exohunt.statuses import (
 
 
 def test_registry_is_complete_and_frontend_generation_cannot_drift() -> None:
-    assert len(STATUS_DEFINITIONS) == 23
+    # 23 at P1, plus `packet_ready_for_review` added for P4's section 4.7
+    # packet. Appendix C makes registry evolution additive and requires the
+    # existing 23 to keep their slugs, so this count is raised deliberately
+    # rather than relaxed -- a status appearing without this line changing is
+    # the drift the pin exists to catch.
+    assert len(STATUS_DEFINITIONS) == 24
     assert len(STATUS_REGISTRY) == len(STATUS_DEFINITIONS)
     assert generated_path().read_text(encoding="utf-8") == render_typescript()
 
@@ -43,6 +48,7 @@ def test_registry_preserves_the_exporters_existing_labels() -> None:
         "pixel_offset_contamination": "Lost light localized off target",
         "single_sector_unconfirmed": "On target - single supporting sector",
         "science_vetted_lead": "On target and multi-sector coherent",
+        "packet_ready_for_review": "Review packet assembled",
     }
     assert COMMON_MODE_LABELS == {
         "common_mode_systematic": "Observatory systematic - shared ephemeris",
