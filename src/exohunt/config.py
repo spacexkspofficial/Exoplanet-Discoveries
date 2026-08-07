@@ -384,6 +384,34 @@ CURRENT_PIXEL_VET = PixelVetConfig()
 
 
 @dataclass(frozen=True, slots=True)
+class CrossReductionConfig:
+    """Independent-reduction promotion gate (T7, MASTER_PLAN 4.5)."""
+
+    policy_version: str = "t7-independent-reduction-v1"
+    # Two independent reductions of the same pixels are the minimum that can
+    # distinguish a signal from one pipeline's processing of it.
+    minimum_independent_reductions: int = 2
+    depth_agreement_sigma: float = 3.0
+    # The undetrended SAP requirement is the direct lesson of this project's
+    # own history: a detrender can manufacture a periodic dip, and every
+    # detrended product inherits it. An undetrended fold cannot.
+    require_undetrended_detection: bool = True
+    undetrended_minimum_sigma: float = 3.0
+    # A sector only gets to vote *against* a signal if injection says the
+    # signal would have been recoverable there. Below this completeness a
+    # non-detection carries no information and must abstain rather than count
+    # as evidence of absence.
+    sector_veto_minimum_completeness: float = 0.50
+    # Re-measured on the all-sector stacked fold, not per sector: TIC
+    # 181014443's secondary was 2.3 sigma in one sector and 5.9 stacked.
+    stacked_secondary_kill_sigma: float = 3.0
+    stacked_odd_even_kill_sigma: float = 3.0
+
+
+CURRENT_CROSS_REDUCTION = CrossReductionConfig()
+
+
+@dataclass(frozen=True, slots=True)
 class ScienceConfig:
     """Everything that defines a result's scientific identity, in one object."""
 

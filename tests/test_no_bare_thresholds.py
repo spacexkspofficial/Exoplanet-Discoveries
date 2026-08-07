@@ -38,6 +38,7 @@ KERNEL_MODULES = (
     # from InstrumentConfig rather than be written here.
     "pixel.py",
     "adjudicate.py",
+    "crossreduction.py",
 )
 
 # The numeric values with a documented history of silent drift. Scanned as
