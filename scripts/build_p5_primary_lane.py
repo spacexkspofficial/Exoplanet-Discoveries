@@ -52,6 +52,19 @@ TMAG_RANGE = (12.5, 15.0)
 # and pixel vetting cannot recover it.
 MAX_CONTAMINATION_RATIO = 1.0
 
+# The sectors the first pass searches. Probing the cohort directly, every
+# sampled star carries SPOC, TESS-SPOC and QLP light curves across sectors
+# 14-26 -- the Cycle 2 northern campaign -- which both confirms the geometric
+# coverage assumption with real data and gives the lane three independent
+# reductions for T7 to use later.
+#
+# Three sectors, not twelve: section 6.1's criterion is *at least* three, and
+# a first pass at ~1,000 stars is meant to measure the lane's rediscovery rate
+# before any decision to scale. Downloading a full year per star to answer that
+# question would cost roughly four times the current cache for no extra
+# information.
+FIRST_PASS_SECTORS = "14;15;16"
+
 # `select *` rather than a column list. VizieR's TAP view of the TIC does not
 # resolve every name that appears in the catalogue header -- Gmag among them --
 # and a guessed column list fails the whole query rather than degrading. The
@@ -137,6 +150,7 @@ def main(argv: list[str] | None = None) -> int:
             {
                 "target": f"TIC {tic_id}",
                 "tic_id": tic_id,
+                "sectors": FIRST_PASS_SECTORS,
                 "ra": row.get("RAJ2000"),
                 "dec": row.get("DEJ2000"),
                 "tmag": row.get("Tmag"),
