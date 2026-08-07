@@ -63,7 +63,11 @@ VETTING_MODULES = ("adjudicate.py", "identity.py", "snapshots.py")
 #   v1: ephemeris read from the deciding evidence row only.
 #   v2: falls back to any screening row, recovering 262 of 288 stars that v1
 #       reported as having no ephemeris at all.
-READJUDICATION_POLICY = "p4-readjudication-v2-ephemeris-recovery"
+#   v3: counts a source as consulted when its snapshot exists, not when it
+#       contributes ephemerides. gaia_dr3 supplies the neighbour scene and no
+#       periods, so v2 filed it as an unfetched coverage gap and reported 995
+#       stars as uncheckable against catalogs that had in fact been checked.
+READJUDICATION_POLICY = "p4-readjudication-v3-consulted-is-fetched"
 
 
 def _f(value: Any) -> float | None:
@@ -396,6 +400,29 @@ def index_snapshots(
             "period_column": _pick(rows[0], spec.period_keys) if rows else None,
             "epoch_column": _pick(rows[0], spec.epoch_keys) if rows else None,
         }
+
+    # A source is consulted when its snapshot exists, not when it happens to
+    # publish ephemerides. gaia_dr3 supplies the neighbour scene and no
+    # periods; treating that as an unfetched gap told 995 stars they could not
+    # be checked against catalogs that had in fact been checked.
+    for name in snapshots.SNAPSHOT_SOURCES:
+        manifest = snapshots.latest(name)
+        if manifest is None:
+            diagnostics.setdefault(name, {"available": False})
+            continue
+        hashes.setdefault(name, manifest.content_hash)
+        consulted.append(name)
+        diagnostics.setdefault(
+            name,
+            {
+                "available": True,
+                "rows": manifest.row_count,
+                "attached_to_backlog": None,
+                "join": "scene_only",
+                "period_column": None,
+                "epoch_column": None,
+            },
+        )
     return by_tic, hashes, sorted(set(consulted)), diagnostics
 
 
@@ -527,9 +554,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"snapshot sources consulted: {', '.join(consulted)}")
         for name, info in sorted(diagnostics.items()):
             if info.get("available"):
+                attached = info["attached_to_backlog"]
+                attached = "     -" if attached is None else f"{attached:>6}"
                 print(
                     f"    {name:<18} {info['rows']:>7} rows, "
-                    f"{info['attached_to_backlog']:>6} attached "
+                    f"{attached} attached "
                     f"(join={info['join']}, period={info['period_column']}, "
                     f"epoch={info['epoch_column']})"
                 )

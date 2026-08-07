@@ -102,18 +102,21 @@ own exit gates.
 | Known-object regression suite (§4.1) | **Green, and measured against deliberate breaks** | `results/p4/known_objects_v1/known_objects.json`: **502 cases** built from the three live snapshot generations — 400 real catalogued objects (150 confirmed planets, 150 TOIs, 100 TESS EBs, stratified across period) and 102 deliberate near-miss impostors. All 502 reproduce their stated intent, and the builder refuses to freeze a case the code disagrees with. Teeth measured, not assumed: removing the epoch test fails **34/502**, widening the phase tolerance fails **34/502**, and widening the period tolerance from 1% to 10% fails **34/502** — each break caught by exactly the impostor family built for it |
 | Campaign import | Done; **parity gate now red** | The finished 64,614-target `full_remaining_pool` campaign and several other unimported campaigns were imported idempotently: ledger **18,941 → 83,555 stars**, +146,228 evidence rows. This exposed a latent projection disagreement — see correction 38 |
 | Identity resolution | Done for the backlog | `scripts/resolve_p4_identities.py` resolves canonical nodes from TIC v8.2 (VizieR `IV/39/tic82`) in bulk: **1,363/1,363 backlog stars**, with sky position, proper motion, Tmag, Teff, radius, distance, and the TIC's own Gaia DR3 cross-match. The campaign path never needed coordinates, so before this only 920 of 1,363 had any; sample-scoped extracts and PM-aware matching both require them. Gaia edges are recorded with `catalog_crossmatch` basis, leaving the positional neighbour scene as a separate later claim |
-| Backlog re-adjudication | **Run and measured: 29.2%, against an ≥80% gate** | `results/p4/readjudication_v1/` under policy `p4-readjudication-v2-ephemeris-recovery` and vetting signature `vet1:e87ee0d0…`: 1,363 backlog stars (1,009 `automated_survivor`, 169 `catalog_coverage_gap`, 93 `known_eb_host_residual_review`, 92 `single_event_lead`). T3 re-gate against the calibrated red-noise floor: **330 fail**, 337 pass, 696 not evaluable. T5: 11 `known_eb_rediscovery`, 24 `known_eb_host_residual_review`, 53 `unresolved_transit_like_signal`. **398/1,363 resolved (29.2%)**; 939 still open on catalog coverage and 26 with no ephemeris anywhere in the ledger. Evidence rows are written non-voting pending correction 38 |
+| Snapshot coverage | All eight declared sources fetched | `nasa_toi` 8,113 · `nasa_ps` 6,336 · `tess_eb` 4,584 · `gaia_dr3` 8,453 · `vsx` 252 · `gaia_nss_sb1` 79 · `asassn_variables` 61 · `gaia_nss_eb` 1. The five sample-scoped extracts are scoped to the 1,363-star backlog position list and carry its hash |
+| Gaia neighbour scene (§4.1) | Resolved for the whole backlog | 8,488 ranked counterpart edges over 1,363 stars: **745 unique, 616 ambiguous, 2 unresolved**. **45.2% of the backlog has more than one plausible Gaia counterpart inside its TESS pixel** — recorded as ranked alternatives rather than resolved away, which is the input pixel-vet v2 exists to consume |
+| Backlog re-adjudication | **98.1% resolved, but see the caveat** | `results/p4/readjudication_v1/` under policy `p4-readjudication-v3-consulted-is-fetched`, vetting signature `vet1:af603463…`: 1,363 backlog stars. T3 re-gate against the calibrated red-noise floor: **330 fail**, 337 pass, 696 not evaluable. T5: 1,285 `unresolved_transit_like_signal`, 25 `known_eb_host_residual_review`, 16 `known_variable_star_review`, 11 `known_eb_rediscovery`. **1,337/1,363 resolved (98.09%)**, 26 still open with no ephemeris anywhere in the ledger. Evidence rows are written non-voting pending correction 38. **The ≥80% number is met and should not be read as P4 being done — see correction 43** |
 | T3 re-gate verification | Checked against source, not just self-consistent | No record sits on the wrong side of its own 7.1 floor, and 8 failing stars cross-checked against their per-target report JSON on disk reproduce the recorded red-noise-adjusted S/N exactly. The re-gate reads numbers those reports already carried; it does not recompute photometry |
 | **Not yet done** | — | Pixel-vet v2 (§4.4); T7 cross-reduction machinery (§4.5); TRICERATOPS/fit/packet assembly (§4.6, deferred by owner decision to an interface, which is also not yet built); review-queue UI (§8). The five sample-scoped snapshot sources remain unfetched — see correction 41 |
 
-P4's exit is **not** met: the backlog resolves at 25.0% against the plan's
-≥80%. The vetting substrate exists and is gated; the vetting depth it was
-built to serve does not. The shortfall is not mysterious — 1,022 of the 1,363
-are still open for two identified and separately fixable reasons, **734 for
-catalog coverage and 288 for having no ephemeris in their deciding record** —
-so the plan's stated prediction ("if far fewer resolve, the vetting stack is
-weaker than designed") is not yet the right diagnosis. The vetting stack has
-not been given its inputs.
+P4's exit is **not** met. The backlog gate reads 98.1% against the plan's
+≥80%, but that number passes on the strength of catalog coverage alone: 94% of
+it is `unresolved_transit_like_signal`, meaning every declared source was
+checked and none explains the signal — a filed lead, not an adjudicated one.
+Correction 43 states this in full. The vetting substrate exists, is gated, and
+has its inputs; the vetting *depth* the phase is named for (pixel-vet v2, T7
+cross-reduction, T8 fit and FPP, the review queue) is not built, and 616 of
+these stars have an ambiguous identity inside their own pixel that nothing in
+the current stack can settle.
 
 ## Measured corrections to the plan (honesty ledger)
 
@@ -1390,6 +1393,43 @@ not been given its inputs.
     distinct (`unadjudicable_reason`), and the corrected figure is **25.02%**.
     Recorded because the inflated number was the flattering one, and a gate
     that reports 46% when the truth is 25% is worse than no gate.
+
+43. **The backlog gate now reads 98.1%, and taking that as P4's exit would be
+    the most misleading thing in this document.** 1,285 of the 1,337 resolved
+    stars — 94% of the backlog — land in `unresolved_transit_like_signal`.
+    That status is a genuine review lane and it means something real: every
+    one of the eight declared catalog sources was checked at a named snapshot
+    generation, and none of them explains the signal. It is emphatically *not*
+    a conclusion about the signal. The registry's own help text says so: such
+    a star "must pass pixel localization, independent reduction, repeat-epoch,
+    and human false-positive review".
+
+    The substantive outcomes are much smaller: **330** stars fail the
+    calibrated red-noise floor, and **52** are explained by a catalog (11 EB
+    rediscoveries, 25 EB-host residuals, 16 catalogued variables). Everything
+    else is a lead that has been *filed*, not adjudicated.
+
+    So the plan's stated prediction — "if far fewer resolve, the vetting stack
+    is weaker than designed" — did not trigger, but it also did not test what
+    it was meant to test. The number moved from 25.0% to 98.1% purely by
+    fetching catalogs and fixing two accounting errors, without a single line
+    of new vetting depth. P4's remaining workstreams (pixel-vet v2, T7
+    cross-reduction, T8 fit and FPP) are exactly the ones that would turn
+    1,285 filed leads into adjudicated ones, and none of them is built. The
+    Gaia scene result is the sharpest evidence for that: **616 of these stars
+    have more than one plausible counterpart inside their TESS pixel**, and
+    nothing in the current stack can say which one the signal belongs to.
+
+44. **Two accounting errors inflated and then deflated this number before it
+    settled, both in the runner rather than the science.** Correction 42
+    covers the first. The second: a source was counted as "consulted" only
+    when it contributed ephemerides, so `gaia_dr3` — fetched, scoped to this
+    exact backlog, and used for the neighbour scene — was filed as an
+    unfetched coverage gap. That told 995 stars they could not be checked
+    against catalogs that had in fact been checked, holding the rate at 41.2%.
+    Consultation is now defined by whether a snapshot exists. The runner
+    carries `READJUDICATION_POLICY` precisely so each of these corrections
+    lands as a new evidence generation instead of overwriting the last.
 
 ## Owner notes
 
