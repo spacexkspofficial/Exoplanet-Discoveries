@@ -2936,13 +2936,19 @@ export default function App() {
                       " ",
                     )}
                   </span>
+                  {/* `waiting_on` already names the conflict and the
+                      ambiguous identity, so rendering separate flags for them
+                      printed each fact twice in the same row. */}
                   <span className="review-flags">
-                    {entry.conflicts > 0 ? <i className="review-flag conflict">conflict</i> : null}
-                    {entry.ambiguous_identity ? (
-                      <i className="review-flag">ambiguous identity</i>
-                    ) : null}
                     {entry.waiting_on.map((reason) => (
-                      <i key={reason} className="review-flag muted">
+                      <i
+                        key={reason}
+                        className={
+                          reason === "sources disagree"
+                            ? "review-flag conflict"
+                            : "review-flag muted"
+                        }
+                      >
                         {reason}
                       </i>
                     ))}
