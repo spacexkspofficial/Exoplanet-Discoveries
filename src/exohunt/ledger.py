@@ -37,7 +37,9 @@ from .statuses import STATUS_REGISTRY, resolve_status
 # 2: the P4 identity graph (MASTER_PLAN 4.1). Purely additive -- every version-1
 #    table and column is unchanged, so a version-1 reader keeps working and the
 #    migration is the DDL below plus a recorded version bump.
-SCHEMA_VERSION = 2
+# 3: covering indexes for the dashboard summary poll. Indexes only; no table,
+#    column, or row changes, so every reader of version 2 stays correct.
+SCHEMA_VERSION = 3
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -146,6 +148,21 @@ CREATE INDEX IF NOT EXISTS identity_edge_by_tic
 ON identity_edge (tic_id, identifier_type, rank);
 CREATE INDEX IF NOT EXISTS identity_edge_by_identifier
 ON identity_edge (identifier_type, identifier);
+-- Covering indexes for the dashboard summary poll. Both of its grouped joins
+-- start from star_state and look up one column in a much larger table; with
+-- the ledger at 83,555 stars and 210,341 evidence rows those became 83k random
+-- row reads across a 526 MB file, and `/api/summary` went from 77 ms to about
+-- 1.5 s against a sub-100 ms gate. Indexing (key, value) lets SQLite answer
+-- from the index without touching the row -- which matters most for evidence,
+-- whose rows carry a large JSON payload the summary never reads.
+CREATE INDEX IF NOT EXISTS evidence_signature_by_id
+ON evidence (evidence_id, signature);
+CREATE INDEX IF NOT EXISTS star_lane_by_tic ON star (tic_id, lane);
+-- The poll's cache key is (max rebuild time, max evidence id, star count).
+-- Without these, MAX(rebuilt_at_utc) and COUNT(*) each scan star_state, which
+-- made simply *checking* whether the summary had changed cost 49 ms.
+CREATE INDEX IF NOT EXISTS star_state_rebuilt ON star_state (rebuilt_at_utc);
+CREATE INDEX IF NOT EXISTS star_state_by_status ON star_state (status);
 """
 
 

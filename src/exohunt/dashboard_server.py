@@ -20,6 +20,7 @@ from .dashboard_api import (
     ops_payload,
     star_detail_payload,
     star_page_payload,
+    cached_summary_payload,
     summary_payload,
     systematics_payload,
     vetting_payload,
@@ -42,6 +43,10 @@ LIVE_CHECKPOINT_MAX_AGE_SECONDS = 900.0
 # never reached the star fetch at all. Keyed on mtime, so a checkpoint that has
 # actually changed is still re-read.
 _LIVE_CAMPAIGN_CACHE: dict[Path, tuple[int, dict[str, Any] | None]] = {}
+# Shorter than the frontend's five-second poll, so a live campaign still
+# advances visibly while repeated polls stop re-statting the tree.
+LIVE_CAMPAIGN_MEMO_SECONDS = 3.0
+_LIVE_CAMPAIGN_MEMO: dict[Path, tuple[float, list[dict[str, Any]]]] = {}
 
 
 def _read_checkpoint(path: Path) -> dict[str, Any] | None:
@@ -63,7 +68,9 @@ def _read_checkpoint(path: Path) -> dict[str, Any] | None:
     return parsed
 
 
-def _live_campaigns(root: Path) -> list[dict[str, Any]]:
+def _live_campaigns(
+    root: Path, *, memo_seconds: float = LIVE_CAMPAIGN_MEMO_SECONDS
+) -> list[dict[str, Any]]:
     """Summarize in-flight campaigns from their checkpoint files.
 
     Returns counts and a completion fraction only. The checkpoint is a cache
@@ -76,8 +83,27 @@ def _live_campaigns(root: Path) -> list[dict[str, Any]]:
     if not results_root.exists():
         return []
     now = time.time()
+    # Even a bounded glob costs a stat per campaign directory, and this tree is
+    # OneDrive-synced, where stats are not free: 237 ms for ~70 campaigns.
+    # The browser polls every five seconds and a running campaign rewrites its
+    # checkpoint far more slowly than that, so a memo shorter than the poll
+    # interval costs no observable freshness. It is keyed on the workspace and
+    # holds the finished list, never a partially-built one.
+    cached = _LIVE_CAMPAIGN_MEMO.get(root)
+    if cached is not None and now - cached[0] < memo_seconds:
+        return cached[1]
     campaigns: list[dict[str, Any]] = []
-    for path in sorted(results_root.rglob("batch_progress.json")):
+    # Bounded globs, not rglob. A campaign checkpoint lives at
+    # `results/campaign/<run>/` (or one level shallower for older layouts), but
+    # `rglob` walks every entry under `results/` -- 64,614 per-target reports
+    # in the largest campaign alone. Measured on this workspace: the recursive
+    # walk cost 587.7 ms of an endpoint the browser polls every five seconds,
+    # while the whole database half had been brought down to 3.8 ms.
+    checkpoints = {
+        *results_root.glob("campaign/*/batch_progress.json"),
+        *results_root.glob("*/batch_progress.json"),
+    }
+    for path in sorted(checkpoints):
         # Campaigns write a compact companion alongside the checkpoint holding
         # exactly the fields this panel reads. Prefer it: the checkpoint itself
         # carries every result row and re-parsing it per poll is what made this
@@ -151,6 +177,7 @@ def _live_campaigns(root: Path) -> list[dict[str, Any]]:
             }
         )
     campaigns.sort(key=lambda row: row["checkpoint_age_seconds"])
+    _LIVE_CAMPAIGN_MEMO[root] = (now, campaigns)
     return campaigns
 
 
@@ -376,9 +403,14 @@ def create_app(
             }
         )
 
+    # Keyed on the ledger revision, so it cannot serve state that has moved on.
+    summary_cache: dict[str, Any] = {}
+
     @app.get("/api/summary")
     def summary() -> JSONResponse:
-        payload = read_ledger(summary_payload)
+        payload = read_ledger(
+            lambda conn: cached_summary_payload(conn, cache=summary_cache)
+        )
         # The ledger only learns about a campaign once `ledger-import` runs,
         # so a run in flight is invisible to the DB-backed payload. The
         # checkpoint files know, and the frontend already renders this list,

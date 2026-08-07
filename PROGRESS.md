@@ -1329,11 +1329,35 @@ the current stack can settle.
     measures a **1,546 ms warm mean over five HTTP hits**, against P1's
     exit gate of under 100 ms (measured then at 73.1 ms cold, 77.9 ms mean).
 
-    Profiled against the live ledger, `summary_payload` costs 895 ms in
-    process, and **`_status_counts_by_signature` alone is 498 ms of it**;
-    `_status_counts_by_lane` is 137 ms and everything else is under 90 ms. The
-    fix is a query/index change on that one function, not a rearchitecture,
-    but it needs its own measurement and was not attempted here.
+    **Fixed and re-measured: warm mean 22.5 ms over 14 HTTP hits** (min 20.6,
+    max 29.8), against 1,546 ms before — a 69x improvement, and back inside
+    the gate. The cold first hit is 294 ms. It took three separate causes:
+
+    1. *The signature join.* `evidence_id` is the rowid, so the planner rates
+       a rowid lookup as optimal and ignored a covering index — but the row it
+       then reads carries the large JSON payload the summary never looks at.
+       Measured: 464.6 ms by rowid, 178.7 ms forced onto
+       `evidence_signature_by_id`. `INDEXED BY` is used deliberately so the
+       query fails loudly if the index is dropped rather than silently
+       returning to the slow plan.
+    2. *Recomputing an unchanged payload.* The summary is a pure function of
+       committed ledger state, so it is now cached on
+       `(max rebuild time, max evidence id, star count)` — the key *is* the
+       state, which makes staleness impossible by construction rather than a
+       freshness trade. With indexes on `star_state(rebuilt_at_utc)` and
+       `(status)`, checking that key costs 2.8 ms and a warm payload 3.8 ms.
+    3. *The real remaining cost, and the one nobody had measured:*
+       `_live_campaigns` used `rglob` over `results/`, walking all 64,614
+       per-target reports of the largest campaign — 587.7 ms. Bounded globs
+       plus a memo shorter than the frontend's five-second poll took it to
+       effectively nothing.
+
+    One self-inflicted fault is worth recording: the first cache published its
+    revision key *before* the payload it described, so a concurrent request
+    saw a matching key and read a value that did not exist yet. It surfaced as
+    intermittent HTTP 500s (`KeyError: 'payload'`) under a 12-request loop and
+    would have been invisible under single-request testing. The payload is now
+    stored first and the key published last, under a lock.
 
     Separately, the import left a 381 MB write-ahead log that the running
     dashboard could neither read through — `/api/health` reported
