@@ -106,7 +106,8 @@ own exit gates.
 | Gaia neighbour scene (§4.1) | Resolved for the whole backlog | 8,488 ranked counterpart edges over 1,363 stars: **745 unique, 616 ambiguous, 2 unresolved**. **45.2% of the backlog has more than one plausible Gaia counterpart inside its TESS pixel** — recorded as ranked alternatives rather than resolved away, which is the input pixel-vet v2 exists to consume |
 | Backlog re-adjudication | **98.1% resolved, but see the caveat** | `results/p4/readjudication_v1/` under policy `p4-readjudication-v3-consulted-is-fetched`, vetting signature `vet1:af603463…`: 1,363 backlog stars. T3 re-gate against the calibrated red-noise floor: **330 fail**, 337 pass, 696 not evaluable. T5: 1,285 `unresolved_transit_like_signal`, 25 `known_eb_host_residual_review`, 16 `known_variable_star_review`, 11 `known_eb_rediscovery`. **1,337/1,363 resolved (98.09%)**, 26 still open with no ephemeris anywhere in the ledger. Evidence rows are written non-voting pending correction 38. **The ≥80% number is met and should not be read as P4 being done — see correction 43** |
 | T3 re-gate verification | Checked against source, not just self-consistent | No record sits on the wrong side of its own 7.1 floor, and 8 failing stars cross-checked against their per-target report JSON on disk reproduce the recorded red-noise-adjusted S/N exactly. The re-gate reads numbers those reports already carried; it does not recompute photometry |
-| **Not yet done** | — | Pixel-vet v2 (§4.4); T7 cross-reduction machinery (§4.5); TRICERATOPS/fit/packet assembly (§4.6, deferred by owner decision to an interface, which is also not yet built); review-queue UI (§8). The five sample-scoped snapshot sources remain unfetched — see correction 41 |
+| Pixel vetting v2 (§4.4) | Built and measured synthetically; **not yet run on real pixels** | `pixel.py` gains all three upgrades the plan ranks ahead of PRF fitting. **Aperture-growth depth curve**: depth rising with radius is a contaminant, falling is ordinary dilution; the statistic is normalized by the larger depth so it stays bounded in [-1, 1] (see correction 45). **Bootstrap localization**: the centroid is resampled over its in/out cadence selection, so an offset is reported in units of its own error rather than as a bare distance — the same 0.6-pixel offset is decisive at ±0.05 and meaningless at ±0.8, and v1 reported both identically. **Per-sector consistency**: reduced chi-square of the per-sector centroids about their weighted mean, which catches a blend whose every individual sector sits inside the one-pixel tolerance while disagreeing with the others far beyond their errors. **Neighbour-transit extraction**: each ranked counterpart gets its own aperture and the deepest coherent signal names the host — a reassignment, not a warning. 13 tests over synthetic scenes where the true host is known by construction; v1's `difference_image` is untouched and still passes |
+| **Not yet done** | — | Running pixel-vet v2 on real pixels (needs per-target TESScut downloads, outside this session's catalog-only authorization); T7 cross-reduction machinery (§4.5); TRICERATOPS/fit/packet assembly (§4.6, deferred by owner decision to an interface, which is also not yet built); review-queue UI (§8) |
 
 P4's exit is **not** met. The backlog gate reads 98.1% against the plan's
 ≥80%, but that number passes on the strength of catalog coverage alone: 94% of
@@ -1454,6 +1455,23 @@ the current stack can settle.
     Consultation is now defined by whether a snapshot exists. The runner
     carries `READJUDICATION_POLICY` precisely so each of these corrections
     lands as a new evidence generation instead of overwriting the last.
+
+45. **The aperture-growth statistic was unstable in exactly the case it
+    exists to detect.** Normalizing the depth change by the *innermost*
+    aperture's depth is the obvious reading of "depth rising with aperture",
+    but when the contaminant is well separated the target's own aperture sees
+    almost no dimming — so the denominator approaches zero and the ratio runs
+    into the tens. A threshold cannot be set against an unbounded number, and
+    the synthetic scene made that immediate: a deliberately lenient
+    configuration still killed the target, because no plausible threshold was
+    above the value. Normalizing by the larger of the two depths bounds it in
+    [-1, 1], where +1 means the whole signal lies outside the target aperture,
+    0 means the same depth either way, and negative is ordinary dilution.
+
+    Worth recording because the failure was found by a test written to check
+    that a knob was configurable, not by one aimed at the statistic. The
+    scene was synthetic, so the true host was known and the wrong answer was
+    unmistakable; on real pixels this would have read as a plausible verdict.
 
 ## Owner notes
 

@@ -33,6 +33,11 @@ KERNEL_MODULES = (
     # point -- so they derive it from InstrumentConfig instead.
     "snapshots.py",
     "identity.py",
+    # Pixel vetting is where 21.0 belongs least: "within one pixel" is the
+    # verdict this module exists to produce, so the arcsecond value must come
+    # from InstrumentConfig rather than be written here.
+    "pixel.py",
+    "adjudicate.py",
 )
 
 # The numeric values with a documented history of silent drift. Scanned as

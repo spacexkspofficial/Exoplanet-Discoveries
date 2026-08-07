@@ -339,6 +339,51 @@ CURRENT_EPHEMERIS_MATCH = EphemerisMatchConfig()
 
 
 @dataclass(frozen=True, slots=True)
+class PixelVetConfig:
+    """Pixel localization settings (T6, MASTER_PLAN 4.4).
+
+    Version 1 asked one question -- is the difference-image centroid within a
+    pixel of the target -- and answered it with a bare distance. That is a
+    point estimate with no uncertainty, computed once, from one sector, using
+    one aperture, and it cannot distinguish "on target" from "the blend is
+    close enough that a single centroid lands inside the tolerance".
+    """
+
+    policy_version: str = "pixel-vet-v2-aperture-growth"
+    # Three apertures suffice (section 4.4). Depth rising with aperture radius
+    # means flux from a contaminating neighbour is entering the mask; depth
+    # falling is ordinary dilution of an on-target signal.
+    aperture_radii_pixels: tuple[float, ...] = (1.0, 2.0, 3.0)
+    # Change in depth across the aperture range, normalized by the larger of
+    # the two depths so the statistic is bounded in [-1, 1]: +1 means the whole
+    # signal lies outside the target aperture, 0 means the same depth either
+    # way, negative is ordinary dilution. Normalizing by the *inner* depth
+    # instead divides by a near-zero denominator whenever the contaminant is
+    # well separated, which is exactly the case the test is for.
+    # Kill at 0.5: the wide aperture is at least twice as deep as the target's.
+    aperture_growth_kill_fraction: float = 0.50
+    aperture_growth_flag_fraction: float = 0.20
+    # Localization verdicts carry uncertainties, not just a distance. The
+    # bootstrap resamples the in- and out-of-transit cadence selection, which
+    # is the choice the centroid is most sensitive to.
+    bootstrap_samples: int = 256
+    # An offset only counts as off-target when it is significant against its
+    # own bootstrap scatter, not merely larger than a fixed pixel distance.
+    centroid_offset_sigma: float = 3.0
+    # Per-sector consistency: a centroid that wanders between sectors is a
+    # blend signature even when every individual sector sits inside tolerance.
+    # Reduced chi-square of the per-sector offsets about their weighted mean.
+    sector_consistency_max_chi2: float = 3.0
+    minimum_sectors_for_consistency: int = 2
+    # Inherited from v1, named rather than inline.
+    minimum_in_transit_cadences: int = 3
+    minimum_out_of_transit_cadences: int = 10
+
+
+CURRENT_PIXEL_VET = PixelVetConfig()
+
+
+@dataclass(frozen=True, slots=True)
 class ScienceConfig:
     """Everything that defines a result's scientific identity, in one object."""
 
