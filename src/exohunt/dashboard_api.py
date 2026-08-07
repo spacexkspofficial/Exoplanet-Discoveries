@@ -847,3 +847,130 @@ def systematics_payload(conn: sqlite3.Connection) -> dict[str, Any]:
             "that a signal is astrophysical."
         ),
     }
+
+
+def vetting_payload(conn: sqlite3.Connection) -> dict[str, Any]:
+    """P4 vetting state: catalog coverage, identity, and re-adjudication.
+
+    This panel exists because none of the P4 work is visible in
+    ``status_counts``, and that is deliberate rather than accidental. T5
+    re-adjudication rows are written non-voting and carry no verdict, so
+    ``rebuild_star_state`` skips them: the projection policy for stars holding
+    conclusions from more than one campaign is an open owner decision, and a
+    vetting pass must not quietly resolve it by rewriting 83,555 statuses.
+
+    The consequence is that an operator watching the status counts sees
+    nothing happen while an entire phase runs. Everything below is therefore
+    read from the evidence and identity tables directly, and is explicitly
+    labelled as not having moved any star's status.
+    """
+
+    snapshots_by_source: dict[str, dict[str, Any]] = {}
+    for row in conn.execute(
+        "SELECT source, version, content_hash, created_at_utc FROM snapshot "
+        "ORDER BY source, version DESC"
+    ):
+        # Newest generation per source wins; older ones stay in the table for
+        # provenance but are not what a new adjudication would cite.
+        snapshots_by_source.setdefault(
+            str(row["source"]),
+            {
+                "version": row["version"],
+                "content_hash": row["content_hash"],
+                "created_at_utc": row["created_at_utc"],
+            },
+        )
+
+    identity_resolution: dict[str, int] = {}
+    try:
+        for row in conn.execute(
+            "SELECT resolution, COUNT(*) AS n FROM identity_node "
+            "GROUP BY resolution ORDER BY resolution"
+        ):
+            identity_resolution[str(row["resolution"])] = int(row["n"])
+        identity_edges = int(
+            conn.execute("SELECT COUNT(*) FROM identity_edge").fetchone()[0]
+        )
+    except sqlite3.Error:
+        # A ledger written before schema v2 has no identity graph at all.
+        identity_edges = 0
+
+    # Only the newest generation may be summarized. Re-adjudication is
+    # append-only and every policy or snapshot change writes a *new* row per
+    # star, so counting all `t5_readjudication` rows tallies the same star
+    # once per generation -- 6,815 rows over a 1,363-star backlog, which is
+    # exactly the mixed-signature aggregation the plan's risk register forbids.
+    # A run's source string is constant across its stars, so it names the
+    # generation.
+    latest_source = conn.execute(
+        "SELECT source FROM evidence WHERE kind = 't5_readjudication' "
+        "ORDER BY evidence_id DESC LIMIT 1"
+    ).fetchone()
+    rows = (
+        conn.execute(
+            "SELECT signature, payload FROM evidence "
+            "WHERE kind = 't5_readjudication' AND source = ?",
+            (latest_source["source"],),
+        ).fetchall()
+        if latest_source is not None
+        else []
+    )
+    t3_counts: dict[str, int] = {}
+    t5_counts: dict[str, int] = {}
+    resolved = 0
+    signatures: set[str] = set()
+    for row in rows:
+        payload = _payload(row)
+        signatures.add(str(row["signature"] or "unversioned"))
+        verdict = str((payload.get("t3_regate") or {}).get("verdict") or "unknown")
+        t3_counts[verdict] = t3_counts.get(verdict, 0) + 1
+        adjudication = payload.get("t5_adjudication") or {}
+        status = adjudication.get("recommended_status")
+        if status is None:
+            status = (
+                "blocked_pending_human_review"
+                if adjudication.get("blocked_reason")
+                else "unadjudicable"
+            )
+        t5_counts[str(status)] = t5_counts.get(str(status), 0) + 1
+        if payload.get("resolved"):
+            resolved += 1
+
+    total = len(rows)
+    return {
+        "schema_version": 1,
+        "generated_at_utc": _utc_now(None),
+        "snapshots": dict(sorted(snapshots_by_source.items())),
+        "snapshot_sources": len(snapshots_by_source),
+        "identity": {
+            "resolution": identity_resolution,
+            "edges": identity_edges,
+            "ambiguous_fraction": (
+                round(
+                    identity_resolution.get("ambiguous", 0)
+                    / max(1, sum(identity_resolution.values())),
+                    4,
+                )
+                if identity_resolution
+                else None
+            ),
+        },
+        "readjudication": {
+            "generation": (
+                str(latest_source["source"]) if latest_source is not None else None
+            ),
+            "stars": total,
+            "resolved": resolved,
+            "resolved_fraction": round(resolved / total, 4) if total else None,
+            "t3_regate": dict(sorted(t3_counts.items())),
+            "t5_outcomes": dict(sorted(t5_counts.items())),
+            "vetting_signatures": sorted(signatures),
+        },
+        "affects_status_counts": False,
+        "note": (
+            "Vetting evidence is recorded non-voting and carries no verdict, "
+            "so none of it has changed any star's status. `unresolved "
+            "transit-like signal` means every checked catalog was checked and "
+            "none explains the signal -- a filed lead, not an adjudicated one."
+        ),
+    }

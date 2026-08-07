@@ -203,6 +203,29 @@ type StarPage = {
   items: Star[];
 };
 
+type VettingData = {
+  snapshot_sources: number;
+  snapshots: Record<
+    string,
+    { version: string; content_hash: string; created_at_utc: string }
+  >;
+  identity: {
+    resolution: Record<string, number>;
+    edges: number;
+    ambiguous_fraction: number | null;
+  };
+  readjudication: {
+    stars: number;
+    resolved: number;
+    resolved_fraction: number | null;
+    t3_regate: Record<string, number>;
+    t5_outcomes: Record<string, number>;
+    vetting_signatures: string[];
+  };
+  affects_status_counts: boolean;
+  note: string;
+};
+
 type OpsData = {
   generated_at_utc: string;
   liveness: "live" | "stale" | "absent";
@@ -1697,6 +1720,7 @@ function StarMap({
 export default function App() {
   const [survey, setSurvey] = useState<SurveyData | null>(null);
   const [ops, setOps] = useState<OpsData | null>(null);
+  const [vetting, setVetting] = useState<VettingData | null>(null);
   const [loadError, setLoadError] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(260708537);
   const [mode, setMode] = useState<ViewMode>("3d");
@@ -1741,6 +1765,19 @@ export default function App() {
       }
       const summary = (await summaryResponse.json()) as Omit<SurveyData, "stars">;
       const nextOps = (await opsResponse.json()) as OpsData;
+      // Vetting state is fetched separately and never fatally: a server
+      // predating /api/vetting must still render the rest of the dashboard
+      // rather than failing the whole poll on a 404.
+      try {
+        const vettingResponse = await fetch(`/api/vetting?t=${Date.now()}`, {
+          cache: "no-store",
+        });
+        setVetting(
+          vettingResponse.ok ? ((await vettingResponse.json()) as VettingData) : null,
+        );
+      } catch {
+        setVetting(null);
+      }
       let stars = starCache.current;
       if (starRevision.current !== summary.data_revision || stars.length === 0) {
         const loadPage = async (page: number) => {
@@ -2774,6 +2811,73 @@ export default function App() {
             </InfoTerm>
           </div>
         </section>
+
+        {vetting && vetting.readjudication.stars > 0 ? (
+          <section className="vetting-panel panel">
+            <div className="panel-title">
+              <InfoTerm description="Catalog cross-matching, identity resolution, and backlog re-adjudication (P4). None of this changes a star's status: the rows are recorded non-voting, so the survey metrics above will not move when it runs.">
+                VETTING / CATALOG ADJUDICATION
+              </InfoTerm>
+              <b>{vetting.snapshot_sources} catalog snapshots</b>
+            </div>
+            <div className="vetting-grid">
+              <div className="vetting-stat">
+                <span className="vetting-value">
+                  {vetting.readjudication.resolved_fraction === null
+                    ? "—"
+                    : `${(vetting.readjudication.resolved_fraction * 100).toFixed(1)}%`}
+                </span>
+                <InfoTerm description="Backlog stars that reached a terminal or review lane with a full evidence chain. Most reach 'unresolved transit-like signal', which means every checked catalog was checked and none explains the signal - a filed lead, not an adjudicated one.">
+                  backlog resolved
+                </InfoTerm>
+                <small>
+                  {vetting.readjudication.resolved} / {vetting.readjudication.stars}
+                </small>
+              </div>
+              <div className="vetting-stat">
+                <span className="vetting-value">
+                  {vetting.readjudication.t3_regate[
+                    "fails_calibrated_red_noise_floor"
+                  ] ?? 0}
+                </span>
+                <InfoTerm description="Stars whose recorded red-noise-adjusted signal-to-noise falls below the P3-calibrated floor. These were screened before that diagnostic became an enforced verdict.">
+                  fail calibrated T3
+                </InfoTerm>
+                <small>of {vetting.readjudication.stars} re-read</small>
+              </div>
+              <div className="vetting-stat">
+                <span className="vetting-value">
+                  {vetting.identity.resolution["ambiguous"] ?? 0}
+                </span>
+                <InfoTerm description="Stars with more than one plausible counterpart inside one TESS pixel. Alternatives are ranked and kept rather than resolved away; pixel vetting is what settles which star a signal belongs to.">
+                  ambiguous identity
+                </InfoTerm>
+                <small>
+                  {vetting.identity.ambiguous_fraction === null
+                    ? "—"
+                    : `${(vetting.identity.ambiguous_fraction * 100).toFixed(1)}% of scened`}
+                </small>
+              </div>
+              <div className="vetting-stat">
+                <span className="vetting-value">{vetting.identity.edges}</span>
+                <InfoTerm description="Identifier claims in the identity graph, each carrying its source, confidence, and the catalog snapshot it was adjudicated against.">
+                  identity edges
+                </InfoTerm>
+                <small>{vetting.snapshot_sources} sources cited</small>
+              </div>
+            </div>
+            <div className="vetting-outcomes">
+              {Object.entries(vetting.readjudication.t5_outcomes)
+                .sort((a, b) => b[1] - a[1])
+                .map(([outcome, count]) => (
+                  <span key={outcome} className="vetting-chip">
+                    <b>{count}</b> {outcome.replace(/_/g, " ")}
+                  </span>
+                ))}
+            </div>
+            <p className="vetting-note">{vetting.note}</p>
+          </section>
+        ) : null}
 
         <section className="timeline-panel panel">
           <div className="timeline-head">

@@ -1467,3 +1467,56 @@ button {
     opacity: 0.8;
   }
 }
+
+/* Vetting / catalog adjudication panel (P4).
+   Deliberately styled apart from the survey metrics: nothing here has moved a
+   star's status, and the panel must not read as though it has. */
+.vetting-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.vetting-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+}
+.vetting-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 0.5rem;
+  background: rgba(148, 163, 184, 0.06);
+}
+.vetting-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: #cbd5f5;
+}
+.vetting-stat small {
+  opacity: 0.65;
+}
+.vetting-outcomes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.vetting-chip {
+  padding: 0.2rem 0.55rem;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+.vetting-chip b {
+  color: #cbd5f5;
+}
+.vetting-note {
+  margin: 0;
+  font-size: 0.78rem;
+  opacity: 0.7;
+  max-width: 80ch;
+}

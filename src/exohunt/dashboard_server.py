@@ -22,6 +22,7 @@ from .dashboard_api import (
     star_page_payload,
     summary_payload,
     systematics_payload,
+    vetting_payload,
 )
 from .ledger import connect_readonly
 
@@ -425,6 +426,10 @@ def create_app(
     @app.get("/api/systematics")
     def systematics() -> JSONResponse:
         return JSONResponse(read_ledger(systematics_payload))
+
+    @app.get("/api/vetting")
+    def vetting() -> JSONResponse:
+        return JSONResponse(read_ledger(vetting_payload))
 
     @app.get("/data/survey.json")
     def survey_data() -> Response:
