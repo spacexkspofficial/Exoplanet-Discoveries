@@ -45,6 +45,11 @@ leads is an acceptable state to enter P5 with, which is an owner's call.
   plausible Gaia counterpart inside one TESS pixel.**
 - **Adjudication** (`adjudicate.py`): §4.3 period **and** epoch matching.
 - **Pixel vetting v2** (`pixel.py`) — **run on real pixels**, below.
+- **T7 cross-reduction** — **run on the real cohort** (`results/p4/t7_pilot_v3/`):
+  60 stars, 0 errors, 0 search failures. 37 genuinely have no alternate
+  reduction; 9 have ≥2 informative independent reductions; **5 agree on depth
+  and survive the undetrended SAP fold**; 0 promoted, all blocked on stacked
+  vetoes a single-sector cohort cannot measure (correction 54).
 - **T7 gate** (`crossreduction.py`), **T8 fit** (`transitfit.py`),
   **packet assembly** (`packet.py`), **review queue** (`/api/review-queue`),
   **vetting panel** (`/api/vetting`).
@@ -106,16 +111,24 @@ under "Decisions taken at the P4 close".
 
 ## Next actions, in order
 
-1. **T7 on real reductions.** `scripts/run_p4_t7_pilot.py` is written and
-   correct but was not measured: MAST began closing connections on this
-   session after three 60-target pixel runs plus the catalog snapshots.
-   Instrumentation now separates the two cases cleanly — in the last smoke,
-   3 of 4 targets showed `ConnectionError` while TIC 7146022 returned a
-   genuine zero from every author. **Run this first in a fresh session**, and
-   expect part of the answer to be real: these are faint FFI targets in recent
-   sectors, where QLP and TESS-SPOC processing lags.
-2. **TIC 234994474** — P4's named exit item, still untouched.
-3. Re-run the pixel pilot wider once T7 lands, if the two agree.
+1. **A multi-sector cohort, so the stacked-fold vetoes can run.** Every one of
+   the 60 T7 stars was blocked on stacked secondary/odd-even, which
+   single-sector data cannot measure. That single missing check is now the
+   only thing standing between the 5 best leads and a full §4.5 evaluation.
+2. **Widen both pilots.** Pixel vetting and T7 agree where they overlap (see
+   TIC 76804724 below), and both runners are now correct and fast — ~10 s per
+   star with the cache warm.
+3. **TRICERATOPS**, which blocks every packet from `ready`.
+
+### The five leads worth looking at first
+
+TICs **4809705, 18654235, 55757565, 67013276, 76804724** — depth agreement
+across informative independent reductions *and* presence in the undetrended
+SAP fold. Two of §4.5's four requirements each.
+
+**TIC 76804724 comes with a warning**: it also localizes 4.31 pixels off
+target at 16.9σ. Two independent stages agree its signal is real and that it
+does not belong to that star.
 
 ## Operational notes
 
