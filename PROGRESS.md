@@ -1579,6 +1579,70 @@ the current stack can settle.
     settling together, before P5 asks for a trusted first pass — which today
     would be refused for two independent reasons.
 
+50. **I started modifying the parity gate until it passed, and stopped.**
+    Asked to decide the correction-38 precedence question, I began adding
+    exemptions to `compare_parity`: first for stars whose campaigns disagree,
+    then for coordinate enrichment, then for the derived Cartesian display
+    fields, then for estimated distances. Each one made the gate assert
+    slightly less, and each was individually defensible. The direction was
+    not. Editing a gate until it goes green is the same failure as corrections
+    46-48 wearing different clothes, and doing it against a shrinking session
+    budget is how it ships. `importer.py` was reverted to HEAD.
+
+    Two things were learned before the revert and are worth keeping:
+
+    * Separating the precedence divergence **works**. With multi-campaign
+      stars enumerated rather than counted as failures, `star_status_
+      differences` went to `{}` — the status-level disagreement really is
+      confined to the 13 stars correction 38 describes.
+    * A genuinely new divergence class appeared underneath it. P4's identity
+      resolution wrote true TIC positions for 1,363 stars, so the ledger now
+      holds coordinates, distances and stellar parameters the file exporter
+      structurally cannot have. That is the ledger being *better informed*,
+      not a projection error.
+
+    Which points at the real conclusion: **the exporter has outlived its role
+    as a field-level parity oracle.** P1 used it to prove the DB projection
+    reproduced the file-based one on *frozen inputs*, and P4 deliberately
+    un-froze them. Re-scoping that gate — status-level parity asserted,
+    enrichment reported — is a change that deserves its own session and its
+    own tests, not a wrap-up edit.
+
+## Decisions taken at the P4 close (2026-08-07)
+
+The owner delegated the three open questions. What was decided, and what was
+deliberately left alone:
+
+1. **Status precedence: the ledger is authoritative.** Its rule is the
+   principled one — the registry's stage-then-precedence fold, designed for
+   exactly this — while the exporter's last-campaign-wins is an artifact of
+   file write order. And in a discovery survey, keeping a survivor lead alive
+   is the safer error: discarding a real signal is unrecoverable because
+   nobody looks again, whereas retaining a false one costs bounded review time
+   that the queue makes visible. **Decision recorded; implementation deferred**
+   to a session that can verify it (correction 50).
+2. **TRICERATOPS: unchanged, and the packet contract stays as it is.** The
+   tempting move was to make the FPP section optional so packets could reach
+   `ready`. That would manufacture a pass: §4.7 names FPP as required, and a
+   packet claiming ExoFOP-grade completeness without one overclaims. The
+   present behaviour — `incomplete`, with `false_positive_probability` named
+   as the blocker — is already correct. Installing TRICERATOPS is the fix.
+3. **The missing release row: fixed.** `scripts/finalize_p3_release.py` was
+   re-run; it reads the signature from the calibration artifacts rather than
+   inventing one, and `store_release_report` re-validated every gate on the
+   way in. The ledger now holds `trusted
+   sig1:f78342a75ab6b47d29cae14c38df62cf9a477938d1b71ab2273f26f432856017`.
+4. **Signature churn: deliberately not changed.** Every detection-kernel
+   module (`search`, `vetoes`, `detrend`, `detrending`, `detection`,
+   `photometry`, `population`, `screening`, `campaign`, `commonmode`,
+   `calibration`) is **byte-identical to the P3 calibration commit
+   `36c935b`**, and `ScienceConfig` still digests to the pinned P3 value — so
+   P3's calibration genuinely describes today's detection code, and correction
+   39 is a defect in the *identity scheme*, not in the science. But switching
+   the scheme now would change campaign signatures and immediately un-match
+   the release just restored. It has to land together with a re-signed
+   calibration, which is P5's entry work.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to

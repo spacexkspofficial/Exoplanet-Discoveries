@@ -66,24 +66,39 @@ Do **not** read the 31 `no_depth_in_target_aperture` verdicts as evidence
 against those signals: they are raw undetrended TESScut sums, and the campaign
 found these signals in detrended photometry.
 
-## Decisions waiting on you
+## Decisions taken at the close
 
-1. **Status precedence (correction 38).** The P1 parity gate is red on 13
-   stars. The exporter is last-campaign-wins; the ledger is
-   highest-precedence-wins. 2,104 stars carry both verdicts and they agree on
-   2,091. Neither is obviously right, and it grows with P5. Nothing was
-   changed. **This blocks promoting any P4 evidence to voting.**
-2. **TRICERATOPS (§4.6).** Deferred by your decision, so the FPP section reads
-   `not_run` — which correctly **blocks every packet** from reaching `ready`.
-   Either wire it, or decide FPP may be optional. It is currently the single
-   thing standing between this stack and its first assembled packet.
-3. **Signature churn (correction 39) and the missing release row
-   (correction 49), together.** `settings_signature` uses whole-repo
-   `git rev-parse HEAD`, so any commit retires the trusted release — it was
-   already unreachable two doc commits after P3. And the `release_report`
-   table is empty despite PROGRESS claiming otherwise. A trusted first pass
-   today is refused for two independent reasons. Do not re-record the release
-   without settling the signature question first.
+The owner delegated the three open questions. PROGRESS records these in full
+under "Decisions taken at the P4 close".
+
+1. **Status precedence: the ledger is authoritative** — its stage-then-
+   precedence fold is the principled rule, and keeping a survivor lead alive
+   is the safer error in a discovery survey. **Recorded, not implemented.** An
+   attempt to re-scope the parity gate was reverted (correction 50): it was
+   turning into "edit the gate until it passes". Two findings survive that
+   attempt and should shape the real fix — separating the precedence
+   divergence *does* reduce `star_status_differences` to `{}`, and P4's
+   identity enrichment has created a second, legitimate divergence class the
+   exporter structurally cannot match. **The exporter has outlived its role as
+   a field-level parity oracle**; re-scoping it deserves its own session.
+2. **TRICERATOPS: unchanged, and do not relax the packet contract.** Making
+   FPP optional would manufacture a pass. `incomplete` with
+   `false_positive_probability` named as the blocker is the correct state.
+   Installing TRICERATOPS is the fix.
+3. **Missing release row: fixed.** The ledger now holds
+   `trusted sig1:f78342a7…`, re-recorded by the project's own finalizer with
+   every gate re-validated on the way in.
+4. **Signature churn: deliberately not changed.** Every detection-kernel
+   module is byte-identical to the P3 calibration commit `36c935b` and
+   `ScienceConfig` still digests to the pinned P3 value, so correction 39 is a
+   defect in the identity scheme rather than in the science. Switching the
+   scheme now would un-match the release just restored; it must land together
+   with a re-signed calibration. **This is P5's entry work.**
+
+## Still open
+
+- Promoting any P4 evidence to voting, which waits on decision 1 landing.
+- The first assembled packet, which waits on decision 2.
 
 ## Next actions, in order
 
@@ -120,5 +135,10 @@ sectors 2–12 for signals discovered in 98–105; an empty archive response tha
 was really a throttled connection. Each looked like a finding. Two of the
 three were caught only because a *second* check disagreed.
 
+Correction 50 is the same failure pointed at the tooling instead of the data:
+adding exemptions to a parity gate until it went green, one defensible step at
+a time. It was caught by noticing the *direction*, not any single step.
+
 Where two independent checks disagree in this codebase, the disagreement is
-usually the signal.
+usually the signal — and when a gate starts failing, the first question is
+whether it has found something, not how to make it stop.
