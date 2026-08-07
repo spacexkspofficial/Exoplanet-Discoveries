@@ -34,7 +34,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from exohunt import adjudicate, ledger, snapshots  # noqa: E402
+from exohunt import adjudicate, identity, ledger, snapshots  # noqa: E402
 from exohunt.config import (  # noqa: E402
     CURRENT_CONFIG,
     CURRENT_EPHEMERIS_MATCH,
@@ -399,6 +399,83 @@ def index_snapshots(
     return by_tic, hashes, sorted(set(consulted)), diagnostics
 
 
+def resolve_scene(
+    conn, stars: dict[int, tuple[float, float, float | None]]
+) -> dict[str, Any]:
+    """Rank every Gaia counterpart inside each backlog star's TESS pixel.
+
+    Section 4.1's third commitment: ambiguity is preserved, never resolved
+    away. A star with more than one plausible counterpart in its pixel is not
+    a star with a fainter neighbour that can be ignored -- it is a star where
+    a neighbour's eclipse can masquerade as a transit on the target, and the
+    pixel stage needs the ranked list to test that.
+    """
+
+    manifest = snapshots.latest("gaia_dr3")
+    if manifest is None:
+        return {"available": False}
+
+    rows = snapshots.load_rows(manifest)
+    ra_key, dec_key = snapshots._choose_position_columns(manifest.columns)
+    bands: dict[int, list[dict[str, Any]]] = {}
+    for row in rows:
+        dec = _f(row.get(dec_key))
+        if dec is None:
+            continue
+        bands.setdefault(int(dec // 1), []).append(row)
+
+    ambiguous = unique = unresolved = 0
+    edges_written = 0
+    for tic, (ra, dec, tmag) in sorted(stars.items()):
+        nearby: list[dict[str, Any]] = []
+        for band in (int(dec // 1) - 1, int(dec // 1), int(dec // 1) + 1):
+            for row in bands.get(band, ()):
+                nearby.append(
+                    {
+                        "identifier": str(row.get("Source", "")).strip(),
+                        "ra_deg": _f(row.get(ra_key)),
+                        "dec_deg": _f(row.get(dec_key)),
+                        "magnitude": _f(row.get("Gmag")),
+                        "pmra_mas_yr": _f(row.get("pmRA")),
+                        "pmdec_mas_yr": _f(row.get("pmDE")),
+                        "epoch_jyear": CURRENT_IDENTITY.gaia_reference_epoch_jyear,
+                    }
+                )
+        target = identity.SkyPosition(
+            ra_deg=ra,
+            dec_deg=dec,
+            epoch_jyear=CURRENT_IDENTITY.gaia_reference_epoch_jyear,
+        )
+        ranked = identity.rank_counterparts(
+            target, nearby, target_magnitude=tmag
+        )
+        node = identity.resolve_node(tic, target, ranked, source="gaia_dr3")
+        # The TIC's own cross-match already wrote a node; this refines it with
+        # the measured scene, which is a stronger claim about ambiguity than a
+        # single catalogued pairing can make.
+        identity.upsert_node(conn, node)
+        edges_written += identity.record_counterparts(
+            conn, tic, ranked, source="gaia_dr3", snapshot_hash=manifest.content_hash
+        )
+        if node.resolution == identity.RESOLUTION_AMBIGUOUS:
+            ambiguous += 1
+        elif node.resolution == identity.RESOLUTION_UNIQUE:
+            unique += 1
+        else:
+            unresolved += 1
+
+    return {
+        "available": True,
+        "snapshot_hash": manifest.content_hash,
+        "gaia_rows": len(rows),
+        "stars_scened": len(stars),
+        "unique": unique,
+        "ambiguous": ambiguous,
+        "unresolved": unresolved,
+        "edges_written": edges_written,
+    }
+
+
 def t3_regate(star: dict[str, Any]) -> dict[str, Any]:
     """Re-apply the calibrated red-noise floor to an older screening result."""
 
@@ -459,6 +536,29 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(f"    {name:<18} not fetched")
         print(f"backlog stars with any catalogued row: {len(by_tic)}")
+
+        scene_stars = {
+            int(row["tic_id"]): (
+                float(row["ra_deg"]),
+                float(row["dec_deg"]),
+                _f(row["tmag"]),
+            )
+            for row in conn.execute(
+                "SELECT tic_id, ra_deg, dec_deg, tmag FROM star "
+                "WHERE ra_deg IS NOT NULL AND dec_deg IS NOT NULL"
+            )
+            if int(row["tic_id"]) in positions
+        }
+        scene = resolve_scene(conn, scene_stars)
+        if scene.get("available"):
+            print(
+                f"gaia scene: {scene['unique']} unique, "
+                f"{scene['ambiguous']} ambiguous, "
+                f"{scene['unresolved']} unresolved "
+                f"({scene['edges_written']} edges)"
+            )
+        else:
+            print("gaia scene: gaia_dr3 snapshot not fetched")
 
         signature = vetting_signature(
             code="modules:" + module_digest(*VETTING_MODULES),
@@ -573,6 +673,7 @@ def main(argv: list[str] | None = None) -> int:
         "consulted_sources": consulted,
         "backlog_size": len(backlog),
         "source_diagnostics": diagnostics,
+        "gaia_scene": scene,
         "ephemeris_sources": dict(
             sorted(Counter(star["ephemeris_source"] for star in backlog).items())
         ),

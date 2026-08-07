@@ -92,6 +92,17 @@ class SnapshotSource:
     columns: str = "*"
     identifier_column: str | None = None
     predicate: str | None = None
+    # Per-source override of _POSITIONS_PER_QUERY. The binding constraint is
+    # the service's own query timeout, and how many cones fit inside it is a
+    # property of the table being searched, not of this client. Measured
+    # against II/366/catv2021 on 2026-08-06: 1 cone 1.1 s, 5 cones 1.4 s,
+    # 25 cones dropped the connection after exactly 61.0 s. A server-side
+    # timeout presents as a dead socket rather than an HTTP status, so the
+    # symptom looks identical to a network fault.
+    positions_per_query: int | None = None
+
+    def batch_size(self) -> int:
+        return int(self.positions_per_query or _POSITIONS_PER_QUERY)
 
     def service_url(self) -> str:
         try:
@@ -186,6 +197,7 @@ SNAPSHOT_SOURCES: dict[str, SnapshotSource] = {
             # quoting ("ASASSN-V", "Class?") are deliberately not requested.
             columns="ID, RAJ2000, DEJ2000, Vmag, Amp, Per, Type, HJD, TIC, GaiaDR3",
             scope="position_list",
+            positions_per_query=5,
             settles="All-sky bright-variable context and deep EB eclipses.",
             cannot_settle="Anything at millimagnitude depth.",
             refresh="monthly",
@@ -203,6 +215,9 @@ SNAPSHOT_SOURCES: dict[str, SnapshotSource] = {
                 "RPmag, RUWE, Teff, Dist, NSS, VarFlag, Dup"
             ),
             scope="position_list",
+            # 1.8 billion rows; the same timeout ceiling applies with less
+            # headroom than ASAS-SN, not more.
+            positions_per_query=5,
             settles=(
                 "Counterpart astrometry and photometry: parallax, proper "
                 "motion, RUWE, and the neighbour scene inside a TESS pixel."
@@ -453,9 +468,10 @@ def fetch(
         radius_deg = match_radius_arcsec(identity) / _ARCSEC_PER_DEGREE
         available = table_columns(source, timeout=timeout)
         ra_column, dec_column = _choose_position_columns(available)
+        batch_size = source.batch_size()
         queries: list[str] = []
-        for start in range(0, len(positions), _POSITIONS_PER_QUERY):
-            batch = positions[start : start + _POSITIONS_PER_QUERY]
+        for start in range(0, len(positions), batch_size):
+            batch = positions[start : start + batch_size]
             circles = _circle_predicate(ra_column, dec_column, batch, radius_deg)
             predicate = (
                 f"{source.predicate} and {circles}" if source.predicate else circles

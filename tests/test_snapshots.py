@@ -261,8 +261,9 @@ def test_scoped_fetch_batches_positions_and_concatenates(tmp_path, monkeypatch) 
 
     manifest = snapshots.fetch("vsx", positions=positions, root=tmp_path)
 
-    # 60 positions at 25 per query is three queries, and every position is
-    # carried by exactly one of them.
+    # vsx uses the global batch size; 60 positions at 25 per query is three
+    # queries, and every position is carried by exactly one of them.
+    assert snapshots.SNAPSHOT_SOURCES["vsx"].batch_size() == 25
     assert len(issued) == 3
     assert snapshots._POSITIONS_PER_QUERY == 25
     total_circles = sum(query.count("CIRCLE(") for query in issued)
@@ -271,6 +272,37 @@ def test_scoped_fetch_batches_positions_and_concatenates(tmp_path, monkeypatch) 
     assert manifest.row_count == 3
     assert manifest.scope_size == 60
     assert manifest.scope_hash == snapshots.hash_positions(positions)
+
+
+def test_a_source_may_override_the_batch_size(tmp_path, monkeypatch) -> None:
+    """The binding constraint is the service's query timeout, per table.
+
+    Measured: II/366/catv2021 answers 5 cones in 1.4 s and drops the
+    connection on 25 after exactly 61.0 s. Because a server-side timeout
+    arrives as a dead socket rather than an HTTP status, a source that needs a
+    smaller batch looks exactly like a network fault, so the override is
+    declared on the source rather than rediscovered each time.
+    """
+
+    assert snapshots.SNAPSHOT_SOURCES["asassn_variables"].batch_size() == 5
+    assert snapshots.SNAPSHOT_SOURCES["gaia_dr3"].batch_size() == 5
+
+    issued: list[str] = []
+    monkeypatch.setattr(
+        snapshots,
+        "_tap_sync",
+        lambda url, query, timeout=300, attempts=4: (
+            issued.append(query) or "ID,RAJ2000,DEJ2000\n1,1.0,-20.0\n"
+        ),
+    )
+    monkeypatch.setattr(
+        snapshots, "table_columns", lambda source, timeout=120: ("ID", "RAJ2000", "DEJ2000")
+    )
+    positions = [(float(index), -20.0) for index in range(20)]
+    snapshots.fetch("asassn_variables", positions=positions, root=tmp_path)
+    # 20 positions at 5 per query, not the global 25.
+    assert len(issued) == 4
+    assert sum(query.count("CIRCLE(") for query in issued) == 20
 
 
 def test_a_failing_batch_fails_the_whole_snapshot(tmp_path, monkeypatch) -> None:
