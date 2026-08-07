@@ -1727,6 +1727,67 @@ the current stack can settle.
     rested on it. Recorded because a filename is provenance, and this one
     asserted coverage that did not exist.
 
+55. **The P5 smoke was read as "5.7 minutes per target"; the measured marginal
+    cost is 7.6 seconds.** The 4-target smoke took 27.0 minutes of wall clock,
+    which divided by four gives 5.7 min/target and extrapolates to ~4 days for
+    the 1,000-star cohort — enough to conclude the plan's "~1,000/day" cadence
+    needed re-planning, and to make a one-sector first pass look like a
+    reasonable economy. Both conclusions were wrong, because that wall clock is
+    almost entirely fixed cost.
+
+    A 100-target ramp under identical settings settles it:
+
+    | | 4-target smoke | 100-target ramp |
+    |---|---:|---:|
+    | wall clock | 27.0 min | **27.8 min** |
+    | head, before first completion | 13.4 min | 7.8 min |
+    | body | 0.6 min | 12.5 min |
+    | tail, after last completion | 13.3 min | 7.5 min |
+    | fixed overhead | ~92% | 55% |
+    | marginal rate | — | **475 stars/hour (7.6 s/target)** |
+
+    Twenty-five times the targets for 3% more wall clock. The overhead is two
+    synchronous `roll_cache()` calls — one before the first download
+    (`campaign.py:868`), one before results are assembled (`campaign.py:1089`) —
+    each walking the whole 88 GB cache and sizing the workspace twice, plus the
+    final synchronous dashboard export. All three scale with **cache size, not
+    target count**, which is why dividing them by four and multiplying by 1,000
+    inflates them 250-fold. Correction 29 had already measured this same export
+    at ~15 s per call and moved it off the scheduler thread.
+
+    Two further readings in the same report were also wrong. The campaign was
+    called *download-bound*: measured, it is **analysis-bound** —
+    `download_capacity_per_hour` 1,517 against `analysis_capacity_per_hour` 438,
+    with 12 targets sitting in `downloaded_waiting` for an analysis slot. And
+    the CLI's own GIL warning ("eight threads measured 1.7 of 16 logical CPUs")
+    predicts thread workers plateau near one core; the ramp achieved 475/hour
+    against a 4-thread theoretical 438/hour, so numpy releases the GIL here and
+    `--analysis-processes` is not needed. Both were hypotheses worth stating;
+    both tested negative.
+
+    Three independent checks agreed before the ramp was run — the timing
+    decomposition, the code structure, and `full_remaining_pool`'s 64,614
+    targets in 19.76 h (**3,269.8 stars/hour** at the identical
+    `--workers 4 --download-workers 3`). The 1,000-star pass is ~2.4 hours.
+
+    **The pattern is corrections 46–50 again**, and it is the fifth costume: a
+    plausible number that was an artifact of how it was obtained. What makes
+    this one worth recording separately is that it had already survived one
+    self-correction. The first reading was "0 of 4 after 20 minutes, stalled";
+    that was retracted as a stale checkpoint, and the retraction was right. But
+    the replacement number was drawn the same careless way, and the corrected
+    figure was quoted with more confidence than the one it replaced. **A
+    correction is not evidence that the replacement was measured.**
+
+    Recorded with a second operational finding: `--cache-max-gb 120` was inert.
+    `campaign.py:568` derives the effective cap as
+    `workspace_max − 1 GB reserve − workspace_size`, so `--workspace-max-gb 95`
+    bound the cache to 88.04 GB against a live cache of 88.0400 GB — **871 KB of
+    headroom**, with every download in a 1,000-target run triggering eviction and
+    `campaign.py:619` able to abort the run outright. Raised to
+    `--workspace-max-gb 200`: effective cap 120 GB, 32 GB headroom, on a volume
+    with 824 GB free. The 95 GB ceiling was self-imposed, not physical.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
