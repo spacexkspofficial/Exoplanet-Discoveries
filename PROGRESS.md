@@ -1608,6 +1608,53 @@ the current stack can settle.
     enrichment reported — is a change that deserves its own session and its
     own tests, not a wrap-up edit.
 
+51. **TIC 234994474 now carries a real verdict, and it is a downgrade.** P4's
+    named exit item. The star held `science_vetted_lead` from the pre-P4
+    two-gate rule — centroid on target, "2 of 3 tested sectors support the
+    fixed ephemeris". Measuring the campaign's own ephemeris
+    (P = 13.008807 d, T₀ = 3893.8721 BTJD, 6.0 h, claimed depth 220.6 ppm) in
+    every reduction the archive holds for sectors 95, 102 and 104:
+
+    | sector | SPOC PDCSAP | SPOC SAP |
+    |---|---|---|
+    | 95 | **−69.9 ± 44.5 ppm (−1.6σ)** | +409.0 ± 54.7 (7.5σ) |
+    | 102 | +64.6 ± 43.5 (1.5σ) | −33.3 ± 84.3 (−0.4σ) |
+    | 104 | +237.6 ± 62.9 (3.8σ) | +598.0 ± 71.5 (8.4σ) |
+
+    Only Sector 104 reaches 3σ in PDCSAP, so the "2 of 3 sectors" claim does
+    not survive. Sector 95's PDCSAP depth is *negative* at the ephemeris. And
+    PDCSAP and SAP — two reductions of the *same pixels* — disagree by roughly
+    7σ within Sector 95 alone. QLP cannot contribute: at FFI cadence this
+    target yields 216 in-transit cadences and errors of 20,000–42,000 ppm,
+    two orders of magnitude larger than the signal.
+
+    **T7 verdict: not promoted, `single_sector_unconfirmed`**, blocked on
+    depth disagreement and on stacked secondary/odd-even never having been
+    re-measured. Stored at `results/p4/tic234994474/verdict.json`.
+
+    One methodological caveat, stated rather than buried: the depth-agreement
+    test was run over products labelled per sector, so its "disagree beyond
+    3σ" blends cross-reduction and cross-sector variation. The clean §4.5
+    comparison is within-sector cross-reduction, and that fails on its own
+    (Sector 95, PDCSAP vs SAP, ~7σ). SAP is undetrended and carries
+    instrumental trends, so *some* PDCSAP/SAP difference is expected — but not
+    a sign flip, and not while PDCSAP contradicts itself between sectors.
+
+52. **The "promised multi-sector QLP run" was never performed.**
+    `results/independent/TIC_234994474_qlp/TIC_234994474_s1-28-68-95-102.json`
+    is named for five sectors. Its own `data` block records
+    `requested_sectors: [1, 28, 68, 95, 102]` and `downloaded_sectors: [1]`.
+    It then ran a *blind* search on that one sector and reported an unrelated
+    signal — 4.78 d, 49,475 ppm, **zero observed transits** — rather than
+    testing the campaign's 13.0088 d ephemeris at all.
+
+    So the artifact the plan called "mislabeled-risk" was worse than
+    mislabeled: a filename asserting five sectors of coverage over one
+    sector's blind search. Nothing downstream consumed it, and the ledger's
+    `science_vetted_lead` came from the separate two-gate rule, so no verdict
+    rested on it. Recorded because a filename is provenance, and this one
+    asserted coverage that did not exist.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was

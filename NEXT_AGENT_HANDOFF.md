@@ -23,13 +23,15 @@ real verdict."
 |---|---|
 | Known-object regression suite | **Green**, 502 cases, and measured against three deliberate breaks (34 failures each) |
 | Backlog resolution | **98.1%** (1,337/1,363) — but read correction 43 before quoting it |
-| TIC 234994474 | **Not addressed.** It never entered the backlog cohort; it needs the promised multi-sector QLP run |
+| TIC 234994474 | **Done, and it is a downgrade** — `science_vetted_lead` → `single_sector_unconfirmed` (corrections 51, 52) |
 
-**P4's exit is not met.** The 98.1% passes on catalog coverage alone: 94% of
-it is `unresolved_transit_like_signal`, meaning every declared source was
-checked and none explains the signal. That is a filed lead, not an adjudicated
-one. The vetting depth the phase is named for is built and tested, but only
-pixel vetting has been run against real data.
+**All three exit clauses are now technically satisfied, and I would still not
+call P4 done.** The 98.1% passes on catalog coverage alone: 94% of it is
+`unresolved_transit_like_signal`, meaning every declared source was checked
+and none explains the signal. That is a filed lead, not an adjudicated one.
+The vetting depth the phase is named for is built and tested, but only pixel
+vetting and one target's cross-reduction have met real data. Whether that
+clears P4 is an owner's call, not a number's.
 
 ## Built and committed
 
