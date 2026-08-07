@@ -412,6 +412,38 @@ CURRENT_CROSS_REDUCTION = CrossReductionConfig()
 
 
 @dataclass(frozen=True, slots=True)
+class TransitFitConfig:
+    """Transit fit and physical sanity checks (T8, MASTER_PLAN 4.6)."""
+
+    policy_version: str = "t8-transit-fit-density-sanity-v1"
+    walkers: int = 32
+    burn_in_steps: int = 500
+    production_steps: int = 2000
+    # Posteriors are only reported when the chain has actually mixed. A
+    # fit that has not converged is a number with an error bar attached to
+    # nothing, and it looks identical to one that has.
+    max_autocorrelation_ratio: float = 50.0
+    # Stellar density from the fitted a/R* and period, against the density
+    # implied by the catalogued mass and radius. A transit fit that requires a
+    # star of the wrong density is the classic giant-impostor and blend
+    # signature: the same light curve fits a small planet on a dwarf or a
+    # grazing binary on a giant, and only the density separates them.
+    density_agreement_sigma: float = 3.0
+    # Below this the fitted density is unphysical for any main-sequence star,
+    # regardless of what the catalogue says.
+    minimum_physical_density_solar: float = 0.01
+    maximum_physical_density_solar: float = 100.0
+    # Quadratic limb darkening, interpolated from stellar temperature. These
+    # bracket the TESS band for FGKM dwarfs; they are priors, not fixed
+    # values, and the fit is allowed to move them.
+    limb_darkening_u1_range: tuple[float, float] = (0.1, 0.6)
+    limb_darkening_u2_range: tuple[float, float] = (0.0, 0.4)
+
+
+CURRENT_TRANSIT_FIT = TransitFitConfig()
+
+
+@dataclass(frozen=True, slots=True)
 class ScienceConfig:
     """Everything that defines a result's scientific identity, in one object."""
 

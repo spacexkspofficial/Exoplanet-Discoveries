@@ -40,6 +40,7 @@ KERNEL_MODULES = (
     "adjudicate.py",
     "crossreduction.py",
     "packet.py",
+    "transitfit.py",
 )
 
 # The numeric values with a documented history of silent drift. Scanned as
