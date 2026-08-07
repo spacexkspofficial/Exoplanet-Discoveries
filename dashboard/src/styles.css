@@ -1520,3 +1520,56 @@ button {
   opacity: 0.7;
   max-width: 80ch;
 }
+
+/* Review queue (section 8). Rows, not cards: the operator is scanning a list
+   for the one worth opening, and a grid of tiles makes that harder. */
+.review-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.review-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+.review-row {
+  display: grid;
+  grid-template-columns: 9rem minmax(10rem, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.35rem;
+  background: rgba(148, 163, 184, 0.05);
+  font-size: 0.82rem;
+}
+.review-tic {
+  font-variant-numeric: tabular-nums;
+  color: #cbd5f5;
+}
+.review-status {
+  opacity: 0.85;
+}
+.review-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: flex-end;
+}
+.review-flag {
+  font-style: normal;
+  font-size: 0.72rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  white-space: nowrap;
+}
+.review-flag.conflict {
+  border-color: rgba(249, 115, 22, 0.55);
+  color: #fdba74;
+}
+.review-flag.muted {
+  opacity: 0.6;
+}

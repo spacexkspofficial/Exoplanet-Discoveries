@@ -226,6 +226,25 @@ type VettingData = {
   note: string;
 };
 
+type ReviewQueueEntry = {
+  tic_id: number;
+  current_status: string | null;
+  recommended_status: string | null;
+  t3_regate: string | null;
+  conflicts: number;
+  ambiguous_identity: boolean;
+  waiting_on: string[];
+  priority: number;
+};
+
+type ReviewQueueData = {
+  generation: string | null;
+  total: number;
+  entries: ReviewQueueEntry[];
+  waiting_on: Record<string, number>;
+  note: string;
+};
+
 type OpsData = {
   generated_at_utc: string;
   liveness: "live" | "stale" | "absent";
@@ -1721,6 +1740,7 @@ export default function App() {
   const [survey, setSurvey] = useState<SurveyData | null>(null);
   const [ops, setOps] = useState<OpsData | null>(null);
   const [vetting, setVetting] = useState<VettingData | null>(null);
+  const [reviewQueue, setReviewQueue] = useState<ReviewQueueData | null>(null);
   const [loadError, setLoadError] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(260708537);
   const [mode, setMode] = useState<ViewMode>("3d");
@@ -1777,6 +1797,16 @@ export default function App() {
         );
       } catch {
         setVetting(null);
+      }
+      try {
+        const queueResponse = await fetch(`/api/review-queue?limit=25&t=${Date.now()}`, {
+          cache: "no-store",
+        });
+        setReviewQueue(
+          queueResponse.ok ? ((await queueResponse.json()) as ReviewQueueData) : null,
+        );
+      } catch {
+        setReviewQueue(null);
       }
       let stars = starCache.current;
       if (starRevision.current !== summary.data_revision || stars.length === 0) {
@@ -2876,6 +2906,51 @@ export default function App() {
                 ))}
             </div>
             <p className="vetting-note">{vetting.note}</p>
+          </section>
+        ) : null}
+
+        {reviewQueue && reviewQueue.total > 0 ? (
+          <section className="review-panel panel">
+            <div className="panel-title">
+              <InfoTerm description="Leads awaiting human judgement, ranked by how contested their evidence is and how far they reached through vetting. Stars the calibrated T3 re-gate killed are excluded: they are resolved, and a review queue must not spend attention on settled cases. Nothing here is a candidate.">
+                REVIEW QUEUE
+              </InfoTerm>
+              <b>
+                {reviewQueue.entries.length} of {reviewQueue.total}
+              </b>
+            </div>
+            <div className="vetting-outcomes">
+              {Object.entries(reviewQueue.waiting_on).map(([reason, count]) => (
+                <span key={reason} className="vetting-chip">
+                  <b>{count}</b> waiting on {reason}
+                </span>
+              ))}
+            </div>
+            <div className="review-rows">
+              {reviewQueue.entries.slice(0, 12).map((entry) => (
+                <div key={entry.tic_id} className="review-row">
+                  <span className="review-tic">TIC {entry.tic_id}</span>
+                  <span className="review-status">
+                    {(entry.recommended_status || entry.current_status || "—").replace(
+                      /_/g,
+                      " ",
+                    )}
+                  </span>
+                  <span className="review-flags">
+                    {entry.conflicts > 0 ? <i className="review-flag conflict">conflict</i> : null}
+                    {entry.ambiguous_identity ? (
+                      <i className="review-flag">ambiguous identity</i>
+                    ) : null}
+                    {entry.waiting_on.map((reason) => (
+                      <i key={reason} className="review-flag muted">
+                        {reason}
+                      </i>
+                    ))}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="vetting-note">{reviewQueue.note}</p>
           </section>
         ) : null}
 

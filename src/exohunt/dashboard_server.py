@@ -22,6 +22,7 @@ from .dashboard_api import (
     star_page_payload,
     cached_summary_payload,
     summary_payload,
+    review_queue_payload,
     systematics_payload,
     vetting_payload,
 )
@@ -462,6 +463,14 @@ def create_app(
     @app.get("/api/vetting")
     def vetting() -> JSONResponse:
         return JSONResponse(read_ledger(vetting_payload))
+
+    @app.get("/api/review-queue")
+    def review_queue(
+        limit: int = Query(default=100, ge=1, le=1_000),
+    ) -> JSONResponse:
+        return JSONResponse(
+            read_ledger(lambda conn: review_queue_payload(conn, limit=limit))
+        )
 
     @app.get("/data/survey.json")
     def survey_data() -> Response:

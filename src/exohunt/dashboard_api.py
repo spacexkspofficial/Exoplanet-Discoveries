@@ -1040,3 +1040,119 @@ def vetting_payload(conn: sqlite3.Connection) -> dict[str, Any]:
             "none explains the signal -- a filed lead, not an adjudicated one."
         ),
     }
+
+
+def review_queue_payload(
+    conn: sqlite3.Connection, *, limit: int = 100
+) -> dict[str, Any]:
+    """The bounded queue of things a human should actually look at (section 8).
+
+    A review queue is only useful if it is short and ordered by what a person
+    can act on. Everything in the backlog is *unreviewed*; almost none of it is
+    *reviewable*, because the automated stages have not finished with it. So
+    this ranks by how far a star has got through vetting and how contested its
+    evidence is, and it states what each entry is waiting for.
+
+    Nothing here is a verdict. The queue reads the same non-voting T5 rows the
+    vetting panel does, so opening it changes no star's status.
+    """
+
+    latest_source = conn.execute(
+        "SELECT source FROM evidence WHERE kind = 't5_readjudication' "
+        "ORDER BY evidence_id DESC LIMIT 1"
+    ).fetchone()
+    if latest_source is None:
+        return {
+            "generation": None,
+            "entries": [],
+            "total": 0,
+            "waiting_on": {},
+            "note": "no vetting generation has been recorded yet",
+        }
+
+    rows = conn.execute(
+        "SELECT tic_id, payload FROM evidence "
+        "WHERE kind = 't5_readjudication' AND source = ? ORDER BY tic_id",
+        (latest_source["source"],),
+    ).fetchall()
+
+    ambiguous = {
+        int(row["tic_id"])
+        for row in conn.execute(
+            "SELECT tic_id FROM identity_node WHERE resolution = 'ambiguous'"
+        )
+    }
+    states = {
+        int(row["tic_id"]): str(row["status"])
+        for row in conn.execute("SELECT tic_id, status FROM star_state")
+    }
+
+    entries: list[dict[str, Any]] = []
+    waiting: dict[str, int] = {}
+    for row in rows:
+        payload = _payload(row)
+        tic_id = int(row["tic_id"])
+        t3 = (payload.get("t3_regate") or {}).get("verdict")
+        adjudication = payload.get("t5_adjudication") or {}
+        status = adjudication.get("recommended_status")
+
+        # A star the calibrated T3 re-gate kills needs no human; it is
+        # resolved, and putting it in a review queue wastes the scarcest
+        # resource this project has.
+        if t3 == "fails_calibrated_red_noise_floor":
+            continue
+
+        blockers: list[str] = []
+        if status == "catalog_coverage_gap":
+            blockers.append("catalog coverage")
+        if not payload.get("ephemeris", {}).get("period_days"):
+            blockers.append("no ephemeris")
+        if tic_id in ambiguous:
+            blockers.append("ambiguous identity in pixel")
+        if adjudication.get("blocked_reason"):
+            blockers.append("matches a catalogued planet or TOI")
+        if adjudication.get("conflicts"):
+            blockers.append("sources disagree")
+
+        # Rank: contested evidence first, then reach through the stages.
+        score = 0
+        if adjudication.get("conflicts"):
+            score += 40
+        if adjudication.get("blocked_reason"):
+            score += 30
+        if status == "unresolved_transit_like_signal":
+            score += 20
+        if tic_id in ambiguous:
+            score += 10
+        if t3 == "passes":
+            score += 10
+
+        for blocker in blockers:
+            waiting[blocker] = waiting.get(blocker, 0) + 1
+        entries.append(
+            {
+                "tic_id": tic_id,
+                "current_status": states.get(tic_id),
+                "recommended_status": status,
+                "t3_regate": t3,
+                "relations": len(adjudication.get("relations") or []),
+                "conflicts": len(adjudication.get("conflicts") or []),
+                "ambiguous_identity": tic_id in ambiguous,
+                "waiting_on": blockers,
+                "priority": score,
+            }
+        )
+
+    entries.sort(key=lambda item: (-item["priority"], item["tic_id"]))
+    return {
+        "generation": str(latest_source["source"]),
+        "total": len(entries),
+        "entries": entries[:limit],
+        "waiting_on": dict(sorted(waiting.items(), key=lambda kv: -kv[1])),
+        "affects_status_counts": False,
+        "note": (
+            "Every entry is a lead awaiting human judgement, not a candidate. "
+            "Stars killed by the calibrated T3 re-gate are excluded: they are "
+            "resolved, and a review queue must not spend attention on them."
+        ),
+    }
