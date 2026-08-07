@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 import traceback
@@ -86,11 +87,31 @@ def select_cohort(conn, limit: int) -> list[dict[str, Any]]:
             continue
         if tic not in ambiguous or tic not in positions:
             continue
+        # The sector the signal was actually found in. Without it the pilot
+        # downloads whichever cutout the archive lists first -- sectors 2-12
+        # for targets whose signals live in 98-105 -- and every photometric
+        # verdict is measured on data that never contained the transit.
+        sectors: list[int] = []
+        for row in conn.execute(
+            "SELECT payload FROM evidence WHERE tic_id = ? AND kind = 'screening' "
+            "ORDER BY evidence_id DESC",
+            (tic,),
+        ):
+            result = (json.loads(row["payload"]).get("result") or {})
+            if result.get("sectors"):
+                sectors = [
+                    int(value)
+                    for value in re.findall(r"\d+", str(result["sectors"]))
+                ]
+                break
+        if not sectors:
+            continue
         cohort.append(
             {
                 "tic_id": tic,
                 "prior_status": record["prior_status"],
                 "ephemeris": ephemeris,
+                "discovery_sectors": sectors,
                 "ra_deg": positions[tic][0],
                 "dec_deg": positions[tic][1],
                 "t3": record["t3_regate"]["verdict"],
@@ -156,12 +177,32 @@ def vet_one(conn, entry: dict[str, Any], *, author: str) -> dict[str, Any]:
     epoch = float(ephemeris["epoch_btjd"] or 0.0)
     duration = float(ephemeris["duration_hours"])
 
-    search = lk.search_tesscut(target)
+    wanted = entry.get("discovery_sectors") or []
+    if not wanted:
+        return {"tic_id": tic_id, "state": "no_discovery_sector", "author": author}
+    # Only the discovery sector can test this ephemeris. A cutout from another
+    # sector may not contain the transit at all, and its verdict would be
+    # about the wrong data rather than about the signal.
+    search = lk.search_tesscut(target, sector=wanted[0])
     if len(search) == 0:
-        return {"tic_id": tic_id, "state": "no_pixel_data", "author": author}
+        return {
+            "tic_id": tic_id,
+            "state": "no_pixel_data_in_discovery_sector",
+            "author": author,
+            "discovery_sectors": wanted,
+        }
     tpf = search[0].download(cutout_size=CUTOUT_PIXELS, quality_bitmask="default")
     if tpf is None:
         return {"tic_id": tic_id, "state": "download_failed", "author": author}
+    observed = int(getattr(tpf, "sector", 0) or 0)
+    if observed and observed not in wanted:
+        return {
+            "tic_id": tic_id,
+            "state": "sector_mismatch",
+            "author": author,
+            "requested_sector": wanted[0],
+            "downloaded_sector": observed,
+        }
 
     times = np.asarray(tpf.time.value, dtype=float)
     cube = np.asarray(tpf.flux.value, dtype=float)
@@ -174,7 +215,8 @@ def vet_one(conn, entry: dict[str, Any], *, author: str) -> dict[str, Any]:
         "tic_id": tic_id,
         "state": "measured",
         "author": author,
-        "sector": int(getattr(tpf, "sector", 0) or 0),
+        "sector": observed,
+        "discovery_sectors": wanted,
         "cadences": int(times.size),
         "target_pixel": [target_row, target_column],
         "ephemeris": ephemeris,

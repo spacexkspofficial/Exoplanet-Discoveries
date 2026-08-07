@@ -110,7 +110,9 @@ own exit gates.
 | T7 cross-reduction gate (§4.5) | Built and tested; **not yet run on real reductions** | `crossreduction.py` implements the promotion gate as four independent requirements plus one precedence rule. **Depth agreement** across independent reductions is compared *pairwise*, not against a pooled mean — a single precise outlier would otherwise drag the mean onto itself and pass. **Undetrended SAP support** is mandatory, the direct lesson of this project's history: every detrended product inherits a dip the detrender invented, so their agreement says nothing about the sky. **Sector support is asymmetric** — a sector whose injected completeness at this depth is below 50% abstains rather than objecting, because a non-detection where nothing was detectable is not evidence of absence. **Stacked secondary and odd/even** are re-measured on the all-sector fold (TIC 181014443 was 2.3σ in one sector and 5.9σ stacked). A common-mode verdict short-circuits before any of it is computed, so no cross-reduction result can appear to have argued the other way. 15 tests |
 | Review packet (§4.7) | Built and tested | `packet.py` assembles the ten sections §4.7 enumerates and **refuses to call a packet ready when any of them is missing or unmeasured**, naming the specific sections rather than padding or downgrading — a packet with no pixel localization must not read like one whose localization passed. `not_run`, `{}`, `None` and `not_evaluable` are all treated as absence; an explicit negative result ("localized off target") counts as measured, because it is. The deferred TRICERATOPS FPP therefore *blocks* a packet rather than being assumed. `packet_ready_for_review` is added to the status registry as the 24th status at `measured_science` (Appendix C sanctions additive evolution; the existing 23 keep their slugs, and the count pin in `test_statuses.py` was raised deliberately). The claim ceiling travels with every packet and is enforced structurally: there is no code path emitting `vetted_candidate`, `confirmed_planet` or `rediscovery`, asserted by test. 13 tests |
 | T8 transit fit and physical sanity (§4.6) | Built and tested | `transitfit.py`: batman + emcee posteriors with quadratic limb darkening, and the check that actually catches false positives — **stellar density from the transit geometry alone**. (a/R\*) with the period gives the mean density of the star being transited independently of any catalogue, and the same light curve is fit equally well by a small planet on a dwarf or a grazing binary on a giant; those solutions differ by orders of magnitude in density and nothing else in the light curve separates them. The relation is anchored by a test: Earth's orbit at P=365.25 d returns **1.0013 solar densities**. Posteriors are reported **only when the chain mixed** — an unconverged interval is indistinguishable on inspection from a converged one, so a starved chain returns `not_run` with the diagnostic attached rather than a plausible-looking number. Also SED giant-impostor check from the Gaia colour-magnitude position, and a walker-count guard so an emcee configuration error is reported rather than raised. `emcee`/`corner` installed from the existing `[fits]` extra. 15 tests |
-| **Not yet done** | — | Running pixel-vet v2 and T7 on real pixels and alternate reductions (both need per-target MAST downloads, outside this session's catalog-only authorization); TRICERATOPS itself (deferred by owner decision, and its `not_run` FPP currently blocks every packet); review-queue UI (§8) |
+| Review queue (§8) | Built, tested, live | `/api/review-queue` plus a dashboard panel. **1,033 entries** from the 1,363-star backlog — the 330 the calibrated T3 re-gate killed are excluded outright, because they are resolved and human attention is the scarcest resource here. Ranked by contested evidence first (disagreeing sources, then signals matching a catalogued planet or TOI, which need a human because every rediscovery status is human-stage), and every entry states what it waits on: **413 ambiguous identity, 26 no ephemeris, 2 sources disagree**. Scoped to the newest vetting generation; reads only non-voting rows, so opening it moves nothing. 8 tests |
+| Pixel vetting v2 on real pixels | **Run on a 60-star pilot; 57 measured** | `results/p4/pixel_pilot_v3/`, all 57 on the target's own discovery sector (corrections 46 and 47 cover two earlier runs that were not). **11 stars localize significantly off target** — offsets 0.72–4.31 px at 4.6σ–42.5σ, the first real `pixel_offset_contamination` candidates this stack has produced. **3 more** show aperture growth consistent with a contaminant. The two tests flag **disjoint sets**, which is informative rather than contradictory: they have different sensitivity regimes, and the aperture curve is limited by the same sub-pixel problem as correction 46. **0 host reassignments**: 46 `not_resolvable`, 11 with no counterpart. Caveat on the 31 `no_depth_in_target_aperture` — those are raw undetrended TESScut aperture sums, and the campaign detected these signals in *detrended* photometry, so a shallow signal is expected to be invisible here and this is **not** evidence against it |
+| **Not yet done** | — | T7 on real alternate reductions (QLP/TGLC/TESS-SPOC products for the pilot cohort); TRICERATOPS itself (deferred by owner decision, and its `not_run` FPP currently blocks every packet from reaching `ready`); promoting any of this to voting evidence, which waits on correction 38 |
 
 P4's exit is **not** met. The backlog gate reads 98.1% against the plan's
 ≥80%, but that number passes on the strength of catalog coverage alone: 94% of
@@ -1511,6 +1513,28 @@ the current stack can settle.
     The wider lesson for the remaining stages: a synthetic scene validates the
     arithmetic, not the applicability. This test was correct and was being
     asked a question the instrument cannot answer.
+
+47. **The pilot then turned out to have tested the wrong sector for every
+    single target, which voided every photometric number in both runs.** The
+    script asked `search_tesscut(target)` and took the first result, which is
+    the *earliest* available cutout. These signals were found in sectors
+    98-105; the cutouts analysed were sectors 2-12. All 57 measured targets
+    were affected — TIC 1599403 tested in sector 8 against a discovery in 99,
+    TIC 7146022 in sector 2 against 105, and so on.
+
+    Void: the 30 `no_depth_in_target_aperture` verdicts (unsurprising on data
+    that predates the signal by years), the 3 `off_target` localizations, and
+    the 16 `consistent_with_on_target`. Not void: correction 46, because the
+    separation between a target and its Gaia counterparts is geometry rather
+    than photometry, and does not depend on which sector was loaded.
+
+    The uncomfortable part is that the bug made the corrected run look
+    *better*. Forty stars returning `not_resolvable` is the right verdict, and
+    it was reached from unusable pixels; a clean-looking result is not
+    evidence that the inputs were right. The cohort now carries its discovery
+    sectors, the fetch requests that sector explicitly, and a
+    `sector_mismatch` state refuses any cutout that comes back from a
+    different one, so this cannot recur silently.
 
 ## Owner notes
 
