@@ -128,9 +128,17 @@ def reductions_for(entry: dict[str, Any]) -> list[t7.ReductionDepth]:
         columns = {name.lower() for name in curve.colnames}
         # SPOC publishes SAP and PDCSAP from the same pixels, which is exactly
         # the detrended/undetrended pair section 4.5 asks for.
-        for column, detrended in (("pdcsap_flux", True), ("sap_flux", False)):
+        #
+        # Only *SPOC's* sap_flux is undetrended. QLP ships its own
+        # systematics-corrected photometry in a column of the same name, and
+        # treating that as an undetrended fold both overstates the undetrended
+        # evidence and starves the independent-reduction count -- it left
+        # SPOC PDCSAP as the sole detrended product, so no star ever reached
+        # the two independent reductions section 4.5 requires.
+        for column, spoc_detrended in (("pdcsap_flux", True), ("sap_flux", False)):
             if column not in columns:
                 continue
+            detrended = spoc_detrended if author == "SPOC" else True
             try:
                 flux = np.asarray(curve[column].value, dtype=float)
             except Exception:  # noqa: BLE001

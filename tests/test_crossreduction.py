@@ -82,6 +82,40 @@ def test_agreement_is_pairwise_not_against_a_pooled_mean() -> None:
     assert ("a", "b") not in pairs
 
 
+def test_an_uninformative_reduction_cannot_confirm_anything() -> None:
+    """Agreement must mean confirmation, not that one measurement is useless.
+
+    Measured on the first real cohort: QLP at FFI cadence returned depths with
+    +/-20,000 ppm errors, which duly "agreed" with everything -- including a
+    SPOC depth seven times its own, at 0.01 sigma tension. A cross-reduction
+    test that passes because one side could not measure anything has done no
+    work at all.
+    """
+
+    result = t7.depth_agreement(
+        [
+            t7.ReductionDepth("spoc_pdcsap", 29000.0, 400.0),   # 72 sigma
+            t7.ReductionDepth("qlp_sap", 4300.0, 20000.0),      # 0.2 sigma
+        ]
+    )
+    assert result["agrees"] is False
+    assert result["independent_reductions"] == 1
+    assert [item["product"] for item in result["uninformative_reductions"]] == [
+        "qlp_sap"
+    ]
+    assert "detecting at" in result["reason"]
+
+    # Two genuinely informative reductions still pass.
+    good = t7.depth_agreement(
+        [
+            t7.ReductionDepth("spoc_pdcsap", 1000.0, 40.0),
+            t7.ReductionDepth("qlp_sap", 1040.0, 50.0),
+        ]
+    )
+    assert good["agrees"] is True
+    assert good["uninformative_reductions"] == []
+
+
 def test_a_signal_absent_from_the_undetrended_fold_is_blocked() -> None:
     """The direct lesson of this project's history.
 

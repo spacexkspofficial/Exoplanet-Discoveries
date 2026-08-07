@@ -1608,6 +1608,52 @@ the current stack can settle.
     enrichment reported — is a change that deserves its own session and its
     own tests, not a wrap-up edit.
 
+54. **T7 ran on the real cohort, and a cross-reduction test was passing
+    because one reduction could not measure anything.** With MAST recovered,
+    all 60 pilot stars completed with **zero search failures** — which finally
+    settles correction 48: the 37 stars returning no products have genuinely
+    no alternate reduction, they were not throttled.
+
+    The first pass reported 21 stars with two independent reductions and
+    **16 agreeing**. Those agreements were largely fictional. QLP at FFI
+    cadence returns depths with ±20,000 ppm uncertainties, so it agreed with
+    everything put beside it — including, on TIC 59781994, a SPOC depth seven
+    times its own, at 0.01σ tension. An agreement test that passes because one
+    side is uninformative has done no work.
+
+    `depth_agreement` now requires each contributing reduction to detect at
+    3σ in its own right before it may vote, and reports the ones excluded.
+    The honest numbers, on the same data:
+
+    | | before floor | after floor |
+    |---|---|---|
+    | ≥2 independent reductions | 21 | **9** |
+    | depths agree | 16 | **5** |
+
+    Two further labelling errors were fixed on the way. QLP's `sap_flux` was
+    being treated as an undetrended fold; it is QLP's own systematics-corrected
+    photometry, and only *SPOC's* `sap_flux` is undetrended. That mislabelling
+    both overstated the undetrended evidence and left SPOC PDCSAP as the sole
+    detrended product, so no star ever reached two independent reductions at
+    all.
+
+    **Result: 5 stars satisfy two of §4.5's four requirements** — depth
+    agreement across informative independent reductions, and presence in the
+    undetrended SAP fold: TICs 4809705, 18654235, 55757565, 67013276,
+    76804724. **Zero are promoted**, correctly: all 60 are blocked on stacked
+    secondary/odd-even, which cannot be measured on a single-sector cohort.
+
+    One cross-check worth carrying: **TIC 76804724 appears in both lists.** Its
+    depth agrees across reductions and survives the undetrended fold — and
+    pixel vetting localizes its light 4.31 pixels off target at 16.9σ. The two
+    stages agree that the signal is real and that it does not belong to this
+    star. That is the vetting stack working as designed.
+
+    (Reporting note: `t7_pilot_summary.json` still counts
+    `with_two_independent_reductions` over raw products, before the
+    significance floor, so it reads 22 where the gate counts 9. The gate's
+    number is the one that means anything.)
+
 53. **The backlog resolution is now split by what it actually means, which
     answers correction 43 in numbers instead of prose.** "Resolved" was
     covering two very different states. A *terminal* lane is a statement about

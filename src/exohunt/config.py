@@ -406,6 +406,13 @@ class CrossReductionConfig:
     # distinguish a signal from one pipeline's processing of it.
     minimum_independent_reductions: int = 2
     depth_agreement_sigma: float = 3.0
+    # A reduction only counts toward agreement if it measured something. Two
+    # depths "agree" trivially when one carries an uncertainty large enough to
+    # cover any value -- measured on the first real cohort, where QLP at FFI
+    # cadence returned +/-20,000 ppm errors and duly agreed with everything,
+    # including a SPOC depth seven times its own. Agreement must mean the
+    # reductions confirm each other, not that one of them is uninformative.
+    minimum_reduction_significance: float = 3.0
     # The undetrended SAP requirement is the direct lesson of this project's
     # own history: a detrender can manufacture a periodic dip, and every
     # detrended product inherits it. An undetrended fold cannot.

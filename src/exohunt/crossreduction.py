@@ -94,10 +94,29 @@ def depth_agreement(
     """
 
     settings = config or CURRENT_CROSS_REDUCTION
-    usable = [
+    measured = [
         item
         for item in measurements
         if item.detrended and item.depth_error_ppm and item.depth_error_ppm > 0
+    ]
+    # Only reductions that actually detected something may vote. One with an
+    # uncertainty wide enough to cover any depth agrees with everything, and
+    # counting that as confirmation is how a cross-reduction test passes
+    # without doing any work.
+    usable = [
+        item
+        for item in measured
+        if abs(item.significance() or 0.0) >= settings.minimum_reduction_significance
+    ]
+    uninformative = [
+        {
+            "product": item.product,
+            "depth_ppm": item.depth_ppm,
+            "depth_error_ppm": item.depth_error_ppm,
+            "significance": item.significance(),
+        }
+        for item in measured
+        if item not in usable
     ]
     products = sorted({item.product for item in usable})
     if len(products) < settings.minimum_independent_reductions:
@@ -105,9 +124,12 @@ def depth_agreement(
             "products": products,
             "independent_reductions": len(products),
             "agrees": False,
+            "uninformative_reductions": uninformative,
             "reason": (
                 f"needs {settings.minimum_independent_reductions} independent "
-                f"reductions with measured uncertainties, has {len(products)}"
+                f"reductions detecting at "
+                f"{settings.minimum_reduction_significance} sigma, has "
+                f"{len(products)}"
             ),
         }
 
@@ -135,6 +157,8 @@ def depth_agreement(
         "disagreeing_pairs": disagreeing,
         "agrees": not disagreeing,
         "tolerance_sigma": settings.depth_agreement_sigma,
+        "uninformative_reductions": uninformative,
+        "minimum_reduction_significance": settings.minimum_reduction_significance,
     }
 
 
