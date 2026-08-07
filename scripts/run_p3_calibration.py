@@ -43,6 +43,7 @@ from exohunt.cli import _scientific_settings  # noqa: E402
 from exohunt.config import (  # noqa: E402
     CURRENT_CONFIG,
     code_version,
+    kernel_version,
     hash_target_list,
     require_clean_repository,
     settings_signature,
@@ -286,7 +287,10 @@ def run(args: argparse.Namespace) -> int:
         **production_settings,
         "calibration": asdict(CURRENT_CONFIG.calibration),
     }
-    running_code_version = code_version(ROOT)
+    # The kernel digest is what the campaign path now signs with, so the
+    # calibration must certify the same identity or the release it
+    # produces can never match a campaign (PROGRESS correction 39).
+    running_code_version = kernel_version()
     signature = settings_signature(
         code=running_code_version,
         settings=production_settings,

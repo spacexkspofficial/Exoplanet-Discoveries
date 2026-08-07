@@ -359,10 +359,14 @@ def run_batch_hunt(args: argparse.Namespace) -> int:
     # Every campaign is stamped, including diagnostic work. Only an explicit
     # trusted-first-pass request is blocked on the release registry, so P3 can
     # run the calibration that creates the report without circular approval.
-    from .config import code_version, hash_target_list, settings_signature
+    from .config import hash_target_list, kernel_version, settings_signature
 
+    # The kernel digest, not the repository commit. A trusted release must
+    # survive a documentation or dashboard change and must not survive a
+    # change to the search -- `code_version` gets that backwards, and retired
+    # P3's release on two doc commits (PROGRESS correction 39).
     signature = settings_signature(
-        code=code_version(Path.cwd()),
+        code=kernel_version(),
         settings=cli_module._scientific_settings(args),
         product_family=f"{args.author}-{float(args.cadence_seconds):g}s",
         target_list_hash=hash_target_list(target_path),

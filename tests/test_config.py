@@ -172,6 +172,32 @@ def test_vetting_signature_names_its_snapshot_generation() -> None:
     )
 
 
+def test_the_kernel_version_covers_every_module_that_moves_a_result() -> None:
+    """A release must survive a README edit and never survive a search change.
+
+    `code_version` gets that backwards -- it digests the whole repository, and
+    retired P3's trusted release on two documentation commits (correction 39).
+    """
+
+    from exohunt.config import DETECTION_KERNEL_MODULES, kernel_version
+
+    assert kernel_version().startswith("kernel1:")
+    assert kernel_version() == kernel_version()
+
+    # cli.py is load-bearing here: P2's decomposition is unfinished and the
+    # single-target analysis path still lives in it, so a change there is a
+    # change to the science whatever the file is nominally about.
+    for module in ("cli.py", "search.py", "vetoes.py", "detrend.py",
+                   "detection.py", "photometry.py", "population.py",
+                   "campaign.py", "config.py"):
+        assert module in DETECTION_KERNEL_MODULES
+
+    # Nothing that cannot alter a detection belongs in it.
+    for module in ("dashboard.py", "dashboard_api.py", "dashboard_server.py",
+                   "packet.py", "identity.py", "snapshots.py", "ledger.py"):
+        assert module not in DETECTION_KERNEL_MODULES
+
+
 def test_module_digest_tracks_only_the_named_modules() -> None:
     one = module_digest("identity.py")
     assert one == module_digest("identity.py")

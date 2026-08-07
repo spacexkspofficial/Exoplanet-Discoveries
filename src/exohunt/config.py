@@ -585,6 +585,45 @@ def settings_signature(
     return "sig1:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+# Every module whose text can change what a search returns. `cli.py` is on the
+# list because P2's decomposition is unfinished: the single-target
+# `_hunt_from_light_curve` analysis path still lives there, so a change to it
+# is a change to the science whatever the file is nominally about.
+DETECTION_KERNEL_MODULES = (
+    "calibration.py",
+    "campaign.py",
+    "cli.py",
+    "commonmode.py",
+    "config.py",
+    "detection.py",
+    "detrend.py",
+    "detrending.py",
+    "photometry.py",
+    "population.py",
+    "screening.py",
+    "search.py",
+    "vetoes.py",
+)
+
+
+def kernel_version() -> str:
+    """Identify the code that actually produces a detection.
+
+    `code_version` answers "which commit is checked out", which retires a
+    trusted release whenever *anything* in the repository moves -- a README
+    edit, a dashboard rebuild, a new vetting module. That is not a
+    conservative identity, it is a wrong one: it claims a calibration stopped
+    describing code that did not change, and it did exactly that after P3
+    (correction 39).
+
+    This digests the modules that can alter a search result, so re-calibration
+    is forced precisely when the search changes and never merely because the
+    repository did.
+    """
+
+    return "kernel1:" + module_digest(*DETECTION_KERNEL_MODULES)
+
+
 def module_digest(*module_names: str) -> str:
     """Digest the source text of specific modules.
 
