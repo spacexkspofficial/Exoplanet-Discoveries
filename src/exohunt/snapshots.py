@@ -179,6 +179,12 @@ SNAPSHOT_SOURCES: dict[str, SnapshotSource] = {
             name="asassn_variables",
             service="vizier_tap",
             table='"II/366/catv2021"',
+            # 80 columns published; these are the ones a verdict can use.
+            # `select *` here was not merely wasteful -- VizieR answered it by
+            # dropping the connection (measured 2026-08-06, first batch, so
+            # not an accumulated rate limit). Columns whose names need ADQL
+            # quoting ("ASASSN-V", "Class?") are deliberately not requested.
+            columns="ID, RAJ2000, DEJ2000, Vmag, Amp, Per, Type, HJD, TIC, GaiaDR3",
             scope="position_list",
             settles="All-sky bright-variable context and deep EB eclipses.",
             cannot_settle="Anything at millimagnitude depth.",
@@ -188,6 +194,14 @@ SNAPSHOT_SOURCES: dict[str, SnapshotSource] = {
             name="gaia_dr3",
             service="vizier_tap",
             table='"I/355/gaiadr3"',
+            # 225 columns published. This source exists to supply the
+            # neighbour scene and astrometric priors, not an ephemeris, so it
+            # asks for identity, position, motion, brightness, and the quality
+            # flags section 4.2 names -- fifteen columns rather than 225.
+            columns=(
+                "Source, RA_ICRS, DE_ICRS, Plx, pmRA, pmDE, Gmag, BPmag, "
+                "RPmag, RUWE, Teff, Dist, NSS, VarFlag, Dup"
+            ),
             scope="position_list",
             settles=(
                 "Counterpart astrometry and photometry: parallax, proper "

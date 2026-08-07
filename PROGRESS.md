@@ -1350,13 +1350,23 @@ not been given its inputs.
     beside it, which turns the 1,363-star backlog into roughly 55 queries per
     source across five sources. That was not run in this session.
 
-    Its absence is the single largest term in P4's 25.0% resolution: **734 of
-    the 1,022 unresolved stars are unresolved only because five of the eight
-    declared sources have never been fetched**, so `adjudicate` correctly
-    refuses to call them `no_match`. Most backlog stars are faint and
-    uncatalogued by design, so the expected gain is not new kills — it is
-    converting `catalog_coverage_gap` into `unresolved_transit_like_signal`,
-    which is a genuine review lane and counts toward the exit gate.
+    Its absence is the single largest term in P4's resolution rate: **939 of
+    the 965 unresolved stars are unresolved only because the sample-scoped
+    sources have not been fetched**, so `adjudicate` correctly refuses to call
+    them `no_match`. Most backlog stars are faint and uncatalogued by design,
+    so the expected gain is not new kills — it is converting
+    `catalog_coverage_gap` into `unresolved_transit_like_signal`, which is a
+    genuine review lane and counts toward the exit gate.
+
+    **VSX is now fetched**: 252 rows over the 1,363 backlog positions, in
+    2,248 s. That timing exposed the real cost — 55 *sequential* cone queries
+    at roughly 41 s each, nearly all of it latency, which is the same
+    per-request-bound behaviour `catalogs.py` documents for the NASA endpoint.
+    Batches now issue through a thread pool capped at 3, matching the
+    politeness limit `catalogs.py` already applies to shared public services.
+    The pool re-raises the first failure so a dead batch fails the whole
+    snapshot: a generation that quietly lost a third of its positions would
+    still be written, hashed, and cited by later adjudications as complete.
 
     The other 288 turned out not to need new data at all. Their *deciding*
     evidence is a `context` record with no `result` block, but the same stars

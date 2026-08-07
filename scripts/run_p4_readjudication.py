@@ -248,7 +248,10 @@ SOURCE_SPECS = (
         "variable_star",
         id_keys=("ASASSN-V", "ID", "Name"),
         period_keys=("Per", "Period"),
-        epoch_keys=("HJD0", "Epoch"),
+        # ASAS-SN publishes HJD, not HJD0. It is an epoch of extremum rather
+        # than a transit centre, so it can only ever support the period-only
+        # relation this catalogue is limited to anyway.
+        epoch_keys=("HJD0", "HJD", "Epoch"),
         disposition_keys=("Type",),
     ),
     SourceSpec(
