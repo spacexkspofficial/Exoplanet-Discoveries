@@ -34,6 +34,7 @@ import io
 import json
 import math
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -62,6 +63,15 @@ _ARCSEC_PER_DEGREE = 3600.0
 # rather than a tuning preference. Batches are re-issued and concatenated; row
 # identity is restored by de-duplicating on the full row tuple.
 _POSITIONS_PER_QUERY = 25
+# Batches are issued concurrently, because the service is latency-bound per
+# request rather than throughput-bound -- the same finding `catalogs.py`
+# documents for the NASA TAP endpoint. Measured on 2026-08-06: 55 sequential
+# batches against B/vsx/vsx took 2,248 s, roughly 41 s each, almost all of it
+# waiting. The ceiling is deliberately small and matches the politeness limit
+# `catalogs.py` already applies (a bounded semaphore of 2-3): these are shared
+# public services, and the point is to stop wasting wall time on latency, not
+# to extract maximum throughput from someone else's infrastructure.
+_SCOPED_QUERY_CONCURRENCY = 3
 
 
 class SnapshotError(RuntimeError):
@@ -429,8 +439,6 @@ def fetch(
         radius_deg = match_radius_arcsec(identity) / _ARCSEC_PER_DEGREE
         available = table_columns(source, timeout=timeout)
         ra_column, dec_column = _choose_position_columns(available)
-        collected: list[dict[str, str]] = []
-        columns: tuple[str, ...] = ()
         queries: list[str] = []
         for start in range(0, len(positions), _POSITIONS_PER_QUERY):
             batch = positions[start : start + _POSITIONS_PER_QUERY]
@@ -438,11 +446,29 @@ def fetch(
             predicate = (
                 f"{source.predicate} and {circles}" if source.predicate else circles
             )
-            query = (
+            queries.append(
                 f"select {source.columns} from {source.table} where {predicate}"
             )
-            queries.append(query)
-            text = _tap_sync(source.service_url(), query, timeout=timeout)
+
+        collected: list[dict[str, str]] = []
+        columns: tuple[str, ...] = ()
+        url = source.service_url()
+        if len(queries) == 1 or _SCOPED_QUERY_CONCURRENCY <= 1:
+            results = [_tap_sync(url, query, timeout=timeout) for query in queries]
+        else:
+            with ThreadPoolExecutor(
+                max_workers=min(_SCOPED_QUERY_CONCURRENCY, len(queries))
+            ) as pool:
+                # `map` keeps results in submission order and re-raises the
+                # first failure, so one dead batch still fails the whole
+                # snapshot rather than silently producing a short extract.
+                results = list(
+                    pool.map(
+                        lambda query: _tap_sync(url, query, timeout=timeout),
+                        queries,
+                    )
+                )
+        for text in results:
             batch_rows, batch_columns = _parse_csv(text)
             if batch_columns:
                 columns = batch_columns

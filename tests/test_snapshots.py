@@ -247,7 +247,14 @@ def test_scoped_fetch_batches_positions_and_concatenates(tmp_path, monkeypatch) 
         index = len(issued)
         return f"Name,RAJ2000,DEJ2000\nV{index},{index}.0,-20.0\n"
 
-    monkeypatch.setattr(snapshots, "_tap_sync", fake_tap)
+    lock = __import__("threading").Lock()
+    unlocked_fake = fake_tap
+
+    def locked_tap(url, query, *, timeout=300, attempts=4):
+        with lock:
+            return unlocked_fake(url, query, timeout=timeout, attempts=attempts)
+
+    monkeypatch.setattr(snapshots, "_tap_sync", locked_tap)
     monkeypatch.setattr(
         snapshots, "table_columns", lambda source, timeout=120: ("Name", "RAJ2000", "DEJ2000")
     )
@@ -264,6 +271,31 @@ def test_scoped_fetch_batches_positions_and_concatenates(tmp_path, monkeypatch) 
     assert manifest.row_count == 3
     assert manifest.scope_size == 60
     assert manifest.scope_hash == snapshots.hash_positions(positions)
+
+
+def test_a_failing_batch_fails_the_whole_snapshot(tmp_path, monkeypatch) -> None:
+    """A dead batch must not quietly produce a short extract.
+
+    A snapshot that silently lost a third of its positions would be recorded
+    with a content hash and cited by adjudications as if it were complete.
+    """
+
+    calls = {"n": 0}
+
+    def flaky(url, query, *, timeout=300, attempts=4):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise snapshots.SnapshotError("batch 2 died")
+        return "Name,RAJ2000,DEJ2000\nV1,1.0,-20.0\n"
+
+    monkeypatch.setattr(snapshots, "_tap_sync", flaky)
+    monkeypatch.setattr(
+        snapshots, "table_columns", lambda source, timeout=120: ("Name", "RAJ2000", "DEJ2000")
+    )
+    positions = [(float(index), -20.0) for index in range(60)]
+    with pytest.raises(snapshots.SnapshotError, match="batch 2 died"):
+        snapshots.fetch("vsx", positions=positions, root=tmp_path)
+    assert snapshots.list_snapshots("vsx", root=tmp_path) == []
 
 
 def test_scoped_fetch_deduplicates_rows_seen_in_more_than_one_batch(
