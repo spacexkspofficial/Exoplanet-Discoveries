@@ -1476,6 +1476,42 @@ the current stack can settle.
     scene was synthetic, so the true host was known and the wrong answer was
     unmistakable; on real pixels this would have read as a plausible verdict.
 
+46. **The first real pixel cohort reassigned 22 of 58 stars to a neighbour,
+    and every one of those reassignments was spurious.** The synthetic scenes
+    that validated `neighbour_transit_extraction` put the contaminating source
+    three pixels from the target, which TESS resolves comfortably. Real Gaia
+    counterparts do not sit three pixels away: the identity graph's match
+    radius is one TESS pixel, **21 arcseconds**, so essentially every
+    counterpart it finds is inside a single pixel. Two apertures of radius one
+    pixel whose centres are one pixel apart share most of their pixels, and
+    "which is deeper" is then decided by noise.
+
+    The pilot numbers make it unambiguous: **median separation 1.00 px**,
+    depth signal-to-noise between **0.002 and 0.57** — not one significant
+    detection — and several winners with *negative* depth, where ranking by
+    "deepest" simply picked the least-negative non-detection. One star scored a
+    10.5x depth "margin" out of a depth of 0.000149.
+
+    The disagreement between the two checks was the tell, and the aperture
+    curve was the one telling the truth: it reported **0 contaminated** across
+    the whole cohort, correctly, because a counterpart inside one pixel is
+    already inside even the smallest aperture and cannot make the depth grow.
+    Had both checks agreed, 22 fabricated host reassignments would have
+    entered the ledger looking like the phase's headline result.
+
+    `neighbour_transit_extraction` now requires a counterpart to be separated
+    by at least twice the aperture radius before it may be compared at all,
+    requires a significant positive depth, and requires a margin over the
+    target rather than merely a larger number. Where nothing is resolvable it
+    returns `not_resolvable` — the honest verdict that TESS pixels cannot
+    answer this question for this star, rather than a silent pass to the
+    target. Regression tests cover the sub-pixel case and the
+    all-non-detections case directly.
+
+    The wider lesson for the remaining stages: a synthetic scene validates the
+    arithmetic, not the applicability. This test was correct and was being
+    asked a question the instrument cannot answer.
+
 ## Owner notes
 
 - **Do not delete `data/lightkurve` yet.** Although new downloads go to

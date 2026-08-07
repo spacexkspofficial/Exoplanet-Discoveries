@@ -327,6 +327,59 @@ def test_neighbour_extraction_keeps_an_on_target_signal() -> None:
     assert result["best_host"] == "target"
 
 
+def test_sub_pixel_counterparts_are_not_resolvable(tmp_path=None) -> None:
+    """The defect the first real cohort exposed (correction 46).
+
+    At 21 arcsec per pixel most Gaia counterparts fall inside one TESS pixel.
+    Two 1-pixel apertures a pixel apart share most of their pixels, so "which
+    is deeper" is decided by noise -- and on the pilot that produced 22 host
+    reassignments out of 58 stars at depth signal-to-noise below 0.6. The
+    honest verdict is that the test does not apply.
+    """
+
+    time, cube = _scene(
+        host_row=TARGET[0], host_column=TARGET[1], depth=0.05, noise=8.0
+    )
+    result = pixel.neighbour_transit_extraction(
+        time,
+        cube,
+        period_days=PERIOD,
+        transit_time=EPOCH,
+        duration_hours=DURATION_HOURS,
+        candidates=[
+            {"identifier": "target", "row": TARGET[0], "column": TARGET[1], "is_target": True},
+            {"identifier": "sub_pixel", "row": TARGET[0], "column": TARGET[1] + 1.0},
+        ],
+    )
+    assert result["verdict"] == "not_resolvable"
+    assert result["resolvable_counterparts"] == 0
+    assert "independent aperture" in result["reason"]
+
+
+def test_an_insignificant_neighbour_depth_reassigns_nothing() -> None:
+    """Being the least-negative of several non-detections is not a host."""
+
+    time, cube = _scene(
+        host_row=TARGET[0], host_column=TARGET[1], depth=0.0, noise=30.0
+    )
+    result = pixel.neighbour_transit_extraction(
+        time,
+        cube,
+        period_days=PERIOD,
+        transit_time=EPOCH,
+        duration_hours=DURATION_HOURS,
+        candidates=[
+            {"identifier": "target", "row": TARGET[0], "column": TARGET[1], "is_target": True},
+            {"identifier": "far", "row": NEIGHBOUR[0], "column": NEIGHBOUR[1]},
+        ],
+    )
+    assert result["verdict"] in {
+        "no_significant_neighbour_depth",
+        "target_is_best_host",
+    }
+    assert result["verdict"] != "signal_belongs_to_neighbour"
+
+
 def test_short_series_are_refused_rather_than_guessed() -> None:
     time = np.linspace(0.0, 0.05, 12)
     cube = np.ones((12, *SHAPE))

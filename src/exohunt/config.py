@@ -375,6 +375,20 @@ class PixelVetConfig:
     # Reduced chi-square of the per-sector offsets about their weighted mean.
     sector_consistency_max_chi2: float = 3.0
     minimum_sectors_for_consistency: int = 2
+    # Neighbour extraction only means anything when the apertures are actually
+    # independent. Two 1-pixel apertures whose centres are 1 pixel apart share
+    # most of their pixels, so "which is deeper" is a coin flip on noise.
+    # Measured on the first real cohort: 22 of 58 stars were reassigned to a
+    # neighbour at a median separation of 1.00 px and depth signal-to-noise
+    # between 0.002 and 0.57 -- every one of them spurious (correction 46).
+    # At 21 arcsec per pixel, most Gaia counterparts are simply not resolvable
+    # by TESS, and the honest answer is that this test does not apply.
+    neighbour_minimum_separation_apertures: float = 2.0
+    # A host reassignment is a strong claim; it needs a depth that is real.
+    neighbour_minimum_depth_snr: float = 3.0
+    # ...and one that beats the target by more than the noise, rather than by
+    # being the least negative of several non-detections.
+    neighbour_minimum_depth_margin: float = 0.25
     # Inherited from v1, named rather than inline.
     minimum_in_transit_cadences: int = 3
     minimum_out_of_transit_cadences: int = 10

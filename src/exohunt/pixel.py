@@ -467,17 +467,23 @@ def neighbour_transit_extraction(
         depth = _fold_depth(series, in_mask, out_mask)
         scatter = float(np.nanstd(series[out_mask]))
         baseline = float(np.nanmedian(series[out_mask]))
+        if depth is None:
+            depth_snr = None
+        elif scatter > 0:
+            depth_snr = (depth * baseline) / scatter
+        else:
+            # A perfectly flat baseline has no noise to measure against. That
+            # only happens in synthetic data, but treating it as "no
+            # significance" would make the noiseless case -- the one where the
+            # answer is certain -- the one the gate rejects.
+            depth_snr = float("inf") if depth > 0 else float("-inf")
         measured.append(
             {
                 "identifier": candidate.get("identifier"),
                 "row": float(row),
                 "column": float(column),
                 "depth": depth,
-                "depth_snr": (
-                    (depth * baseline) / scatter
-                    if depth is not None and scatter > 0
-                    else None
-                ),
+                "depth_snr": depth_snr,
                 "is_target": bool(candidate.get("is_target", False)),
             }
         )
@@ -487,22 +493,79 @@ def neighbour_transit_extraction(
         key=lambda item: (item["depth"] is None, -(item["depth"] or 0.0)),
     )
     target = next((item for item in ranked if item["is_target"]), None)
-    best = ranked[0] if ranked else None
-    reassigned = bool(
-        best is not None
-        and target is not None
-        and not best["is_target"]
-        and best["depth"] is not None
-        and target["depth"] is not None
-        and best["depth"] > target["depth"]
+
+    # Only counterparts TESS can actually separate may be compared. Two
+    # apertures of radius r whose centres are less than 2r apart share most of
+    # their pixels, so "which is deeper" is decided by noise. At 21 arcsec per
+    # pixel most Gaia counterparts fall inside a single pixel, and for those
+    # the honest verdict is that this test does not apply -- not that the
+    # target won it.
+    minimum_separation = (
+        settings.neighbour_minimum_separation_apertures * radius_pixels
     )
+    resolvable: list[dict[str, object]] = []
+    if target is not None:
+        for item in ranked:
+            if item["is_target"]:
+                continue
+            separation = float(
+                np.hypot(
+                    item["row"] - target["row"], item["column"] - target["column"]
+                )
+            )
+            item["separation_pixels"] = separation
+            item["resolvable"] = separation >= minimum_separation
+            if item["resolvable"]:
+                resolvable.append(item)
+
+    best = resolvable[0] if resolvable else None
+    target_depth = (target or {}).get("depth")
+    reason = ""
+    verdict = "target_is_best_host"
+    if target is None:
+        verdict = "not_evaluable"
+        reason = "no target aperture was measured"
+    elif not resolvable:
+        verdict = "not_resolvable"
+        reason = (
+            f"no counterpart is at least {minimum_separation:.1f} pixels from "
+            "the target, so no independent aperture exists"
+        )
+    else:
+        snr = best.get("depth_snr")
+        depth = best.get("depth")
+        if depth is None or depth <= 0 or snr is None or snr < settings.neighbour_minimum_depth_snr:
+            verdict = "no_significant_neighbour_depth"
+            reason = (
+                "the best resolvable counterpart shows no significant dimming, "
+                "so there is nothing to reassign"
+            )
+        elif target_depth is None or target_depth <= 0:
+            verdict = "signal_belongs_to_neighbour"
+            reason = "the target shows no dimming while a resolvable neighbour does"
+        else:
+            margin = (depth - target_depth) / depth
+            if margin >= settings.neighbour_minimum_depth_margin:
+                verdict = "signal_belongs_to_neighbour"
+                reason = f"neighbour is deeper by {margin:.0%} of its own depth"
+            else:
+                reason = (
+                    "no resolvable neighbour is deeper than the target by more "
+                    "than the margin"
+                )
+
     return {
         "candidates": ranked,
-        "best_host": best["identifier"] if best else None,
-        "target_depth": target["depth"] if target else None,
-        "verdict": (
-            "signal_belongs_to_neighbour" if reassigned else "target_is_best_host"
+        "resolvable_counterparts": len(resolvable),
+        "minimum_separation_pixels": minimum_separation,
+        "best_host": (
+            best["identifier"]
+            if best is not None and verdict == "signal_belongs_to_neighbour"
+            else (target["identifier"] if target else None)
         ),
+        "target_depth": target_depth,
+        "verdict": verdict,
+        "reason": reason,
         "policy_version": settings.policy_version,
     }
 
