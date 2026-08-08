@@ -190,44 +190,52 @@ python scripts/run_p3_calibration.py \
 exists but marks the output diagnostic-only, which is circular when the whole
 purpose is a surface that lets the campaign leave diagnostic status.
 
-## Owner's proposal: a survey-wide known-planet recovery rate
+## The known-planet rediscovery test — BUILT AND RUN
 
-The owner asked whether the pipeline could scan all known exoplanet hosts and
-measure what percentage it independently recreates as candidates, labelling
-those rediscoveries. **It is not already done, it is the right instrument for
-the current blocker, and it is far cheaper than the injection calibration.**
-Correction 59 has the evidence; the short version:
+The owner asked whether the pipeline could scan known exoplanet hosts and
+measure what percentage it independently recreates. It is now built
+(`scripts/build_p5_known_planet_recovery.py`,
+`scripts/measure_known_planet_recovery.py`) and run. **Headline: the pipeline
+blind-recovers 83.6% of known transiting planets on SPOC photometry.**
 
-- The survey has **already searched 473 confirmed transiting hosts** and 2,220
-  TOI hosts, but **476 of 478 had the known signal masked before the search**.
-  Recovery is therefore unmeasurable from any existing artifact — verified, not
-  assumed.
-- `results/p3/known_planets_v8/` (20/20) is a curated regression guard, not a
-  rate. A hand-picked passing set cannot estimate completeness.
-- `build_p3_known_planets.py` will not scale: against the 82,339-file offline
-  cache with `--limit 1500` it resolved **4** usable SPOC controls, because it
-  demands pre-resolved SPOC sectors.
+| | SPOC | TESScut |
+|---|---:|---:|
+| planets scored | 323 | 48 |
+| blind period recovery | **83.6%** | **64.6%** |
+| full recovery (period + depth) | 79.9% | 52.1% |
+| errors | 0 | 0 |
 
-**Why it beats injection–recovery for the §6.1 kill criterion:** real planets
-carry real variability, dilution and systematics; injected boxes do not, so
-§5.1 can report healthy completeness while real planets are still missed. And
-it is **one search per star** — campaign-rate, so a few thousand hosts is an
-overnight job rather than the calibration's week.
+`results/p5/known_recovery_spoc/`, `results/p5/known_recovery_tesscut/`.
+Corrections 62–65 carry the detail. What matters most:
 
-**What it needs built:** a cohort builder that takes `nasa_ps` rows with
-`tran_flag=1` (3,602 hosts with a TIC) plus ephemeris columns, resolves TESS
-sector coverage without demanding SPOC 2-minute data, and emits the standard
-target-list schema — *including* `stellar_radius_solar` and
-`stellar_mass_solar`, per correction 57. Then run it unmasked (the mode exists;
-"this is an unmasked recovery-only scan" appears 445 times in the metrics) and
-score fitted period against the catalogued period with alias tolerance.
+- **Triage rejected 0 of 258 correctly-recovered planets.** The veto stack has
+  no measured false-kill rate on real planets, so the P5 cohort's 952
+  rejections are unlikely to hide found-then-discarded planets. Losses are in
+  the *search*.
+- **Recovery is depth-limited, not brightness-limited** — 0.36 below 250 ppm
+  rising to 0.95 at 5–10k ppm, but nearly flat against Tmag from 5 to 16.
+- **14 of the 53 period misses had the true period among the five recorded BLS
+  peaks and were not selected** — near-ties resolved the wrong way, fixable
+  without new photometry. The fix lives in the detection kernel, which
+  decision 4 freezes, so it is an owner call.
+- **TESScut is ~28 points worse and cannot be pixel-vetted** (correction 65 +
+  60). That is the half of lane 6.1 the lane is deliberately aimed at.
 
-**Do not fold its output into survey candidate counts.** It runs unmasked by
-design, so every "detection" is a known object.
+**Do not quote 83.6% as the survey's completeness.** The catalogue is dominated
+by large planets; this is completeness for deep signals. Correction 61's 20%
+promotion completeness on faint M dwarfs is the same pipeline at shallow depth,
+and the two agree once conditioned on depth.
 
-**Separate finding, worth its own look:** ~11% mask leakage. 54 of those 478
-hosts still show a strongest *residual* signal matching the catalogued period
-within 1% (allowing 1:2, 2:1, 1:3, 3:1) despite masking.
+**Not yet done:** the cohort is the 371 known hosts the survey had already
+searched, so sectors were known and photometry cached. Extending to the full
+3,571 known transiting hosts needs sector resolution for new stars —
+`build_p3_known_planets.py` will not do it (it resolved 4 usable controls
+against the 82,339-file offline cache because it demands pre-resolved SPOC
+sectors). `make-targets` resolves sectors via MAST at ~2 queries per star.
+
+**Separate finding, worth its own look:** ~11% mask leakage. 54 of 478
+already-searched hosts still show a strongest *residual* signal matching the
+catalogued period within 1% (allowing 1:2, 2:1, 1:3, 3:1) despite masking.
 
 ## Still open — owner's, not to be settled unilaterally
 
