@@ -1943,6 +1943,37 @@ the current stack can settle.
     not from the periodogram. That is its own finding and is not what the
     rediscovery question is asking.
 
+60. **Lane 6.1's primary contamination test cannot run on lane 6.1's
+    candidates.** `pixel-vet` was pointed at the lane's one survivor, TIC
+    298732908, across sectors 14/15/16. All three failed. Two returned transport
+    errors and looked like the throttling correction 48 warns about; the third
+    returned "No SPOC target-pixel file found ... in Sector 16".
+
+    The third message is the true one. The campaign's own archive search for
+    this star recorded `authors_considered: SPOC 0 products, TESS-SPOC 0
+    products, QLP 3 products` — its photometry is **QLP-only**. There is no SPOC
+    target-pixel file to fetch in any sector, so pixel vetting as invoked could
+    never have succeeded, connection health notwithstanding. The transport
+    errors were a red herring that would have supported the wrong diagnosis.
+
+    **This is structural, not incidental.** Of the 953 searched stars in the
+    cohort, **447 resolved to QLP** and 41 to TESS-SPOC; only 465 had SPOC.
+    §6.1's whole rationale is to target stars where "QLP's *searched* sample
+    historically thins out and TESS-SPOC's FFI target list is selective" — which
+    is to say, precisely the stars least likely to carry SPOC products. **The
+    lane is designed to produce candidates that the pixel stage, as currently
+    invoked, cannot vet.** In P4 pixel vetting was the test that caught TIC
+    76804724 sitting 4.31 px off target at 16.9σ; for roughly half of this
+    lane's cohort that test is simply unavailable by default.
+
+    The fix is likely `pixel-vet --author TESScut`, since TESScut generates
+    cutouts from the FFIs for any target and the campaign already models a
+    `author_fallback_to_tesscut` path. **Not verified** — MAST returned two
+    dropped connections during this attempt and further pixel traffic was
+    deferred rather than retried against a service that had just disconnected
+    twice. Verifying it is the first pixel-lane action for the next session, and
+    §4.5's contamination requirement for this lane depends on the answer.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
