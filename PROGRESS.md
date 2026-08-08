@@ -2039,6 +2039,58 @@ the current stack can settle.
     data). `release_gate_passes: false` is therefore expected at n=4 and is not
     evidence against the pipeline.
 
+62. **The pipeline blind-recovers 83.6% of known transiting planets, measured
+    on 323 of them.** The first survey-wide rediscovery test
+    (`scripts/measure_known_planet_recovery.py`,
+    `results/p5/known_recovery_spoc/`). The search is genuinely blind: the
+    target planet is removed from the catalog so the shipping mask cannot hide
+    it, sibling ephemerides stay maskable, and the strongest peak of a normal
+    production search is compared against the catalogued period.
+
+    | | |
+    |---|---:|
+    | scored | 323 |
+    | **blind period recovery** (`exact` + `harmonic_alias`) | **270 = 83.6%** |
+    | **full recovery** (period + depth within 50%) | **258 = 79.9%** |
+    | errors | 0 |
+
+    Recovery is strongly depth-dependent and that is the finding that matters:
+
+    | depth (ppm) | 0–250 | 250–500 | 500–1k | 1k–2.5k | 2.5k–5k | 5k–10k | >10k |
+    |---|---:|---:|---:|---:|---:|---:|---:|
+    | rate | 0.36 | 0.72 | 0.58 | 0.71 | 0.86 | **0.95** | **0.90** |
+
+    Against Tmag it is nearly flat (0.62–0.89 from Tmag 5 to 16), so **depth,
+    not brightness, is what the pipeline is limited by.**
+
+    **This reconciles with correction 61 rather than contradicting it.** That
+    entry measured 20% promotion completeness by injection on faint P5 M dwarfs
+    at 0.5–8× the photon-noise depth; this entry measures 83.6% on known
+    planets whose median depth is 5,246 ppm with 100 of 323 above 10,000 ppm.
+    Conditioned on depth the two agree: deep transits are recovered reliably,
+    shallow ones are not. The known-planet cohort is dominated by large planets
+    because that is what the catalogue contains, so **its high rate must not be
+    quoted as the survey's completeness** — it is the completeness for bright,
+    deep signals.
+
+    **Scoring caveat, recorded because it nearly shipped wrong.** The first run
+    of this measurement reported **100%** period recovery. It scored
+    `period_relation`, which is a descriptive nearest-relation label populated
+    even on failures — `("miss", "one-third-period alias")` occurs 29 times and
+    `("miss", "exact")` 9 times. The pipeline gates on `period_status`
+    (`exact`/`harmonic_alias`), and scoring that gives 83.6%. A perfect score
+    across 323 trials was the tell; nothing else about the run looked wrong.
+
+    **Scope:** SPOC only, 323 of the 371-planet cohort; the 48 TESScut targets
+    are unrun. The cohort is already restricted to in-principle recoverable
+    planets — period inside the search range and at least 3 transits fitting
+    the real observed baseline — with 101 exclusions listed in
+    `targets/p5_known_planet_recovery_excluded.csv`. Rows whose depth was
+    derived from `pl_rade`/`st_rad` rather than catalogued also show lower
+    *period* recovery (0.80 vs 0.89), which depth arithmetic cannot cause, so
+    that split reflects a genuinely harder population rather than a defect in
+    the derivation.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was

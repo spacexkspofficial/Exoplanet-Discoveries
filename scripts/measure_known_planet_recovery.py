@@ -212,9 +212,14 @@ def run(args: argparse.Namespace) -> int:
     # impact parameter and is easily wrong by tens of percent -- so a depth
     # miss can be an artifact of the expected value rather than a pipeline
     # failure. Period recovery does not depend on that estimate at all.
+    # Score on `period_status`, which is what the pipeline itself gates on
+    # (calibration.py: status in {exact, harmonic_alias}). NOT `period_relation`
+    # -- that is a descriptive nearest-relation label and is populated even on a
+    # miss, so ("miss", "one-third-period alias") and even ("miss", "exact")
+    # both occur. Scoring the relation field reports 100% recovery on a cohort
+    # whose true rate is 83.6%.
     def _period_ok(r: dict[str, object]) -> bool:
-        rel = str(r.get("period_relation") or "").strip().lower()
-        return bool(rel) and rel not in {"none", "no_match", "unmatched", "mismatch"}
+        return str(r.get("period_status") or "").strip() in {"exact", "harmonic_alias"}
 
     period_recovered = sum(1 for r in results if _period_ok(r))
     by_provenance: dict[str, dict[str, object]] = {}
@@ -256,8 +261,10 @@ def run(args: argparse.Namespace) -> int:
                 f"({CURRENT_CONFIG.calibration.known_depth_tolerance_fraction})"
             ),
             "period_recovery_rate": (
-                "right period, ignoring depth. Prefer this where the expected "
-                "depth was derived rather than catalogued."
+                "blind-search period matches the catalogued period, scored on "
+                "period_status in {exact, harmonic_alias}, ignoring depth. "
+                "Prefer this where the expected depth was derived rather than "
+                "catalogued."
             ),
         },
         "by_depth_provenance": by_provenance,
