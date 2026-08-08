@@ -2091,6 +2091,46 @@ the current stack can settle.
     that split reflects a genuinely harder population rather than a defect in
     the derivation.
 
+63. **Every known-planet recovery failure is a search failure, not a vetting
+    failure — and the search fails by locking onto unrelated short periods.**
+    Decomposing correction 62's 323 trials:
+
+    | failure mode | count |
+    |---|---:|
+    | recovered | 258 |
+    | **period miss** | **53** |
+    | period right, depth outside the 50% tolerance | 12 |
+    | **production triage rejected a correctly recovered planet** | **0** |
+
+    **Zero.** The veto stack never killed a real planet it had found. Whatever
+    is wrong with this pipeline's yield, it is not that the screen is too
+    aggressive — which also means the P5 cohort's 952 rejections are unlikely to
+    be hiding many found-then-discarded planets. The losses are upstream.
+
+    Misses concentrate at shallow depth: median depth of a miss **873 ppm**
+    against a cohort median of **4,594 ppm**. By band, recovery runs 0.36 below
+    250 ppm to 0.95 in the 5–10k ppm band.
+
+    **The alias reading is wrong and worth recording as such.** The results
+    label 29 misses "one-third-period alias", 8 "double-period alias", and so
+    on, which invites the conclusion that the pipeline is losing planets to
+    harmonic confusion. Tested against a ratio ladder
+    (1/4, 1/3, 1/2, 2/3, 1, 1.5, 2, 3, 4, 5, 6), **only 2 of 53 misses sit
+    within 2% of any low-order ratio.** The other 51 are at periods unrelated to
+    the truth, and 37 of 53 are *shorter* than the truth. `period_relation` is
+    the nearest rung of a limited ladder, not a claim that the recovered period
+    is that harmonic — reading it as a diagnosis would have blamed alias
+    adjudication for a problem it does not have.
+
+    **The actual mechanism matches the P5 cohort exactly.** When the transit is
+    too shallow to dominate the periodogram, the search locks onto unrelated
+    short-period structure. In the P5 first pass, 83% of rejections were "the
+    best-fit period or duration is pinned to a search-grid rail", overwhelmingly
+    at sub-day periods with duty cycles above 15%. Two independent cohorts —
+    real known planets and a blind faint-M-dwarf survey — show the same
+    pathology. **That, not the vetting stack, is where sensitivity is being
+    lost, and it is where work would buy the most yield.**
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
