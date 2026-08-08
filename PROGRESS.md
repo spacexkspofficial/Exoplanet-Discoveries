@@ -1878,6 +1878,71 @@ the current stack can settle.
     per-check evaluability alongside the verdict, so a screen that quietly lost
     a third of its physical tests cannot present as a screen that ran.
 
+58. **§5.1's cost estimate is low by roughly an order of magnitude, and the
+    per-star cost varies more than 14× within one cohort.** §5.1 prices
+    injection–recovery at "≈ 20 extra searches on 5% of stars ⇒ ~1× the cohort's
+    base search cost". The configured reality is **43 searches per sampled star**
+    (20 random-phase + 20 edge injections, plus baseline, inverted and
+    scrambled), and the sample is the union of the 5% random draw and 50
+    archetypes — 94 stars for the 1,000-star P5 cohort. Total budget **6,760
+    searches**, confirmed by the driver's own `expected_searches: 172` for a
+    4-star smoke.
+
+    The deeper problem is per-search cost. A campaign search runs at 7.6 s
+    (correction 55). An injection search re-detrends, because §5.1 requires
+    injection into the *pre-detrending* flux so completeness includes detrending
+    erosion. Measured on a 4-star smoke:
+
+    | star | 43 searches took |
+    |---|---:|
+    | TIC 441807873 | 10.7 min |
+    | TIC 275691658 | 6.3 min |
+    | TIC 233086272 | **>95 min, unfinished** |
+    | TIC 341816210 | **>95 min, unfinished** |
+
+    Aggregate rate fell monotonically as the run went on — 85 → 84 → 53 → 49
+    searches/hour — because the two cheap stars finished first and the estimate
+    had been anchored on them. At 49/hour the full cohort's 6,760 searches is
+    **138 hours**. An estimate of ~14 h was quoted to the owner before this was
+    measured; it assumed the campaign's per-search cost and was wrong.
+
+    **Recorded before acting on it.** The full calibration was approved on the
+    14 h figure and has deliberately *not* been launched on the corrected one:
+    a week of machine time is a different decision from an overnight run, and
+    the owner made the first decision, not the second.
+
+59. **Known-planet recovery cannot be measured from anything the survey has
+    already run, and the reason is by design.** The survey has already searched
+    **473 confirmed transiting-planet hosts** (and 2,220 TOI hosts). Their
+    ledger statuses look alarming at first read — 307 `screened_rejected`, 49
+    `no_transit_detected`, only 25 `automated_survivor`.
+
+    That reading is wrong. Of the 478 such hosts with a residual report on disk,
+    **476 (99.6%) had the known signal masked before the search ran**. The
+    pipeline identified the catalogued planet, removed it, searched for
+    *additional* signals, and correctly found none worth promoting. The status
+    distribution measures "what else is on known hosts", not recovery.
+
+    So a rediscovery rate — what fraction of known transiting planets this
+    pipeline would independently recover — **is unmeasured, and no existing
+    artifact can supply it.** `results/p3/known_planets_v8/` is 20 curated stars
+    at 20/20, which is a regression guard against breakage, not a completeness
+    measurement; a hand-picked set that passes by construction cannot estimate a
+    rate. `build_p3_known_planets.py` does not scale to the question: pointed at
+    the 82,339-file offline archive cache with `--limit 1500` it resolved **4**
+    suitable SPOC controls, because it requires pre-resolved SPOC sectors.
+
+    Measuring it needs unmasked runs over a large known-host cohort — one search
+    per star, so campaign-rate rather than injection-rate. It would answer
+    §6.1's "completeness is healthy" clause with *real* signals carrying real
+    variability, dilution and systematics, which injected boxes do not.
+
+    **Recorded separately: mask leakage of ~11%.** 54 of those 478 stars have a
+    strongest *residual* signal still matching the catalogued period within 1%
+    (allowing 1:2, 2:1, 1:3, 3:1). Masking removed the signal from promotion but
+    not from the periodogram. That is its own finding and is not what the
+    rediscovery question is asking.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was

@@ -143,10 +143,22 @@ already implements §5.1 exactly (`random_sample_fraction=0.05`,
 
 Pre-flight on the **repaired** cohort: **94 sampled stars, 3,760 injection
 searches** (the archetype sample changed once radius became a real feature —
-it had been null for every star). Plus the driver's own baseline and the
-inverted/scrambled nulls. Estimate several hours; measure it rather than trust
-the estimate, and note §5.1's "~1× the cohort's base search cost" prose
-underestimates the configured budget by roughly 4×.
+it had been null for every star), plus baseline/inverted/scrambled on all
+1,000. Total **6,760 searches**.
+
+**It has not been launched, and the reason is correction 58.** A 4-star smoke
+measured the real cost: two stars took 10.7 and 6.3 minutes for their 43
+searches each, and two took **over 95 minutes and had not finished**. The
+aggregate rate fell 85 → 49 searches/hour as the cheap stars finished first. At
+that rate the full run is **~138 hours**, not the ~14 h estimated from the
+campaign's per-search cost. An injection search re-detrends — that is §5.1's
+requirement, not a defect — so it is nothing like a campaign search.
+
+**This needs an owner decision before it runs**, because a week of machine time
+is a different commitment from an overnight job. Options: accept it; drop the
+1,000-star nulls (3,000 of the 6,760 searches) and keep only the injection
+sample; shrink the sample; or investigate why ~half the stars are >14× more
+expensive, which is unexplained and may itself be a defect worth fixing first.
 
 ```
 python scripts/run_p3_calibration.py \
@@ -159,6 +171,45 @@ python scripts/run_p3_calibration.py \
 **It requires a clean worktree** (`require_clean_repository`). `--allow-dirty`
 exists but marks the output diagnostic-only, which is circular when the whole
 purpose is a surface that lets the campaign leave diagnostic status.
+
+## Owner's proposal: a survey-wide known-planet recovery rate
+
+The owner asked whether the pipeline could scan all known exoplanet hosts and
+measure what percentage it independently recreates as candidates, labelling
+those rediscoveries. **It is not already done, it is the right instrument for
+the current blocker, and it is far cheaper than the injection calibration.**
+Correction 59 has the evidence; the short version:
+
+- The survey has **already searched 473 confirmed transiting hosts** and 2,220
+  TOI hosts, but **476 of 478 had the known signal masked before the search**.
+  Recovery is therefore unmeasurable from any existing artifact — verified, not
+  assumed.
+- `results/p3/known_planets_v8/` (20/20) is a curated regression guard, not a
+  rate. A hand-picked passing set cannot estimate completeness.
+- `build_p3_known_planets.py` will not scale: against the 82,339-file offline
+  cache with `--limit 1500` it resolved **4** usable SPOC controls, because it
+  demands pre-resolved SPOC sectors.
+
+**Why it beats injection–recovery for the §6.1 kill criterion:** real planets
+carry real variability, dilution and systematics; injected boxes do not, so
+§5.1 can report healthy completeness while real planets are still missed. And
+it is **one search per star** — campaign-rate, so a few thousand hosts is an
+overnight job rather than the calibration's week.
+
+**What it needs built:** a cohort builder that takes `nasa_ps` rows with
+`tran_flag=1` (3,602 hosts with a TIC) plus ephemeris columns, resolves TESS
+sector coverage without demanding SPOC 2-minute data, and emits the standard
+target-list schema — *including* `stellar_radius_solar` and
+`stellar_mass_solar`, per correction 57. Then run it unmasked (the mode exists;
+"this is an unmasked recovery-only scan" appears 445 times in the metrics) and
+score fitted period against the catalogued period with alias tolerance.
+
+**Do not fold its output into survey candidate counts.** It runs unmasked by
+design, so every "detection" is a known object.
+
+**Separate finding, worth its own look:** ~11% mask leakage. 54 of those 478
+hosts still show a strongest *residual* signal matching the catalogued period
+within 1% (allowing 1:2, 2:1, 1:3, 3:1) despite masking.
 
 ## Still open — owner's, not to be settled unilaterally
 
