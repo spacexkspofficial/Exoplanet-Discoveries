@@ -2274,6 +2274,64 @@ the current stack can settle.
     Supersedes correction 61's numbers. Final figures land when the calibration
     completes.
 
+67. **Correction 62's "depth-limited, not brightness-limited" is wrong.
+    Recovery is limited by depth and brightness jointly, and the flat-in-Tmag
+    reading was an artifact of a deep-dominated cohort.** Extending the
+    known-planet cohort into the 250–2,500 ppm band (200 new hosts, sectors
+    resolved from MAST, `results/p5/known_recovery_shallow/`) gives **33/200 =
+    16.5% full recovery** against 79.8% on the original deep-heavy sample. And
+    inside that shallow band, brightness is decisive:
+
+    | Tmag | 5–8 | 8–9 | 9–10 | 10–11 | 11–12 | 12–13 | 13–16 |
+    |---|---:|---:|---:|---:|---:|---:|---:|
+    | recovery | 0.75 | 0.63 | 0.57 | 0.64 | 0.23 | 0.12 | **0.009** |
+
+    One of 108 shallow planets fainter than Tmag 13 was recovered. Correction 62
+    reported recovery as nearly flat from Tmag 5 to 16, which was true *of that
+    cohort* — median depth 5,246 ppm, where brightness genuinely does not
+    matter. Marginalising over a sample whose depth distribution correlates with
+    the variable under test inverted the conclusion. A textbook aggregation
+    error, and it survived because the flat result looked physically tidy.
+
+    **The joint surface, 589 scored planets across all three runs:**
+
+    | depth ppm | Tmag 0–10 | 10–11.5 | 11.5–13 | 13+ |
+    |---|---:|---:|---:|---:|
+    | 0–500 | 0.58 | 0.33 | 0.00 | 0.00 |
+    | 500–1,000 | 0.56 | 0.61 | 0.06 | 0.00 |
+    | 1,000–2,500 | 0.76 | 0.68 | 0.42 | 0.03 |
+    | 2,500–5,000 | 0.88 | 0.85 | 0.78 | (2/3) |
+    | 5,000+ | 0.89 | 0.93 | 0.93 | 0.75 |
+
+    Recovery survives an unfavourable value of either variable and collapses
+    only when both are unfavourable. **This is the surface that should be quoted
+    for this pipeline**, not the marginal-in-depth or marginal-in-Tmag versions.
+
+    **What it says about lane 6.1, with a caveat that matters.** In the lane's
+    own magnitude window (Tmag 12.5–13.6, 80 known planets):
+
+    | depth | recovered |
+    |---|---:|
+    | <1,000 ppm | 1/18 |
+    | 1,000–3,000 ppm | 3/19 |
+    | 3,000–5,000 ppm | **3/3** |
+    | 5,000+ ppm | **33/40** |
+
+    §6.1's rationale predicts "a 2 R⊕ planet on an M4 dwarf is a ~0.3–0.5%
+    event" — 3,000–5,000 ppm — and in that band at those magnitudes the pipeline
+    recovers what it is shown. **The lane's stated target regime is not the
+    regime where this pipeline fails.**
+
+    **But do not read that as vindication.** These 80 are known hosts that
+    happen to be faint, not faint M dwarfs; a 5,000 ppm transit on a faint
+    solar-type star is a giant planet with different noise properties from a
+    2 R⊕ planet on an M4 dwarf. The injection surface (correction 66), which
+    *is* measured on the actual P5 M-dwarf cohort, gives 8% promotion
+    completeness. Both are true: the pipeline handles deep transits on faint
+    stars, and it recovers little of what is injected into these particular
+    faint M dwarfs. Reconciling those two is the next real question, and the
+    3/3 cell is three planets.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
