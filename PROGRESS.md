@@ -1897,19 +1897,29 @@ the current stack can settle.
     |---|---:|
     | TIC 441807873 | 10.7 min |
     | TIC 275691658 | 6.3 min |
-    | TIC 233086272 | **>95 min, unfinished** |
-    | TIC 341816210 | **>95 min, unfinished** |
+    | TIC 233086272 | ~96 min |
+    | TIC 341816210 | ~104 min |
 
-    Aggregate rate fell monotonically as the run went on — 85 → 84 → 53 → 49
-    searches/hour — because the two cheap stars finished first and the estimate
-    had been anchored on them. At 49/hour the full cohort's 6,760 searches is
-    **138 hours**. An estimate of ~14 h was quoted to the owner before this was
-    measured; it assumed the campaign's per-search cost and was wrong.
+    A **16× spread across four randomly-ordered stars of one cohort**, and the
+    cause is unexplained. It is the largest single uncertainty in sizing the
+    full run and may itself be a defect worth finding before paying for it.
 
-    **Recorded before acting on it.** The full calibration was approved on the
-    14 h figure and has deliberately *not* been launched on the corrected one:
-    a week of machine time is a different decision from an overnight run, and
-    the owner made the first decision, not the second.
+    **This entry was first written with a wrong number, and the way it went
+    wrong is the point.** Mid-run, with the two expensive stars still in flight,
+    the aggregate rate read 85 → 84 → 53 → 49 searches/hour and 138 hours was
+    quoted from the 49. The run then finished both stars and settled at **172
+    searches in 120.7 minutes = 85.5 searches/hour**, giving roughly **20–80
+    hours** depending on how 4-worker concurrency holds across a cost
+    distribution sampled at n=4. So the sequence was: an estimate of ~14 h from
+    the campaign's per-search cost (wrong, too low), then 138 h from a
+    decaying mid-run rate (wrong, too high), then 85.5/hour measured at
+    completion. **Correction 55 was about quoting a rate before it converged,
+    and this entry did it again, one day later, in the entry recording it.**
+
+    **Not launched.** The full calibration was approved on the 14 h figure. It
+    has deliberately not been started on any of the later ones: the owner made a
+    decision about an overnight job, and this is not that, whichever number is
+    right.
 
 59. **Known-planet recovery cannot be measured from anything the survey has
     already run, and the reason is by design.** The survey has already searched
@@ -1973,6 +1983,61 @@ the current stack can settle.
     deferred rather than retried against a service that had just disconnected
     twice. Verifying it is the first pixel-lane action for the next session, and
     §4.5's contamination requirement for this lane depends on the answer.
+
+61. **The lane's first completeness surface exists, and it says the low yield
+    is a sensitivity result, not evidence that the niche is thin.** The 4-star
+    calibration smoke completed 160 injections with 0 errors
+    (`results/p5/calibration_smoke/calibration_summary.json`):
+
+    | measure | value |
+    |---|---:|
+    | random-phase completeness | 0.350 |
+    | edge completeness | 0.363 |
+    | **random-phase promotion completeness** | **0.200** |
+    | edge promotion completeness | 0.175 |
+
+    The surface, recovery fraction by injected period and depth in units of the
+    star's own 3 h photon-noise depth:
+
+    | period | 0.5× | 1× | 2× | 4× | 8× |
+    |---|---:|---:|---:|---:|---:|
+    | 0.50 d | 0.00 | 0.00 | 1.00 | 1.00 | 1.00 |
+    | 1.26 d | 0.00 | 0.00 | 0.50 | 1.00 | 1.00 |
+    | 3.16 d | 0.00 | 0.00 | 0.00 | 1.00 | 1.00 |
+    | 7.95 d | 0.00 | 0.00 | 0.00 | **0.00** | 1.00 |
+    | 20.0 d | 0.00 | 0.00 | 0.00 | 0.00 | 0.60 |
+
+    **Completeness collapses with period.** At 0.5 d a 2× transit is always
+    recovered; by 8 d a 4× transit is recovered *never*, and at 20 d only an 8×
+    depth gets to 60%. The lane's one survivor sits at P = 14.7 d — inside the
+    region where this surface says the pipeline recovers almost nothing.
+
+    **This resolves the reading of the first pass (correction 55's cohort).**
+    §6.1 predicts 0.3–0.8% of stars show a detectable transiter, and that
+    prediction explicitly *assumes* "detectable fraction at our completeness (to
+    be measured, assume 30–60% for R > 2 R⊕)". Measured promotion completeness
+    is **20%**, below the assumed band. Rescaling the prediction by the measured
+    fraction brings it to roughly 0.1–0.5%, which brackets the observed
+    **0.10%**. The shortfall the first pass appeared to show against §6.1 is
+    largely explained by sensitivity, so **the kill criterion's "completeness is
+    healthy" clause currently reads false, and a null result cannot be used to
+    call the niche thin.** On this evidence the lane should not be killed.
+
+    **Provisional, and the caveats are load-bearing:** n = 4 stars, 160
+    injections, several surface cells resting on 1–2 trials, and the same 4
+    stars whose cost varied 16× (correction 58) — so they are not a
+    representative draw either. Correction 56 is the standing warning against
+    reading a population off a 4-row head-of-list slice. This needs the full
+    94-star sample before it is quoted as the lane's completeness.
+
+    **Gate status is a small-sample artifact, not a failure.**
+    `inverted_survivor_rate` 0.0 ≤ 0.001 ✓, `scrambled_survivor_rate` 0.0 ≤
+    0.001 ✓, `median_recovered_depth_bias` 0.038 ≤ 0.05 ✓ over 57 recoveries,
+    `edge_recovery_gap` −0.0125 ≤ 0.03 ✓. The two failures are
+    `t3_pass_rate` = 0.0 against a floor of 0.002 (4 baseline stars cannot
+    produce a rate above zero) and `epoch_enrichment` = null (insufficient
+    data). `release_gate_passes: false` is therefore expected at n=4 and is not
+    evidence against the pipeline.
 
 ## Decisions taken at the P4 close (2026-08-07)
 
