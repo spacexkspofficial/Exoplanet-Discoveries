@@ -2212,6 +2212,68 @@ the current stack can settle.
     cannot affect *period* recovery. The same split on SPOC is much milder
     (89.4% vs 80.5%).
 
+66. **Correction 61's completeness numbers were roughly double the truth, and
+    the corrected figures make lane 6.1 unambiguously sensitivity-limited.**
+    That entry measured 4 stars / 160 injections and flagged itself provisional.
+    The running full calibration has now finished **77 of the 94 sampled stars
+    — 3,080 injections, 82% of the injection sample**, so these are near-final
+    rather than an early slice (the driver deliberately orders injection stars
+    first).
+
+    | | correction 61 (n=4) | now (n=77) |
+    |---|---:|---:|
+    | raw completeness, random phase | 0.350 | **0.183** |
+    | **promotion completeness** | **0.200** | **0.080** |
+    | period recovered | — | 0.213 |
+    | detection gate passes | — | 0.380 |
+
+    Random-phase and segment-edge agree closely (0.183 vs 0.182 raw; 0.080 vs
+    0.068 promotion), so edge erosion is not the driver.
+
+    Surface, recovery fraction by injected period and depth in units of the
+    star's own 3 h photon-noise depth:
+
+    | period | 0.5× | 1× | 2× | 4× | 8× |
+    |---|---:|---:|---:|---:|---:|
+    | 0.50 d | 0.06 | 0.01 | 0.36 | 0.50 | 0.52 |
+    | 1.26 d | 0.00 | 0.00 | 0.09 | 0.47 | 0.53 |
+    | 3.16 d | 0.00 | 0.00 | 0.00 | 0.40 | 0.60 |
+    | 7.95 d | 0.00 | 0.00 | 0.00 | 0.10 | 0.56 |
+    | 20.0 d | 0.00 | 0.00 | 0.00 | 0.02 | **0.28** |
+
+    Worse than the n=4 version everywhere it matters. **Even an 8× photon-noise
+    transit is recovered only about half the time**, where the 4-star surface
+    showed 1.00 across most of that column. Nothing at or below 1× is recovered
+    at any period.
+
+    **What this does to §6.1's arithmetic.** The lane predicts 0.3–0.8% of stars
+    show a detectable transiter *assuming* a detectable fraction of 30–60%.
+    Measured promotion completeness is **8.0%**, four to seven times below that
+    assumption. Rescaling gives **0.04–0.21%**, and the first pass observed
+    **0.10%** — squarely inside. The lane's apparent shortfall against its own
+    forecast is now almost entirely explained by sensitivity, and the kill
+    criterion's "completeness is healthy" clause reads **false** by a wider
+    margin than correction 61 suggested. A null result here still cannot be used
+    to call the niche thin.
+
+    **A second stage is costing more than the search.** Period recovery is
+    0.213 and raw recovery 0.183, so most correct detections survive; but
+    promotion completeness is 0.080, meaning **the vetting stack removes about
+    60% of what the search does recover.** That is not the false-kill behaviour
+    correction 63 measured on known planets (0 of 258) — those are deep signals,
+    median 5,246 ppm, while these injections run 0.5–8× the noise floor. The
+    screen is doing its job on marginal detections, but the yield cost at the
+    margin is large and was previously unmeasured.
+
+    Top rejection reasons among unrecovered injections: search-grid rail
+    pinning (1,904), duration inconsistent with catalog stellar density
+    (1,836), fewer than 60% of predicted events sampled (1,384). The rail
+    pinning is the same pathology as corrections 63 and 65 — a third
+    independent cohort showing it.
+
+    Supersedes correction 61's numbers. Final figures land when the calibration
+    completes.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
