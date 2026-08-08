@@ -2131,6 +2131,39 @@ the current stack can settle.
     pathology. **That, not the vetting stack, is where sensitivity is being
     lost, and it is where work would buy the most yield.**
 
+64. **A quarter of the lost planets were found and then not chosen.** Taking
+    correction 63's 53 period misses and asking whether the true period — or a
+    1:2, 2:1, 1:3 or 3:1 alias of it — appears among the five BLS peaks each
+    report records:
+
+    | | count |
+    |---|---:|
+    | present among the recorded peaks but **not selected** | **14** |
+    | not among the five recorded peaks | 39 |
+
+    rank 1 ×1, rank 2 ×3, rank 3 ×6, rank 4 ×3, rank 5 ×1.
+
+    Several are near-ties resolved the wrong way rather than weak detections:
+    `pi Men c` at rank 4 with relative power 0.9999999, `WASP-169 b` at rank 3
+    with 0.9999999, `TOI-1203 b` at rank 3 with 0.9999999. The periodogram had
+    the planet; the selection step took something else.
+
+    **So the ~16% period-miss rate decomposes into two different problems.**
+    About a quarter is peak *selection and refinement* — recoverable by
+    choosing better among candidates the search already produces, with no new
+    photometry and no change to sensitivity. The remaining three quarters are
+    absent from the recorded peaks, though only five are stored per report, so
+    "absent" means "not in the top five", not "not in the periodogram". Storing
+    a deeper peak list would sharpen that split, and is cheap.
+
+    **Caveat on the peak list itself.** `top_period_peaks` records the BLS grid
+    peaks while `strongest_residual_signal.period_days` is the refined fit, and
+    they can disagree materially — TOI-1130 b has a rank-1 peak at 8.1056 d
+    (0.53% from twice its 4.0746 d truth, inside the 1% tolerance) yet reports a
+    refined period of 7.688 d, 5.6% off, which is what makes it a miss. At least
+    one planet is therefore being lost *between* the grid and the refinement,
+    not at either end.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
