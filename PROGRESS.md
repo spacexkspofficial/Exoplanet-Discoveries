@@ -2164,6 +2164,54 @@ the current stack can settle.
     one planet is therefore being lost *between* the grid and the refinement,
     not at either end.
 
+65. **TESScut photometry recovers known planets far worse than SPOC, and it is
+    the half of lane 6.1 that also cannot be pixel-vetted.** The recovery cohort
+    split by product, same code, same period range, same scoring:
+
+    | | SPOC | TESScut |
+    |---|---:|---:|
+    | planets scored | 323 | 48 |
+    | **blind period recovery** | **83.6%** | **64.6%** |
+    | **full recovery** (period + depth) | **79.9%** | **52.1%** |
+    | recovered below 1,000 ppm | 48 / 81 | **0 / 6** |
+    | recovered above 10,000 ppm | 90% | 64% |
+
+    ~2.7σ on period recovery and ~3.9σ on full recovery — a real difference, not
+    small-sample noise, though the per-bin counts on the TESScut side are thin
+    and the depth bands below 1,000 ppm rest on 6 planets total.
+
+    TESScut is worse *even on deep transits*: 64% recovery above 10,000 ppm,
+    where SPOC manages 90%. So this is not only a faint-end effect — the
+    local-extraction photometry loses signal that the mission pipeline keeps.
+
+    **Combined with correction 60 this is a structural problem for the lane.**
+    §6.1 deliberately targets stars where "QLP's *searched* sample historically
+    thins out and TESS-SPOC's FFI target list is selective" — that is, stars
+    least likely to have SPOC products. In the P5 cohort **447 of 953 resolved
+    to QLP and 41 to TESS-SPOC against 465 SPOC**. For that non-SPOC half the
+    lane now carries two measured penalties at once:
+
+    1. **Recovery is ~28 points worse** (this entry), so real planets there are
+       likelier to be missed outright.
+    2. **Pixel vetting cannot run at all** (correction 60), so any survivor that
+       does appear cannot be cleared of contamination by the test that caught
+       TIC 76804724 at 4.31 px off target.
+
+    The lane is aimed precisely at the population where this pipeline is weakest
+    and least able to check itself. That is not an argument to abandon §6.1 —
+    the niche may still be real — but the yield arithmetic in §6.1 assumes a
+    detectable fraction that these measurements do not support for half the
+    cohort, and no version of that arithmetic currently accounts for the
+    vetting gap.
+
+    **Caveat on provenance.** Within TESScut, planets whose expected depth came
+    from the catalogue recover at 83.3% (period) against 45.8% for those whose
+    depth was derived from `pl_rade`/`st_rad`. The derived-depth group is
+    plausibly a genuinely harder population — smaller, less well characterised
+    planets — rather than an artifact of the derivation, since depth arithmetic
+    cannot affect *period* recovery. The same split on SPOC is much milder
+    (89.4% vs 80.5%).
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
