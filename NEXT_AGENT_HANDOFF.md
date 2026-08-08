@@ -115,9 +115,21 @@ measure what the revived vetoes actually caught.
 **Detection rate: 1/953 = 0.10%. §6.1 predicts 0.3–0.8%.** Three to eight times
 below the lane's own forecast.
 
-That number cannot be interpreted yet, and this is the substantive open
-question. §6.1's kill criterion is ">95% of detectable signals are
-rediscoveries **and** completeness is healthy". Both clauses fail to resolve:
+**The 4-star smoke has since given a provisional answer, and it argues against
+killing the lane** (correction 61). Measured promotion completeness is **20%**,
+below the 30–60% §6.1's yield arithmetic assumes. Rescaling the prediction by
+the measured fraction gives ~0.1–0.5%, which brackets the observed 0.10%. And
+the surface collapses with period — at 8 d a 4×-photon-noise transit is
+recovered **0%** of the time, at 20 d only 8× depth reaches 60%, and the one
+survivor sits at P = 14.7 d. So the shortfall is largely **sensitivity**, the
+"completeness is healthy" clause currently reads **false**, and a null result
+cannot be used to call the niche thin.
+
+Provisional on n = 4 stars with cells resting on 1–2 trials, and those same
+four had a 16× cost spread so they are not a representative draw (see
+correction 56 on exactly this trap). The running full calibration replaces it.
+
+The kill criterion's other clause still fails to resolve:
 
 1. **Underpowered.** §6.1's arithmetic gives 3–8 detections per 1,000 stars,
    and the measured catalogued fraction is ~1% (9 TOI hosts, 4 confirmed-planet
@@ -146,19 +158,25 @@ searches** (the archetype sample changed once radius became a real feature —
 it had been null for every star), plus baseline/inverted/scrambled on all
 1,000. Total **6,760 searches**.
 
-**It has not been launched, and the reason is correction 58.** A 4-star smoke
-measured the real cost: two stars took 10.7 and 6.3 minutes for their 43
-searches each, and two took **over 95 minutes and had not finished**. The
-aggregate rate fell 85 → 49 searches/hour as the cheap stars finished first. At
-that rate the full run is **~138 hours**, not the ~14 h estimated from the
-campaign's per-search cost. An injection search re-detrends — that is §5.1's
-requirement, not a defect — so it is nothing like a campaign search.
+**It is RUNNING** (`results/p5/calibration_ncvz_1000/`), launched after a
+4-star smoke validated the path end to end: 160 injections, **0 errors**, all
+gates computing, a real completeness surface produced.
 
-**This needs an owner decision before it runs**, because a week of machine time
-is a different commitment from an overnight job. Options: accept it; drop the
-1,000-star nulls (3,000 of the 6,760 searches) and keep only the injection
-sample; shrink the sample; or investigate why ~half the stars are >14× more
-expensive, which is unexplained and may itself be a defect worth fixing first.
+Cost, measured rather than estimated (correction 58): **172 searches in 120.7
+min = 85.5 searches/hour**, so the full 6,760 searches is roughly **20–80
+hours** depending on how 4-worker concurrency holds. Per-star cost varied
+**16×** across the four smoke stars (10.7, 6.3, ~96, ~104 min) for reasons that
+remain unexplained — that spread is the dominant uncertainty and may itself be
+a defect worth finding.
+
+It checkpoints (`p3_progress.json`) and can be stopped. If it needs shortening,
+the 1,000-star baseline/inverted/scrambled nulls are 3,000 of the 6,760
+searches and could be dropped separately from the 94-star injection sample.
+
+**Read `--author auto`, not `SPOC`.** The driver defaults to SPOC, but this
+cohort resolves to SPOC 465 / QLP 447 / TESS-SPOC 41. A SPOC-only calibration
+would measure completeness on half the sample and the brighter, 2-minute half
+at that — a surface systematically better than the lane's reality.
 
 ```
 python scripts/run_p3_calibration.py \
