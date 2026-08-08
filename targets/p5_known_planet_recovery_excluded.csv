@@ -1,102 +1,102 @@
-target,tic_id,planet,expected_period_days,expected_depth_ppm,tmag,source_rowupdate,purpose,sector,sectors,author,cadence_seconds,observed_baseline_days,expected_transits
-TIC 1167538,1167538,TOI-2447 b,69.33684,7663.72,10.01,derived_from_pl_rade_st_rad,excluded: period outside search range,98,98,SPOC,120,51.42,0.74
-TIC 7422496,7422496,HD 35843 c,46.9622,673.945,8.76,derived_from_pl_rade_st_rad,excluded: period outside search range,98,98,SPOC,120,50.9,1.08
-TIC 12822545,12822545,K2-54 b,9.7833,1390,13.04,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,96,96,SPOC,120,22.22,2.27
-TIC 24358417,24358417,TOI-2338 b,22.65398,9578.45,11.7,derived_from_pl_rade_st_rad,excluded: period outside search range,98,98,SPOC,120,50.55,2.23
-TIC 29781292,29781292,HD 28109 b,22.891054,301,8.939,catalog_pl_trandep,excluded: period outside search range,94,94,SPOC,120,21.93,0.96
-TIC 29857954,29857954,TOI-172 b,9.47725,3120,10.74,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.97,2.32
-TIC 33716474,33716474,TOI-4561 b,8.9354794,366.03,11.06,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.85,2.45
-TIC 34068865,34068865,GJ 367 b,0.3219226,218.004,8.032,derived_from_pl_rade_st_rad,excluded: period outside search range,99,99,SPOC,120,25.66,79.71
-TIC 52059926,52059926,TIC 52059926 b,175.532,22940,12.73,catalog_pl_trandep,excluded: period outside search range,95,95,SPOC,120,21.86,0.12
-TIC 53189332,53189332,WASP-106 b,9.28969,6204,10.99,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,22.81,2.46
-TIC 54002556,54002556,NGTS-11 b,35.45533,10182.9,11.62,derived_from_pl_rade_st_rad,excluded: period outside search range,97,97,SPOC,120,49.88,1.41
-TIC 55525572,55525572,TOI-813 b,83.8911,1005.5,9.847,derived_from_pl_rade_st_rad,excluded: period outside search range,95,95,SPOC,120,21.71,0.26
-TIC 55652896,55652896,TOI-216.02,17.16073,4750,11.57,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.52,1.25
-TIC 69747919,69747919,K2-167 b,9.978541,206,7.728,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,96,96,SPOC,120,22.23,2.23
-TIC 70513361,70513361,TOI-262 b,11.14529,484,8.134,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,105,105,TESScut,158,27,2.42
-TIC 73717937,73717937,HATS-17 b,16.254611,5356.34,11.75,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,23.27,1.43
-TIC 87422071,87422071,TIC 87422071 b,11.364929,4470,11.19,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,104,104,SPOC,120,23.34,2.05
-TIC 90850770,90850770,TOI-2207 b,8.001968,4273,10.97,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.84,2.73
-TIC 102840239,102840239,TOI-815 b,11.197259,1225.33,9.36,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,23.38,2.09
-TIC 118798035,118798035,TOI-7510 b,11.530869,4192.72,11.29,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,103,103,SPOC,120,22.23,1.93
-TIC 121490076,121490076,HIP 113103 b,7.610303,596,8.999,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.95,2.88
-TIC 124029677,124029677,TOI-5153 b,20.33003,6053.82,11.21,derived_from_pl_rade_st_rad,excluded: period outside search range,98,98,SPOC,120,50.47,2.48
-TIC 130924120,130924120,TOI-757 b,17.46819,863.44,9.05,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,101,101,SPOC,120,22.16,1.27
-TIC 136916387,136916387,HD 136352 b,11.57797,208,5.049,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,102,102,SPOC,120,22.23,1.92
-TIC 144193715,144193715,TOI-4308 b,9.151201,781.255,10.34,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,105,105,TESScut,158,26.78,2.93
-TIC 147027702,147027702,TIC 147027702 b,44.40523,2200,10.63,catalog_pl_trandep,excluded: period outside search range,100,100,SPOC,120,22.66,0.51
-TIC 147660886,147660886,TOI-2005 b,17.305904,2963.05,9.492,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,23.12,1.34
-TIC 149601126,149601126,TOI-2525 b,23.2856,10266.4,13.4,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.63,0.93
-TIC 149845414,149845414,TOI-2545 b,7.994037,404.705,8.906,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,99,99,SPOC,120,23.2,2.90
-TIC 150098860,150098860,TOI-220 b,10.695264,1048.22,9.688,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.66,2.02
-TIC 150151262,150151262,TOI-712 b,9.531361,768,9.906,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.79,2.29
-TIC 150428135,150428135,TOI-700 b,9.977219,396.159,10.91,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.62,2.17
-TIC 166184428,166184428,TOI-4336 A c,7.587266,1237.72,11.02,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,101,101,SPOC,120,22.15,2.92
-TIC 166739520,166739520,WASP-117 b,10.02165,8000,9.641,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,105,105,TESScut,158,27.58,2.75
-TIC 167342439,167342439,TOI-707 b,52.79918,512.93,10.09,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.75,0.41
-TIC 170729775,170729775,TOI-2449 b,106.14468,9362.14,9.9,derived_from_pl_rade_st_rad,excluded: period outside search range,98,98,SPOC,120,51.42,0.48
-TIC 179582003,179582003,TOI-4507 b,104.61611,5225.2,10.23,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.93,0.21
-TIC 183532609,183532609,WASP-8 b,8.15872,13000,9.147,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,96,96,SPOC,120,22.2,2.72
-TIC 200723869,200723869,TOI-257 b,18.38818,1240,7.029,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,97,97,SPOC,120,50.36,2.74
-TIC 201175570,201175570,TOI-7041 b,9.691,653.592,10.26,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.73,2.24
-TIC 204650483,204650483,TOI-4551 b,9.95581,937.969,9.028,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,101,101,SPOC,120,22.16,2.23
-TIC 206541859,206541859,TOI-4406 b,30.08364,6345.92,10.57,derived_from_pl_rade_st_rad,excluded: period outside search range,105,105,TESScut,158,27.58,0.92
-TIC 207110080,207110080,TOI-558 b,14.574071,5570,10.99,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,96,96,SPOC,120,21.83,1.50
-TIC 209464063,209464063,TOI-5678 b,47.73022,2303.03,10.67,derived_from_pl_rade_st_rad,excluded: period outside search range,97,97,SPOC,120,50.1,1.05
-TIC 237913194,237913194,TIC 237913194 b,15.168865,11130.7,11.49,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.75,1.43
-TIC 237922465,237922465,TOI-2416 b,8.275479,5353.06,12.43,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.65,2.62
-TIC 237929468,237929468,TOI-4940 b,25.867811,2715.1,11.82,derived_from_pl_rade_st_rad,excluded: period outside search range,95,95,SPOC,120,21.73,0.84
-TIC 243200602,243200602,WASP-130 b,11.55098,9160,10.49,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,101,101,SPOC,120,22.07,1.91
-TIC 245076932,245076932,TIC 245076932 b,21.61389,5990,11.04,catalog_pl_trandep,excluded: period outside search range,100,100,SPOC,120,23.37,1.08
-TIC 248250955,248250955,TOI-4552 b,0.30110032,1258,11.93,catalog_pl_trandep,excluded: period outside search range,104,104,SPOC,120,23.18,76.97
-TIC 257527578,257527578,NGTS-20 b,54.18915,3815.94,10.65,derived_from_pl_rade_st_rad,excluded: period outside search range,105,105,TESScut,158,27.58,0.51
-TIC 259233660,259233660,TOI-6000 b,0.448959,514.316,13.16,derived_from_pl_rade_st_rad,excluded: period outside search range,14,14;15;16,SPOC,120,74.4,165.71
-TIC 260128333,260128333,TOI-1338 b,95.4001,2861.43,11.49,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.6,0.23
-TIC 261257684,261257684,TOI-904 b,10.8772,1781.16,10.85,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.95,2.02
-TIC 263003176,263003176,HD 5278 b,14.339156,353.887,7.437,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,22.06,1.54
-TIC 270471727,270471727,TIC 270471727 b,10.456233,639.486,11.19,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,22.05,2.11
-TIC 271971130,271971130,TOI-715 b,19.288004,4480,13.53,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.71,1.13
-TIC 274151135,274151135,TOI-1105 b,10.868184,1376.04,10.28,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.77,2.00
-TIC 277128619,277128619,TOI-4994 b,21.491984,5510,11.95,catalog_pl_trandep,excluded: period outside search range,100,100,SPOC,120,22.28,1.04
-TIC 279741379,279741379,HD 21749 c,7.78993,138.453,6.993,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.9,2.81
-TIC 280097543,280097543,TOI-375 b,9.45469,1159.64,10.45,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.81,2.31
-TIC 287156968,287156968,TOI-1230.01,25.057131,533.486,9.624,catalog_pl_trandep,excluded: period outside search range,94,94,SPOC,120,22.06,0.88
-TIC 300038935,300038935,HD 56414 b,29.04992,377.326,9.096,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.75,0.75
-TIC 300812741,300812741,TOI-2322 b,11.30717,189.495,10.05,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.79,1.93
-TIC 304142124,304142124,HD 95338 b,55.082694,2035.69,7.844,derived_from_pl_rade_st_rad,excluded: period outside search range,99,99,SPOC,120,25.66,0.47
-TIC 306472057,306472057,TOI-791 b,139.29931,5428,10.75,catalog_pl_trandep,excluded: period outside search range,94,94,SPOC,120,21.73,0.16
-TIC 306996324,306996324,TOI-776 b,8.24662,909,9.736,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,23.14,2.81
-TIC 308098254,308098254,WASP-162 b,9.62468,8700,11.57,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,22.34,2.32
-TIC 309792357,309792357,TOI-199 b,104.854,10304.2,10.04,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.61,0.21
-TIC 317060587,317060587,TOI-1052 b,9.139703,433.322,9.02,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,22.06,2.41
-TIC 320004517,320004517,HD 183579 b,17.471291,1106,8.089,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,22.08,1.26
-TIC 322807371,322807371,NGTS-30 b,98.29838,10910.1,11.67,derived_from_pl_rade_st_rad,excluded: period outside search range,100,100,SPOC,120,22.48,0.23
-TIC 324609409,324609409,TOI-6692 b,131.125,5977.36,11.12,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.86,0.17
-TIC 332657786,332657786,TOI-6478 b,34.005019,32480.7,13,derived_from_pl_rade_st_rad,excluded: period outside search range,100,100,SPOC,120,22.24,0.65
-TIC 333736132,333736132,NGTS-35 b,25.241192,17611.8,12.07,derived_from_pl_rade_st_rad,excluded: period outside search range,100,100,SPOC,120,22.53,0.89
-TIC 339672028,339672028,TOI-481 b,10.33111,3756.03,9.393,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.79,2.11
-TIC 349095149,349095149,TOI-1221 b,91.68278,720,10.06,catalog_pl_trandep,excluded: period outside search range,94,94,SPOC,120,21.65,0.24
-TIC 358107516,358107516,TOI-2202 b,11.912608,15439.7,12.17,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.82,1.83
-TIC 360156606,360156606,TOI-1227 b,27.36397,24559.2,13.8,derived_from_pl_rade_st_rad,excluded: period outside search range,100,100,SPOC,120,23.22,0.85
-TIC 360630575,360630575,HD 109833 b,9.188526,701.029,8.722,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,23.6,2.57
-TIC 361711730,361711730,TOI-5027 b,10.24368,11498.5,10.91,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,23.15,2.26
-TIC 364395234,364395234,TOI-1232 b,14.256,8735.62,11.78,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.77,1.53
-TIC 366989877,366989877,TOI-1054.01,15.507786,513,8.436,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,105,105,TESScut,158,27,1.74
-TIC 382626661,382626661,TOI-283 b,17.61745,636.994,9.677,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.7,1.23
-TIC 383390264,383390264,HD 110082 b,10.18271,607.782,8.758,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,22.06,2.17
-TIC 394137592,394137592,HD 1397 b,11.53533,2037,7.106,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.9,1.90
-TIC 394287035,394287035,TOI-2328 b,17.10197,10326.9,11.58,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.54,1.26
-TIC 404518509,404518509,HD 21520 b,25.1292,560.922,8.602,derived_from_pl_rade_st_rad,excluded: period outside search range,105,105,TESScut,158,27,1.07
-TIC 407126408,407126408,TOI-913 b,11.098644,942.433,9.618,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,23.23,2.09
-TIC 409794137,409794137,TOI-1478 b,10.180212,1093.6,10.2,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,99,99,SPOC,120,21.47,2.11
-TIC 410153553,410153553,LHS 3844 b,0.46292971,3891.35,11.92,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.89,47.29
-TIC 410214986,410214986,DS Tuc A b,8.138268,2936,7.854,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,22.06,2.71
-TIC 429358906,429358906,TOI-782 b,8.0240015,3683.31,12.29,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,101,101,SPOC,120,21.82,2.72
-TIC 441420236,441420236,AU Mic b,8.463446,2490,6.755,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,22.12,2.61
-TIC 441462736,441462736,HD 221416 b,14.2767,816.018,7.357,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,96,96,SPOC,120,22.23,1.56
-TIC 441546821,441546821,HD 114082 b,109.75,4756.65,7.79,derived_from_pl_rade_st_rad,excluded: period outside search range,100,100,SPOC,120,24.47,0.22
-TIC 447061717,447061717,TOI-1231 b,24.245586,4920,10.26,catalog_pl_trandep,excluded: period outside search range,99,99,SPOC,120,24.09,0.99
-TIC 464300749,464300749,TOI-3362 b,18.09547,4100,10.38,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,99,99,SPOC,120,24.47,1.35
-TIC 464646604,464646604,HIP 94235 b,7.713057,648.54,7.758,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,22.08,2.86
-TIC 466206508,466206508,TOI-5542 b,75.12375,9604.72,11.85,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.96,0.29
-TIC 951438622,951438622,ZTF J1230-2655 b,0.23597766,1.05602e+08,18.81,derived_from_pl_rade_st_rad,excluded: period outside search range,101,101,SPOC,120,21.87,92.67
+target,tic_id,planet,expected_period_days,expected_depth_ppm,tmag,teff_k,stellar_radius_solar,stellar_mass_solar,source_rowupdate,purpose,sector,sectors,author,cadence_seconds,observed_baseline_days,expected_transits
+TIC 1167538,1167538,TOI-2447 b,69.33684,7663.72,10.01,5730,1.006,,derived_from_pl_rade_st_rad,excluded: period outside search range,98,98,SPOC,120,51.42,0.74
+TIC 7422496,7422496,HD 35843 c,46.9622,673.945,8.76,5666,0.897,,derived_from_pl_rade_st_rad,excluded: period outside search range,98,98,SPOC,120,50.9,1.08
+TIC 12822545,12822545,K2-54 b,9.7833,1390,13.04,3990,0.643,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,96,96,SPOC,120,22.22,2.27
+TIC 24358417,24358417,TOI-2338 b,22.65398,9578.45,11.7,5581,1.05,,derived_from_pl_rade_st_rad,excluded: period outside search range,98,98,SPOC,120,50.55,2.23
+TIC 29781292,29781292,HD 28109 b,22.891054,301,8.939,6189,1.425,,catalog_pl_trandep,excluded: period outside search range,94,94,SPOC,120,21.93,0.96
+TIC 29857954,29857954,TOI-172 b,9.47725,3120,10.74,5645,1.777,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.97,2.32
+TIC 33716474,33716474,TOI-4561 b,8.9354794,366.03,11.06,5537.9,0.851957,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.85,2.45
+TIC 34068865,34068865,GJ 367 b,0.3219226,218.004,8.032,3535,0.457,,derived_from_pl_rade_st_rad,excluded: period outside search range,99,99,SPOC,120,25.66,79.71
+TIC 52059926,52059926,TIC 52059926 b,175.532,22940,12.73,4505,0.72,,catalog_pl_trandep,excluded: period outside search range,95,95,SPOC,120,21.86,0.12
+TIC 53189332,53189332,WASP-106 b,9.28969,6204,10.99,6002,1.41549,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,22.81,2.46
+TIC 54002556,54002556,NGTS-11 b,35.45533,10182.9,11.62,5050,0.832,,derived_from_pl_rade_st_rad,excluded: period outside search range,97,97,SPOC,120,49.88,1.41
+TIC 55525572,55525572,TOI-813 b,83.8911,1005.5,9.847,5907,1.94,,derived_from_pl_rade_st_rad,excluded: period outside search range,95,95,SPOC,120,21.71,0.26
+TIC 55652896,55652896,TOI-216.02,17.16073,4750,11.57,,0.748,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.52,1.25
+TIC 69747919,69747919,K2-167 b,9.978541,206,7.728,6310,1.499,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,96,96,SPOC,120,22.23,2.23
+TIC 70513361,70513361,TOI-262 b,11.14529,484,8.134,5310,0.853,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,105,105,TESScut,158,27,2.42
+TIC 73717937,73717937,HATS-17 b,16.254611,5356.34,11.75,5846,1.32039,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,23.27,1.43
+TIC 87422071,87422071,TIC 87422071 b,11.364929,4470,11.19,6150,1.489,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,104,104,SPOC,120,23.34,2.05
+TIC 90850770,90850770,TOI-2207 b,8.001968,4273,10.97,6101,1.564,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.84,2.73
+TIC 102840239,102840239,TOI-815 b,11.197259,1225.33,9.36,4869,0.759387,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,23.38,2.09
+TIC 118798035,118798035,TOI-7510 b,11.530869,4192.72,11.29,5720,1.035,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,103,103,SPOC,120,22.23,1.93
+TIC 121490076,121490076,HIP 113103 b,7.610303,596,8.999,4930,0.742,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.95,2.88
+TIC 124029677,124029677,TOI-5153 b,20.33003,6053.82,11.21,6300,1.4,,derived_from_pl_rade_st_rad,excluded: period outside search range,98,98,SPOC,120,50.47,2.48
+TIC 130924120,130924120,TOI-757 b,17.46819,863.44,9.05,5278,0.78,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,101,101,SPOC,120,22.16,1.27
+TIC 136916387,136916387,HD 136352 b,11.57797,208,5.049,5664,1.058,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,102,102,SPOC,120,22.23,1.92
+TIC 144193715,144193715,TOI-4308 b,9.151201,781.255,10.34,5243,0.7934,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,105,105,TESScut,158,26.78,2.93
+TIC 147027702,147027702,TIC 147027702 b,44.40523,2200,10.63,6410,2.09721,1.52,catalog_pl_trandep,excluded: period outside search range,100,100,SPOC,120,22.66,0.51
+TIC 147660886,147660886,TOI-2005 b,17.305904,2963.05,9.492,7130,2.22759,1.65,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,23.12,1.34
+TIC 149601126,149601126,TOI-2525 b,23.2856,10266.4,13.4,5096,0.785,,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.63,0.93
+TIC 149845414,149845414,TOI-2545 b,7.994037,404.705,8.906,5846.3,1.25324,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,99,99,SPOC,120,23.2,2.90
+TIC 150098860,150098860,TOI-220 b,10.695264,1048.22,9.688,5298,0.858,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.66,2.02
+TIC 150151262,150151262,TOI-712 b,9.531361,768,9.906,4622,0.674,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.79,2.29
+TIC 150428135,150428135,TOI-700 b,9.977219,396.159,10.91,3459,0.421,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.62,2.17
+TIC 166184428,166184428,TOI-4336 A c,7.587266,1237.72,11.02,3307,0.326,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,101,101,SPOC,120,22.15,2.92
+TIC 166739520,166739520,WASP-117 b,10.02165,8000,9.641,6040,1.22,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,105,105,TESScut,158,27.58,2.75
+TIC 167342439,167342439,TOI-707 b,52.79918,512.93,10.09,5424,0.978,,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.75,0.41
+TIC 170729775,170729775,TOI-2449 b,106.14468,9362.14,9.9,6021,1.065,,derived_from_pl_rade_st_rad,excluded: period outside search range,98,98,SPOC,120,51.42,0.48
+TIC 179582003,179582003,TOI-4507 b,104.61611,5225.2,10.23,6260,1.04,,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.93,0.21
+TIC 183532609,183532609,WASP-8 b,8.15872,13000,9.147,5600,1.03,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,96,96,SPOC,120,22.2,2.72
+TIC 200723869,200723869,TOI-257 b,18.38818,1240,7.029,6095,1.867,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,97,97,SPOC,120,50.36,2.74
+TIC 201175570,201175570,TOI-7041 b,9.691,653.592,10.26,4700,4.1,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.73,2.24
+TIC 204650483,204650483,TOI-4551 b,9.95581,937.969,9.028,4896,3.55,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,101,101,SPOC,120,22.16,2.23
+TIC 206541859,206541859,TOI-4406 b,30.08364,6345.92,10.57,6219,1.29,,derived_from_pl_rade_st_rad,excluded: period outside search range,105,105,TESScut,158,27.58,0.92
+TIC 207110080,207110080,TOI-558 b,14.574071,5570,10.99,6466,1.496,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,96,96,SPOC,120,21.83,1.50
+TIC 209464063,209464063,TOI-5678 b,47.73022,2303.03,10.67,5485,0.938,,derived_from_pl_rade_st_rad,excluded: period outside search range,97,97,SPOC,120,50.1,1.05
+TIC 237913194,237913194,TIC 237913194 b,15.168865,11130.7,11.49,5788,1.088,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.75,1.43
+TIC 237922465,237922465,TOI-2416 b,8.275479,5353.06,12.43,5808,1.236,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.65,2.62
+TIC 237929468,237929468,TOI-4940 b,25.867811,2715.1,11.82,5504,1.163,,derived_from_pl_rade_st_rad,excluded: period outside search range,95,95,SPOC,120,21.73,0.84
+TIC 243200602,243200602,WASP-130 b,11.55098,9160,10.49,5625,0.96,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,101,101,SPOC,120,22.07,1.91
+TIC 245076932,245076932,TIC 245076932 b,21.61389,5990,11.04,6130,1.30188,,catalog_pl_trandep,excluded: period outside search range,100,100,SPOC,120,23.37,1.08
+TIC 248250955,248250955,TOI-4552 b,0.30110032,1258,11.93,3258,0.2869,,catalog_pl_trandep,excluded: period outside search range,104,104,SPOC,120,23.18,76.97
+TIC 257527578,257527578,NGTS-20 b,54.18915,3815.94,10.65,5980,1.78,,derived_from_pl_rade_st_rad,excluded: period outside search range,105,105,TESScut,158,27.58,0.51
+TIC 259233660,259233660,TOI-6000 b,0.448959,514.316,13.16,3419,0.378,0.366,derived_from_pl_rade_st_rad,excluded: period outside search range,14,14;15;16,SPOC,120,74.4,165.71
+TIC 260128333,260128333,TOI-1338 b,95.4001,2861.43,11.49,,1.313,,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.6,0.23
+TIC 261257684,261257684,TOI-904 b,10.8772,1781.16,10.85,3770.2,0.527,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.95,2.02
+TIC 263003176,263003176,HD 5278 b,14.339156,353.887,7.437,6203,1.194,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,22.06,1.54
+TIC 270471727,270471727,TIC 270471727 b,10.456233,639.486,11.19,5271.4,0.997091,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,22.05,2.11
+TIC 271971130,271971130,TOI-715 b,19.288004,4480,13.53,3075,0.24,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.71,1.13
+TIC 274151135,274151135,TOI-1105 b,10.868184,1376.04,10.28,4678.5,0.755833,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.77,2.00
+TIC 277128619,277128619,TOI-4994 b,21.491984,5510,11.95,5640,1.10771,,catalog_pl_trandep,excluded: period outside search range,100,100,SPOC,120,22.28,1.04
+TIC 279741379,279741379,HD 21749 c,7.78993,138.453,6.993,4640,0.695,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.9,2.81
+TIC 280097543,280097543,TOI-375 b,9.45469,1159.64,10.45,5259.9,2.9,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.81,2.31
+TIC 287156968,287156968,TOI-1230.01,25.057131,533.486,9.624,5696,1.15281,,catalog_pl_trandep,excluded: period outside search range,94,94,SPOC,120,22.06,0.88
+TIC 300038935,300038935,HD 56414 b,29.04992,377.326,9.096,8500,1.751,,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.75,0.75
+TIC 300812741,300812741,TOI-2322 b,11.30717,189.495,10.05,4664,0.662,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.79,1.93
+TIC 304142124,304142124,HD 95338 b,55.082694,2035.69,7.844,5097,0.868,,derived_from_pl_rade_st_rad,excluded: period outside search range,99,99,SPOC,120,25.66,0.47
+TIC 306472057,306472057,TOI-791 b,139.29931,5428,10.75,6294,1.474,,catalog_pl_trandep,excluded: period outside search range,94,94,SPOC,120,21.73,0.16
+TIC 306996324,306996324,TOI-776 b,8.24662,909,9.736,3725,0.533024,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,23.14,2.81
+TIC 308098254,308098254,WASP-162 b,9.62468,8700,11.57,5300,1.20434,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,22.34,2.32
+TIC 309792357,309792357,TOI-199 b,104.854,10304.2,10.04,5255,0.82,,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.61,0.21
+TIC 317060587,317060587,TOI-1052 b,9.139703,433.322,9.02,6146,1.264,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,22.06,2.41
+TIC 320004517,320004517,HD 183579 b,17.471291,1106,8.089,5784,0.96,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,22.08,1.26
+TIC 322807371,322807371,NGTS-30 b,98.29838,10910.1,11.67,5455,0.911394,,derived_from_pl_rade_st_rad,excluded: period outside search range,100,100,SPOC,120,22.48,0.23
+TIC 324609409,324609409,TOI-6692 b,131.125,5977.36,11.12,5890,1.385,,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.86,0.17
+TIC 332657786,332657786,TOI-6478 b,34.005019,32480.7,13,3230,0.234967,,derived_from_pl_rade_st_rad,excluded: period outside search range,100,100,SPOC,120,22.24,0.65
+TIC 333736132,333736132,NGTS-35 b,25.241192,17611.8,12.07,4717,0.756773,,derived_from_pl_rade_st_rad,excluded: period outside search range,100,100,SPOC,120,22.53,0.89
+TIC 339672028,339672028,TOI-481 b,10.33111,3756.03,9.393,5735,1.66,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.79,2.11
+TIC 349095149,349095149,TOI-1221 b,91.68278,720,10.06,5592,1.031,,catalog_pl_trandep,excluded: period outside search range,94,94,SPOC,120,21.65,0.24
+TIC 358107516,358107516,TOI-2202 b,11.912608,15439.7,12.17,5169,0.808,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.82,1.83
+TIC 360156606,360156606,TOI-1227 b,27.36397,24559.2,13.8,3072,0.44128,,derived_from_pl_rade_st_rad,excluded: period outside search range,100,100,SPOC,120,23.22,0.85
+TIC 360630575,360630575,HD 109833 b,9.188526,701.029,8.722,5881,0.983215,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,23.6,2.57
+TIC 361711730,361711730,TOI-5027 b,10.24368,11498.5,10.91,5909,0.958173,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,23.15,2.26
+TIC 364395234,364395234,TOI-1232 b,14.256,8735.62,11.78,5823,1.072,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,21.77,1.53
+TIC 366989877,366989877,TOI-1054.01,15.507786,513,8.436,6122,1.17,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,105,105,TESScut,158,27,1.74
+TIC 382626661,382626661,TOI-283 b,17.61745,636.994,9.677,5213,0.85,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.7,1.23
+TIC 383390264,383390264,HD 110082 b,10.18271,607.782,8.758,6200,1.19,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,22.06,2.17
+TIC 394137592,394137592,HD 1397 b,11.53533,2037,7.106,5521,2.336,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.9,1.90
+TIC 394287035,394287035,TOI-2328 b,17.10197,10326.9,11.58,5525,0.9,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,21.54,1.26
+TIC 404518509,404518509,HD 21520 b,25.1292,560.922,8.602,5871,1.044,,derived_from_pl_rade_st_rad,excluded: period outside search range,105,105,TESScut,158,27,1.07
+TIC 407126408,407126408,TOI-913 b,11.098644,942.433,9.618,4969,0.732535,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,100,100,SPOC,120,23.23,2.09
+TIC 409794137,409794137,TOI-1478 b,10.180212,1093.6,10.2,,,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,99,99,SPOC,120,21.47,2.11
+TIC 410153553,410153553,LHS 3844 b,0.46292971,3891.35,11.92,3080,0.189,,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.89,47.29
+TIC 410214986,410214986,DS Tuc A b,8.138268,2936,7.854,5428,0.964,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,22.06,2.71
+TIC 429358906,429358906,TOI-782 b,8.0240015,3683.31,12.29,3370,0.413,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,101,101,SPOC,120,21.82,2.72
+TIC 441420236,441420236,AU Mic b,8.463446,2490,6.755,3540,0.862,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,95,95,SPOC,120,22.12,2.61
+TIC 441462736,441462736,HD 221416 b,14.2767,816.018,7.357,5080,2.943,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,96,96,SPOC,120,22.23,1.56
+TIC 441546821,441546821,HD 114082 b,109.75,4756.65,7.79,6651,1.4927,,derived_from_pl_rade_st_rad,excluded: period outside search range,100,100,SPOC,120,24.47,0.22
+TIC 447061717,447061717,TOI-1231 b,24.245586,4920,10.26,3553,0.476,,catalog_pl_trandep,excluded: period outside search range,99,99,SPOC,120,24.09,0.99
+TIC 464300749,464300749,TOI-3362 b,18.09547,4100,10.38,6532,1.83,,catalog_pl_trandep,excluded: fewer than 3 transits fit the baseline,99,99,SPOC,120,24.47,1.35
+TIC 464646604,464646604,HIP 94235 b,7.713057,648.54,7.758,5991,1.08,,derived_from_pl_rade_st_rad,excluded: fewer than 3 transits fit the baseline,94,94,SPOC,120,22.08,2.86
+TIC 466206508,466206508,TOI-5542 b,75.12375,9604.72,11.85,5700,1.058,,derived_from_pl_rade_st_rad,excluded: period outside search range,94,94,SPOC,120,21.96,0.29
+TIC 951438622,951438622,ZTF J1230-2655 b,0.23597766,1.05602e+08,18.81,10000,0.0123,,derived_from_pl_rade_st_rad,excluded: period outside search range,101,101,SPOC,120,21.87,92.67
