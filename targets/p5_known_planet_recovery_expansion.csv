@@ -1,0 +1,201 @@
+target,tic_id,planet,expected_period_days,expected_depth_ppm,tmag,teff_k,stellar_radius_solar,stellar_mass_solar,source_rowupdate,purpose,sector,sectors,author,cadence_seconds,observed_baseline_days,expected_transits
+TIC 741119,741119,K2-378 b,2.060438,1301.08,14.89,4823,0.732,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",91,91,SPOC,120,27,13.10
+TIC 677945,677945,K2-128 b,5.675819,280.311,11.52,4469.5,0.777569,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",91,91,SPOC,120,27,4.76
+TIC 2468648,2468648,K2-129 b,8.239493,701.422,11.23,3459.1,0.36001,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",92,92,SPOC,120,27,3.28
+TIC 2621212,2621212,K2-199 c,7.3744897,1467.79,11.23,4491,0.682,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",91,91,SPOC,120,27,3.66
+TIC 4165850,4165850,TOI-5160 b,4.2807733,452.542,10.19,5622.1,1.03315,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",44,44;45;46,SPOC,120,81,18.92
+TIC 4610830,4610830,K2-138 e,8.26146,1296.94,11.5,5356.3,0.863,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;70,SPOC,120,54,6.54
+TIC 4646810,4646810,HD 15906 b,10.924709,729,8.872,4757,0.762,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",4,4;31,SPOC,120,54,4.94
+TIC 4897275,4897275,TOI-1774.01,16.70988,508.445,7.647,5746,1.1303,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",21,21;48,SPOC,120,54,3.23
+TIC 5882269,5882269,K2-284 b,4.795069,1763.01,12.04,4140,0.607,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",43,43;44;45,SPOC,120,81,16.89
+TIC 6139066,6139066,K2-397 b,3.572326,526.188,11.13,5387,0.966,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",43,43;44;45,SPOC,120,81,22.67
+TIC 6892385,6892385,K2-105 b,8.26726,1186.32,11.21,5373,0.905,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",44,44;45;46,SPOC,120,81,9.80
+TIC 8260536,8260536,TOI-5398 c,4.77271,942.804,9.581,6000,1.051,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",48,48,SPOC,120,27,5.66
+TIC 8963531,8963531,K2-392 b,15.398723,256.989,12.23,5726,1.058,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;70;92,SPOC,120,81,5.26
+TIC 9030096,9030096,K2-389 b,8.58289,381.258,11.13,5773,1.094,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;70;92,SPOC,120,81,9.44
+TIC 9030119,9030119,K2-390 b,3.312792,1957.64,12.85,5558,0.966,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;70;92,SPOC,120,81,24.45
+TIC 9054633,9054633,K2-391 b,4.622654,493.155,11.82,5543,0.566,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;70;92,SPOC,120,81,17.52
+TIC 12785571,12785571,EPIC 206042996 b,5.2986,971.627,15.14,4114,0.5,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;92,SPOC,120,54,10.19
+TIC 14078624,14078624,K2-179 b,5.172191,899.534,12.06,5015,0.768067,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;43;44,SPOC,120,81,15.66
+TIC 14111411,14111411,K2-90 b,13.733314,1482.88,12.41,4484,0.619,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;43;44,SPOC,120,81,5.90
+TIC 14160842,14160842,K2-85 b,0.68453863,326.799,11.3,4232,0.71,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;43;44,SPOC,120,81,118.33
+TIC 14336130,14336130,TOI-1716.01,8.0823766,539.992,8.829,5879,1.24,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",47,47;60;73,SPOC,120,81,10.02
+TIC 14570090,14570090,K2-276 b,18.718269,1653.43,13.76,5139,0.85,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",44,44;45;46,SPOC,120,81,4.33
+TIC 14603874,14603874,K2-347 b,7.187257,1229.97,14.08,4599,0.63,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",44,44;45;46,SPOC,120,81,11.27
+TIC 14635562,14635562,K2-122 b,2.2193023,324.903,11.38,4009,0.59,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",44,44;45;46,SPOC,120,81,36.50
+TIC 15756231,15756231,V1298 Tau d,12.401394,2056.93,9.49,4970,1.32,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",43,43;44,SPOC,120,54,4.35
+TIC 17409453,17409453,K2-87 b,9.726618,2473.39,12.93,5747,1.401,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",43,43;44;70,SPOC,120,81,8.33
+TIC 17307715,17307715,K2-155 c,13.85,1030,11.45,4258,0.58,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",43,43;44;71,SPOC,120,81,5.85
+TIC 18310799,18310799,K2-136 c,17.30723,1650.47,10.12,4500,0.677,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",44,44;70;71,SPOC,120,81,4.68
+TIC 18318288,18318288,TOI-6086 b,1.3888725,1531,12.41,3200,0.259,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",25,25;26;52,SPOC,120,81,58.32
+TIC 20484888,20484888,K2-337 b,16.273563,331.128,11.81,5869,1.32,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",45,45;46;71,SPOC,120,81,4.98
+TIC 21244210,21244210,K2-184 b,16.97801,322.889,9.607,5245,0.75,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",44,44;45;46,SPOC,120,81,4.77
+TIC 21832928,21832928,TOI-2128 b,16.34136,293.695,6.681,5968,1.1174,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",25,25;26;52,SPOC,120,81,4.96
+TIC 25958378,25958378,K2-86 b,8.77683,559.019,12.25,5482,0.76,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;43;70,SPOC,120,81,9.23
+TIC 26078330,26078330,K2-178 b,8.747818,1351.52,11.58,5525,0.887267,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;43;44,SPOC,120,81,9.26
+TIC 26417717,26417717,Kepler-808 b,0.63133235,355.411,13.67,4653,0.71,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,128.30
+TIC 26473621,26473621,Kepler-680 b,3.6899263,399.509,14.72,5890,1.11,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",80,80;81;82,SPOC,120,81,21.95
+TIC 26488618,26488618,Kepler-2001 c,14.092583,530.4,15.14,5081,0.77,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",80,80;81;82,SPOC,120,81,5.75
+TIC 26493559,26493559,Kepler-1895 b,6.0702901,648.48,14.86,5076,0.763,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82,SPOC,120,54,8.90
+TIC 26538999,26538999,Kepler-1191 b,5.6001485,292.096,14.78,5308,0.81,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82,SPOC,120,54,9.64
+TIC 26539443,26539443,Kepler-227 b,9.488015,682.988,14.82,5854,1.091,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,8.54
+TIC 26541079,26541079,Kepler-669 b,4.1255469,1361.67,15.01,6038,1.2,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82,SPOC,120,54,13.09
+TIC 26541093,26541093,Kepler-481 b,10.060826,442.149,13.36,5802,1.09,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,8.05
+TIC 26749051,26749051,Kepler-1826 b,1.61536,774.401,14.71,3821,0.486,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",40,40;54;55,SPOC,120,81,50.14
+TIC 26750065,26750065,Kepler-1210 b,8.0712407,286.988,15.05,5568,0.92,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82,SPOC,120,54,6.69
+TIC 26814955,26814955,Kepler-166 b,7.650254,786.657,14.14,5413,0.742,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,10.59
+TIC 26817284,26817284,Kepler-339 b,4.977656,263.493,14,5631,0.802,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,16.27
+TIC 26961231,26961231,Kepler-369 c,14.871572,753.248,14.58,3591,0.471,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82,SPOC,120,54,3.63
+TIC 27006192,27006192,Kepler-231 c,19.271566,1303.96,14.57,3767,0.49,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;76,SPOC,120,81,4.20
+TIC 27006340,27006340,Kepler-1679 b,9.75376,471.981,14.61,5501,0.873196,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,8.30
+TIC 27006665,27006665,Kepler-675 b,2.337438,889.608,14.71,4945,0.75,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,34.65
+TIC 27010191,27010191,KOI-7368 b,6.8430344,542.281,12.23,5241,0.874,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,11.84
+TIC 27011135,27011135,Kepler-114 d,11.776,1844.99,13.02,,0.54,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,6.88
+TIC 27039476,27039476,K2-291 b,2.225177,262.585,9.393,5520,0.899,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",43,43;71,SPOC,120,54,24.27
+TIC 27064468,27064468,TOI-5126 b,5.4588385,1226.18,9.562,6150,1.241,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",45,45;46;48,SPOC,120,81,14.84
+TIC 27081773,27081773,Kepler-1343 b,3.3518316,361.985,15.07,5759,0.93,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,24.17
+TIC 27082352,27082352,Kepler-385 c,15.163161,612.649,14.75,6326,1.126,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,5.34
+TIC 27082730,27082730,Kepler-1839 b,5.0567598,362.244,14.14,5926,0.939,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,16.02
+TIC 27083727,27083727,Kepler-23 c,10.74,316.73,12.97,5828,1.548,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,7.54
+TIC 27084006,27084006,Kepler-671 b,4.2809586,673.905,14.84,5624,0.95,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,18.92
+TIC 27187218,27187218,Kepler-480 b,4.9195838,361.761,12.85,6322,1.34,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;76,SPOC,120,81,16.46
+TIC 27187386,27187386,Kepler-1821 b,16.458099,722.883,14.15,5475,0.884,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;76,SPOC,120,81,4.92
+TIC 27188610,27188610,Kepler-1123 b,4.3394645,289.394,14.27,5500,0.9,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,18.67
+TIC 27235573,27235573,Kepler-851 b,8.5069966,328.339,14.62,5455,0.85,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,9.52
+TIC 27239696,27239696,Kepler-464 b,7.2569652,362.056,12.24,5933,1.59,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,11.16
+TIC 27394293,27394293,Kepler-142 c,4.761702,426.924,12.75,5790,1.269,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,17.01
+TIC 27456723,27456723,Kepler-1831 b,5.7838702,318.567,14.56,6063,1.012,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,14.00
+TIC 27458633,27458633,Kepler-300 b,10.446347,289.394,13.73,5986,0.9,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,7.75
+TIC 27458799,27458799,Kepler-1281 b,3.1160279,328.151,15.46,5353,0.83,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82,SPOC,120,54,17.33
+TIC 27491137,27491137,TOI-2076 b,10.35504,981.302,8.374,,0.758,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",16,16;23;50,SPOC,120,81,7.82
+TIC 27530849,27530849,Kepler-365 b,10.664903,318.478,13.88,6012,1.048,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,7.60
+TIC 27532561,27532561,Kepler-1754 b,8.1959496,896.742,15.16,4723,0.747,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,9.88
+TIC 27635334,27635334,K2-108 b,4.733999,770.851,11.67,5599,1.76,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",44,44;45;46,SPOC,120,81,17.11
+TIC 27645404,27645404,Kepler-954 b,16.781766,783.232,12.32,4990,0.76,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",40,40;41;54,SPOC,120,81,4.83
+TIC 27649203,27649203,Kepler-1206 b,1.2169977,401.89,15.27,4877,0.75,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,66.56
+TIC 27686898,27686898,Kepler-232 c,11.379349,1315.8,14.83,5847,0.968,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,7.12
+TIC 27687265,27687265,Kepler-1856 b,1.302,379.751,14.77,4948,0.816,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,62.21
+TIC 27649847,27649847,TOI-521 b,1.5428505,1859.12,12.4,3544,0.421,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",44,44;45;46,SPOC,120,81,52.50
+TIC 27766596,27766596,Kepler-679 b,12.393586,1079.23,14.99,5403,0.84,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,6.54
+TIC 27766705,27766705,Kepler-1404 b,15.931474,530.583,15.14,5261,0.8,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,5.08
+TIC 27767452,27767452,Kepler-181 c,4.302149,593.313,14.16,5333,0.749,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;76,SPOC,120,81,18.83
+TIC 27774043,27774043,Kepler-843 b,2.0538798,531.455,14.77,5830,1.03,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,39.44
+TIC 27776660,27776660,Kepler-1061 b,2.7579827,287.809,12.81,6067,1.07,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;76,SPOC,120,81,29.37
+TIC 27843707,27843707,Kepler-554 b,1.9022086,1827.6,13.77,5447,0.92,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,42.58
+TIC 27843776,27843776,Kepler-233 b,8.472382,863.805,14.77,5360,0.758,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,9.56
+TIC 27847148,27847148,Kepler-534 b,15.959945,439.122,12.79,5884,0.98,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;76,SPOC,120,81,5.08
+TIC 27912642,27912642,Kepler-1212 b,12.941301,291.054,14.56,6051,1.15,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,6.26
+TIC 27913951,27913951,Kepler-1862 b,16.057301,627.914,15.31,5644,0.806,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,5.04
+TIC 27914290,27914290,Kepler-998 b,5.6537773,324.903,13.87,6058,1.18,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;76,SPOC,120,81,14.33
+TIC 27914389,27914389,Kepler-524 b,7.9741981,253.41,13.42,6014,1.1,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;76,SPOC,120,81,10.16
+TIC 27988327,27988327,Kepler-107 e,14.749143,338.297,12.01,5854,1.447,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;76,SPOC,120,81,5.49
+TIC 27988995,27988995,Kepler-665 b,16.013102,1037.59,14.75,4913,0.74,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",76,76;81;83,SPOC,120,81,5.06
+TIC 27990682,27990682,Kepler-1363 b,2.9419409,253.336,14.62,4839,0.72,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,27.53
+TIC 27991150,27991150,Kepler-1964 b,2.44083,547.252,15.43,4803,0.698,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,33.19
+TIC 28159194,28159194,Kepler-1004 b,5.2878979,288.444,12.72,4972,3.39,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,15.32
+TIC 28229515,28229515,Kepler-1645 b,16.177956,255.965,13.95,5812,1.02,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;76,SPOC,120,81,5.01
+TIC 28231454,28231454,Kepler-567 b,16.542974,681.793,14.07,5148,0.79,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;76,SPOC,120,81,4.90
+TIC 28234096,28234096,Kepler-536 b,1.8270823,1019.73,13.23,5524,0.89,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82;83,SPOC,120,81,44.33
+TIC 28357724,28357724,Kepler-414 c,7.171,850.927,12.81,,0.946,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;76,SPOC,120,81,11.30
+TIC 28361088,28361088,Kepler-568 b,11.023475,1528.29,13.17,3768,0.53,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;76,SPOC,120,81,7.35
+TIC 28361491,28361491,Kepler-919 b,11.046034,290.627,14.21,6113,1.21,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",76,76;82;83,SPOC,120,81,7.33
+TIC 28364164,28364164,Kepler-143 b,16.007583,264.324,13.25,5848,1.359,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;76;81,SPOC,120,81,5.06
+TIC 29191624,29191624,TOI-1777.01,14.650112,441.478,8.737,5859,0.98,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",21,21;48,SPOC,120,54,3.69
+TIC 30122649,30122649,TOI-808 b,9.7394485,587.826,10.07,5078.2,0.833198,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",8,8;9;35,SPOC,120,81,8.32
+TIC 31244979,31244979,K2-383 b,1.865962,318.056,11.84,5129,0.804,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",92,92,SPOC,120,27,14.47
+TIC 32425577,32425577,K2-224 c,10.09489,592.8,12.05,5620,0.84,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",46,46;91,SPOC,120,54,5.35
+TIC 33692729,33692729,TOI-469.01,13.630821,1017.65,8.761,5289,0.98,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",6,6;33;87,SPOC,120,81,5.94
+TIC 34077285,34077285,TOI-880.02,2.57571,585.159,9.256,5050,0.83,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",33,33;87,SPOC,120,54,20.97
+TIC 35021200,35021200,K2-158 b,10.06049,700,11.12,5503,0.95,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",46,46;91,SPOC,120,54,5.37
+TIC 35064295,35064295,K2-159 b,12.42205,650,11.14,5425,0.83,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",46,46;91,SPOC,120,54,4.35
+TIC 36105482,36105482,CoRoT-24 b,5.1134,1555.78,14.51,4950,0.86,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",6,6;33;87,SPOC,120,81,15.84
+TIC 37770169,37770169,TOI-470 b,12.19148,2275,10.7,5190,0.831,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",6,6;33;87,SPOC,120,81,6.64
+TIC 38064757,38064757,K2-5 c,10.93241,1321.32,13.54,3930,0.57,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",45,45;46;72,SPOC,120,81,7.41
+TIC 38114658,38114658,K2-8 b,10.35239,1967.18,13.71,4870,0.74,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",45,45;46;72,SPOC,120,81,7.82
+TIC 38116202,38116202,EPIC 201170410.02,6.7987,1158.61,15.32,3648,0.282,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",45,45;46;72,SPOC,120,81,11.91
+TIC 38129680,38129680,K2-64 b,6.53044,683.296,13.39,5312,0.726,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;92,SPOC,120,54,8.27
+TIC 38258419,38258419,K2-68 b,8.05428,460.52,12.03,4746,0.675,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",92,92,SPOC,120,27,3.35
+TIC 38354061,38354061,K2-73 b,7.49556,499.815,11.28,5867,1.058,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;92,SPOC,120,54,7.20
+TIC 39200363,39200363,TOI-2133 b,3.8266472,1228.16,10.86,4250,0.62,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",25,25;26;52,SPOC,120,81,21.17
+TIC 39699648,39699648,HD 77946 b,6.527363,406.295,8.459,6007,1.3174,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",21,21;47,SPOC,120,54,8.27
+TIC 39928614,39928614,K2-69 b,7.06599,1876.53,13.98,4127,0.491,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;92,SPOC,120,54,7.64
+TIC 42883782,42883782,TOI-5788 c,16.213362,573.218,9.607,5615,0.87,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",14,14;80;81,SPOC,120,81,5.00
+TIC 44792534,44792534,TOI-954 b,3.6849729,2141.47,9.779,5710,1.892,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",31,31,SPOC,120,27,7.33
+TIC 46259692,46259692,K2-272 b,14.453676,1195.29,13.17,5397,0.83,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",44,44;45;46,SPOC,120,81,5.60
+TIC 47977416,47977416,Kepler-1329 b,9.3364659,831.31,15.13,4500,0.69,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",80,80;81;82,SPOC,120,81,8.68
+TIC 48031665,48031665,TOI-4588 b,13.118812,290.883,9.066,7746.1,1.57458,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",53,53;54;55,SPOC,120,81,6.17
+TIC 48131702,48131702,Kepler-1999 b,8.7396758,1431,15.56,4406,0.628,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",80,80;81;82,SPOC,120,81,9.27
+TIC 48188777,48188777,Kepler-153 b,18.870227,900.695,13.72,5404,0.892,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",80,80;81;82,SPOC,120,81,4.29
+TIC 48217852,48217852,Kepler-1639 b,9.878482,401.807,14.07,6150,1.18,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",53,53;54;55,SPOC,120,81,8.20
+TIC 48217868,48217868,Kepler-298 b,10.475464,953.252,14.73,4465,0.582,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",80,80;81;82,SPOC,120,81,7.73
+TIC 48304460,48304460,Kepler-299 c,6.885875,554.209,14.53,5617,1.032,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",80,80;81;82,SPOC,120,81,11.76
+TIC 48304653,48304653,Kepler-101 b,3.4876812,1149.86,13.08,5667,1.56,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",80,80;81;82,SPOC,120,81,23.22
+TIC 48353358,48353358,Kepler-1651 b,9.8786392,1124.71,12.1,3713,0.503,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",53,53;54;55,SPOC,120,81,8.20
+TIC 48354835,48354835,Kepler-1355 b,1.2895881,260.071,14.91,5352,0.83,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",80,80;81;82,SPOC,120,81,62.81
+TIC 48419097,48419097,Kepler-301 d,13.751243,317.784,13.8,5815,0.9,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",80,80;81;82,SPOC,120,81,5.89
+TIC 48421337,48421337,Kepler-1761 b,4.04354,574.689,13.91,3871,0.532,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",80,80;81;82,SPOC,120,81,20.03
+TIC 48450382,48450382,Kepler-814 b,6.1469851,253.801,14.26,6162,1.22,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",80,80;81;82,SPOC,120,81,13.18
+TIC 48451491,48451491,Kepler-1751 b,7.0173101,299.103,14.77,6052,0.967,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",75,75;80;82,SPOC,120,81,11.54
+TIC 48451562,48451562,Kepler-1614 b,3.9466141,323.063,15.37,5121,0.76,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",75,75;80;82,SPOC,120,81,20.52
+TIC 48503881,48503881,Kepler-1712 b,13.815,1691.97,13.22,3732,0.509,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",53,53;54;55,SPOC,120,81,5.86
+TIC 48504464,48504464,Kepler-1190 b,10.458434,286.8,13.83,4730,0.72,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;80,SPOC,120,81,7.74
+TIC 48506710,48506710,Kepler-1254 b,9.9911331,358.99,14.71,4985,0.75,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",80,80;81;82,SPOC,120,81,8.11
+TIC 48528473,48528473,Kepler-1214 b,18.826343,731.452,14.64,5130,0.8,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",53,53;54;55,SPOC,120,81,4.30
+TIC 48528770,48528770,Kepler-674 b,2.2433818,738.865,14.33,4192,0.57,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",53,53;54;55,SPOC,120,81,36.11
+TIC 49040478,49040478,K2-33 b,5.424865,1936.53,12.99,3540,1.05,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",91,91,SPOC,120,27,4.98
+TIC 49428710,49428710,TOI-5174 b,12.214286,2008.74,10.63,5643.8,1.09457,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",45,45;46;72,SPOC,120,81,6.63
+TIC 49462779,49462779,K2-4 b,10.003417,1143.43,13.53,4014.7,0.569359,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",46,46;72,SPOC,120,54,5.40
+TIC 49679172,49679172,K2-293 b,13.1225,562.566,12.66,5532,0.947,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;92,SPOC,120,54,4.12
+TIC 49735922,49735922,K2-388 b,6.33932,1543.79,12.11,5310,0.91,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;70;92,SPOC,120,81,12.78
+TIC 51641442,51641442,EPIC 228836835 b,0.728113,993.178,14.26,3782,0.32,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",46,46;91,SPOC,120,54,74.16
+TIC 53498154,53498154,TOI-5624 d,13.731468,1599,10.03,5327,0.82,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",22,22;75;76,SPOC,120,81,5.90
+TIC 55275863,55275863,TOI-5515 b,8.5922581,847.5,10.52,5483.6,0.835682,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",44,44;45;46,SPOC,120,81,9.43
+TIC 56520147,56520147,K2-91 b,1.419549,1260.93,13.05,3622,0.284,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",43,43;44;70,SPOC,120,81,57.06
+TIC 56721373,56721373,K2-246 b,5.76918,1340,13.89,5610,0.94,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",46,46;91,SPOC,120,54,9.36
+TIC 56815340,56815340,HD 106315 b,9.55237,297.928,8.563,6327,1.296,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",46,46;91,SPOC,120,54,5.65
+TIC 59040029,59040029,K2-81 b,6.102325,809.818,13.14,4674.1,0.634663,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;43;44,SPOC,120,81,13.27
+TIC 58824746,58824746,TOI-4638.01,10.283919,902.651,10.74,5700,0.895,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;43;70,SPOC,120,81,7.88
+TIC 60256211,60256211,K2-183 c,10.787992,587.434,12.17,5482,0.87,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",44,44;45;46,SPOC,120,81,7.51
+TIC 61312205,61312205,K2-404 b,13.115365,1765.65,12.85,3748,0.552,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",45,45;46;72,SPOC,120,81,6.18
+TIC 63004645,63004645,Kepler-1197 b,2.0323184,253.336,14.42,4708,0.72,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82,SPOC,120,54,26.57
+TIC 63004906,63004906,Kepler-245 b,7.49019,878.362,15,5100,0.795,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,10.81
+TIC 63005467,63005467,Kepler-1317 b,0.56887443,327.745,14.64,5144,0.79,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82,SPOC,120,54,94.92
+TIC 63070427,63070427,Kepler-194 c,17.308032,536.653,14.44,6089,1.025,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82,SPOC,120,54,3.12
+TIC 63119782,63119782,Kepler-184 b,10.687576,614.239,13.82,5788,0.873,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,7.58
+TIC 63120475,63120475,Kepler-710 b,4.3472855,358.736,14.5,5611,0.91,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82,SPOC,120,54,12.42
+TIC 63122858,63122858,Kepler-709 b,16.08525,1208.72,14.6,5071,0.77,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82,SPOC,120,54,3.36
+TIC 63122956,63122956,Kepler-28 b,5.91,731.601,14.33,4499.3,0.664,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,13.71
+TIC 63126862,63126862,Kepler-42 b,1.2137672,1769.43,13.74,3068,0.17,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,66.73
+TIC 63126989,63126989,Kepler-609 b,6.5212107,725.808,14.32,5971,1.14,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82,SPOC,120,54,8.28
+TIC 63130782,63130782,Kepler-763 d,6.5032704,418.3,15.09,4999,0.843,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",82,82,SPOC,120,27,4.15
+TIC 63204017,63204017,Kepler-226 c,5.349555,673.356,14.87,5571,0.802,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",81,81;82,SPOC,120,54,10.09
+TIC 63206513,63206513,Kepler-461 b,8.3137831,675.613,12.89,5634,0.91,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,9.74
+TIC 63210391,63210391,Kepler-474 b,5.6606729,674.741,13,5785,1.08,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,14.31
+TIC 63213622,63213622,Kepler-1313 b,3.8330912,360.354,11.27,5453,0.85,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,21.13
+TIC 63214717,63214717,Kepler-798 b,13.719334,288.508,13.75,6224,1.29,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,5.90
+TIC 63283780,63283780,Kepler-210 b,2.453234,1719.53,13.07,4559,0.65,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,33.02
+TIC 63366281,63366281,Kepler-327 d,13.969457,1039.21,14.01,3799,0.492,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,5.80
+TIC 63370825,63370825,Kepler-1902 b,3.8222201,439.705,14.69,3729,0.514,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",40,40;41;54,SPOC,120,81,21.19
+TIC 63372898,63372898,Kepler-82 e,5.902206,574.211,14.61,5428,0.945,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,13.72
+TIC 63373862,63373862,Kepler-1015 b,16.004942,323.326,12.42,6769,1.81,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,5.06
+TIC 63449012,63449012,Kepler-1203 b,0.58800076,253.801,14.08,4105,0.61,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",74,74;75;81,SPOC,120,81,137.75
+TIC 63898957,63898957,TOI-261.02,13.039359,625.6,9.04,5890.3,1.31383,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",3,3;30,SPOC,120,54,4.14
+TIC 68504570,68504570,K2-37 c,6.42966,745.897,11.64,5352,0.809,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",91,91,SPOC,120,27,4.20
+TIC 70298662,70298662,K2-315 b,3.1443189,1974.59,14.33,3300,0.196,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",91,91,SPOC,120,27,8.59
+TIC 70412892,70412892,K2-317 b,6.22,1190,15.39,3387,0.379,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",91,91,SPOC,120,27,4.34
+TIC 71431780,71431780,TOI-1723 b,13.727013,834.722,9.099,5777,1.09,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",20,20;26;47,SPOC,120,81,5.90
+TIC 71582156,71582156,TOI-5726.01,5.4911252,448.201,9.161,5874,1.106,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",47,47;53;60,SPOC,120,81,14.75
+TIC 73540072,73540072,TOI-1853 b,1.2436258,1541.24,11.37,4985,0.808,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",50,50,SPOC,120,27,21.71
+TIC 73943566,73943566,K2-316 c,5.26,2480,14.27,3436,0.379,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",91,91,SPOC,120,27,5.13
+TIC 75266189,75266189,EPIC 206024342 d,14.647531,469.573,12.52,5724,1.1,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",42,42;92,SPOC,120,54,3.69
+TIC 75878355,75878355,TOI-2134 b,9.229198,1250.73,7.795,4580,0.709,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",52,52;53;54,SPOC,120,81,8.78
+TIC 76420654,76420654,TOI-4462.01,4.9133022,2040,10.45,5918,2.06,,catalog_toi_pl_trandep,"known-planet recovery, shallow-end expansion",74,74;80,SPOC,120,54,10.99
+TIC 82054726,82054726,K2-42 b,6.68796,939.716,13.96,4613,0.643,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",36,36;46;72,SPOC,120,81,12.11
+TIC 82308728,82308728,HD 97658 b,9.4897116,712,6.986,5212,0.728,,catalog_pl_trandep,"known-planet recovery, shallow-end expansion",22,22;49,SPOC,120,54,5.69
+TIC 83181153,83181153,K2-26 b,14.5665,2215.94,12.71,3785,0.52,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",43,43;44;45,SPOC,120,81,5.56
+TIC 85242435,85242435,TOI-1722 b,9.6052321,1348.76,9.527,5999.6,1.09414,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",47,47;60;74,SPOC,120,81,8.43
+TIC 85293053,85293053,TOI-1772.01,8.0542469,716.453,9.352,5583,0.995,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",21,21;48,SPOC,120,54,6.70
+TIC 86130229,86130229,K2-352 d,14.871387,463.131,10.67,5791,0.95,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",44,44;45;46,SPOC,120,81,5.45
+TIC 86380416,86380416,TIC 86380416 b,6.0408643,499.342,11.19,5723.7,0.989724,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",47,47,SPOC,120,27,4.47
+TIC 88992642,88992642,TOI-2145 b,10.261128,1665.15,8.559,6206,2.75,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",40,40;52;53,SPOC,120,81,7.89
+TIC 90090343,90090343,K2-379 b,8.777247,708.881,12.21,4603,0.751,,derived_from_pl_rade_st_rad,"known-planet recovery, shallow-end expansion",92,92,SPOC,120,27,3.08

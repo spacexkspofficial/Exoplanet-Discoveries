@@ -1,372 +1,390 @@
-target,tic_id,planet,expected_period_days,expected_depth_ppm,tmag,teff_k,stellar_radius_solar,stellar_mass_solar,source_rowupdate,purpose,sector,sectors,author,cadence_seconds,observed_baseline_days,expected_transits
-TIC 1003831,1003831,TOI-564 b,1.651144,9200,10.67,5640,1.088,,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,20.78,12.59
-TIC 1309019,1309019,NGTS-17 b,3.24253,9083.52,13.77,5650,1.337,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.42,15.86
-TIC 1333933,1333933,NGTS-15 b,3.27623,14039.8,13.96,5600,0.954,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.39,15.69
-TIC 1528696,1528696,NGTS-6 b,0.882059,32660.3,13.17,4730,0.754,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,54.47
-TIC 2760219,2760219,TOI-2382 b,4.6612061,6280,11.44,6033,1.417,,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,22.03,4.73
-TIC 4070275,4070275,TOI-4364 b,5.424019,1780,11.4,3528,0.4684,,catalog_pl_trandep,survey-wide known-planet recovery rate,5,5;32;98,SPOC,120,81,14.93
-TIC 4918918,4918918,Wolf 327 b,0.5734745,784.03,10.78,3542,0.406,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,21,21;48,SPOC,120,54,94.16
-TIC 6663331,6663331,HATS-28 b,3.1810781,17710.1,13.29,5498,0.922,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,22.11,6.95
-TIC 7088246,7088246,HATS-23 b,2.1605156,25413.4,13.29,5780,1.199,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,22.11,10.24
-TIC 9006668,9006668,TOI-238 b,1.273099,357.429,9.927,5059,0.756,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.08,17.34
-TIC 9344899,9344899,TIC 9344899 b,8.5821566,7100,12.73,5800,1.06,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.54,5.89
-TIC 9385460,9385460,HATS-31 b,3.37796,8122.31,12.53,6050,1.87,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,21.81,6.46
-TIC 9989136,9989136,TOI-5734 b,6.1841876,907.776,8.545,4750,0.639,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,20,20;47;60,SPOC,120,81,13.10
-TIC 10837041,10837041,TOI-2411 b,0.7826942,513.029,10.42,4099,0.68,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.1,64.01
-TIC 11561667,11561667,HATS-77 b,3.0876262,34687.6,14.92,4071,0.6428,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,25.66,8.31
-TIC 12421862,12421862,TOI-198 b,10.215213,892.9,9.928,3801,0.418,,catalog_pl_trandep,survey-wide known-planet recovery rate,2,2;29;69,SPOC,120,81,7.93
-TIC 13021029,13021029,WASP-61 b,3.8559,8800,11.72,6250,1.55,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,12.46
-TIC 13349647,13349647,WASP-36 b,1.537366,19166.6,12.21,5959,0.985,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,21.65,14.08
-TIC 14614418,14614418,HATS-18 b,0.83784,17927.7,13.39,5600,1.01656,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.86,27.28
-TIC 14661418,14661418,HATS-22 b,4.7228124,20203.3,12.48,4803,0.793235,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.77,4.82
-TIC 15445551,15445551,WASP-87 b,1.682795,7650,10.35,6450,1.56803,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.19,13.78
-TIC 19028197,19028197,GJ 3470 b,3.3366496,5866.77,10.25,3600,0.547,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,44,44;45;46,SPOC,120,81,24.28
-TIC 19342878,19342878,WASP-149 b,1.332813,16834,10.8,5750,1.08,,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,21.97,16.49
-TIC 19684256,19684256,HATS-52 b,1.3666544,18434.4,13.18,6010,1.046,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,23.5,17.20
-TIC 21113347,21113347,HATS-58 A b,4.2180896,6166.11,11.4,7175,1.433,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.38,5.54
-TIC 22221375,22221375,HD 86226 c,3.98442,353.665,7.364,5863,1.03399,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.13,5.80
-TIC 22233480,22233480,TOI-4438 b,7.446295,3633.94,11.27,3501,0.365,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,40,40;52;53,SPOC,120,81,10.88
-TIC 23434737,23434737,TOI-1203 b,4.1572888,139.702,8,5737,1.17321,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.38,5.62
-TIC 28900646,28900646,TOI-1685 b,0.66913923,795.144,11.11,3470,0.462,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,19,19;59;86,SPOC,120,81,121.05
-TIC 29344935,29344935,HATS-14 b,2.7667641,13096.1,13.24,5346,0.933,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,22.04,7.96
-TIC 29960110,29960110,TOI-1201 b,2.4919863,1899.54,10.95,3476,0.508,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,4,4;31,SPOC,120,54,21.67
-TIC 31374837,31374837,TOI-431 d,12.46103,1702.55,8.171,4850,0.731,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.47,4.05
-TIC 32499655,32499655,HATS-44 b,2.7439004,16758.6,13.55,5080,0.847,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,17.51
-TIC 32949762,32949762,WASP-160 B b,3.7684952,16630,12.34,5298,0.868,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,12.75
-TIC 33521996,33521996,HATS-6 b,3.3252725,32300,13.34,3724,0.57,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.47,15.18
-TIC 33595516,33595516,TOI-849 b,0.765548,1183.59,11.55,5257,0.97,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,36.03
-TIC 35009898,35009898,TOI-654.01,1.527561,2570.56,12.23,3521,0.427953,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.85,14.96
-TIC 35516889,35516889,WASP-19 b,0.78883852,20770,11.6,5616,1.006,,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,25.14,31.86
-TIC 36452991,36452991,TOI-2969 b,1.8237146,26077.3,11.94,4738,0.7,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,25.13,13.78
-TIC 36724087,36724087,LTT 3780 b,0.76837931,1032,10.58,3358,0.374139,0.362023,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.05,30.00
-TIC 36734222,36734222,WASP-43 b,0.813475,25500,11.12,4400,0.757649,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.87,28.12
-TIC 37348844,37348844,NGTS-10 b,0.7668944,31563.4,13.61,4600,0.697,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.47,65.81
-TIC 37749396,37749396,TOI-260 b,13.475853,667.047,8.499,4026,0.607,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,3,3;42;70,SPOC,120,81,6.01
-TIC 38846515,38846515,WASP-100 b,2.84938,7600,10.32,6900,1.57,,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.66,7.60
-TIC 43647325,43647325,WASP-35 b,3.16158,15000,10.44,5990,1.08,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,15.20
-TIC 46432937,46432937,TIC 46432937 b,1.4404453,53078.5,12.37,3572,0.5299,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.78,35.26
-TIC 49043968,49043968,WASP-193 b,6.2463475,12480,11.63,6080,1.14172,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.37,3.58
-TIC 49045066,49045066,TOI-2992 b,3.007812,6660,11.97,6000,1.54367,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.65,7.53
-TIC 50618703,50618703,TOI-544 b,1.548352,881.877,9.65,4169,0.623,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,6,6;32;98,SPOC,120,81,52.31
-TIC 50712784,50712784,WASP-161 b,5.4060425,4509.2,10.56,6400,1.712,,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,21.42,3.96
-TIC 52005579,52005579,Gliese 12 b,12.761418,1035.18,10.18,3328,0.265,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,42,42;43;57,SPOC,120,81,6.35
-TIC 52204645,52204645,TOI-209 b,4.3794359,873.639,10.85,4806.7,0.742779,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.83,4.98
-TIC 52368076,52368076,TOI-125 b,4.65382,870,10.2,5320,0.848,,catalog_pl_trandep,survey-wide known-planet recovery rate,95,95,SPOC,120,21.79,4.68
-TIC 53735810,53735810,WASP-66 b,4.08605,6700,11.25,6600,1.47741,1.56,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.86,5.60
-TIC 54962195,54962195,TOI-663 b,2.598902,1652.16,11.76,3681,0.512361,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.92,8.82
-TIC 55092869,55092869,KELT-11 b,4.7362087,2659.73,7.321,5375,2.78715,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.13,4.88
-TIC 55650590,55650590,TOI-206 b,0.7363104,1159.56,12.43,3383,0.35,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.5,29.21
-TIC 58542531,58542531,TOI-1683.01,3.0575356,1193.88,9.794,4402,0.7,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,19,19;43;44,SPOC,120,81,26.49
-TIC 59128183,59128183,TOI-2453 b,4.4414346,3502.53,12.42,3720.2,0.502498,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.52,11.37
-TIC 61538902,61538902,WASP-129 b,5.748145,11276,11.37,5900,1.12783,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.18,4.03
-TIC 62085710,62085710,TOI-6677 b,5.4506066,1158.54,10.47,6572.3,1.57167,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.21,4.99
-TIC 62483237,62483237,TOI-139 b,11.07085,1033.11,9.364,4570,0.7007,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,1,1;28;68,SPOC,120,81,7.32
-TIC 66561343,66561343,TOI-892 b,10.62656,6257.68,10.97,6261,1.39,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.84,4.78
-TIC 70524163,70524163,TOI-2421 b,4.3474032,2949,10.69,5607,1.75,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.37,6.07
-TIC 70899085,70899085,LP 714-47 b,4.052032,5284.33,10.73,4123,0.536,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,5,5;32,SPOC,120,54,13.33
-TIC 73228647,73228647,HD 110113 b,2.541,376.963,9.463,5732,0.986649,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.38,9.20
-TIC 73649615,73649615,TOI-756 b,1.2392495,2602.38,12.56,3657,0.507628,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.38,18.87
-TIC 76923707,76923707,TOI-181 b,4.532,7300,10.47,4994,0.745,,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,22.13,4.88
-TIC 77031414,77031414,WASP-173 A b,1.3866532,12300,10.96,5800,1.11,,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,22.17,15.99
-TIC 77044471,77044471,HATS-16 b,2.686502,11644.5,13.26,5738,1.238,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.12,8.24
-TIC 77156657,77156657,WASP-159 b,3.840401,4530,11.88,6120,2.11,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,51.42,13.39
-TIC 77156829,77156829,LHS 1678 d,4.9652229,747.288,10.43,3490,0.329,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.27,10.32
-TIC 77253676,77253676,TOI-697 b,8.6078871,498.842,9.355,5681.9,0.968149,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.42,5.97
-TIC 77287067,77287067,NGTS-23 b,4.0764326,11025.1,13.59,6057,1.24,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.14,12.55
-TIC 79748331,79748331,TOI-1064 b,6.443868,1067,10.01,4734,0.726,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,4.24
-TIC 79920467,79920467,TOI-3288 b,1.4338647,27885.6,13.3,4072,0.672,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,19.07
-TIC 89020549,89020549,TOI-132 b,2.1097019,1213.69,10.81,5397,0.9,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,26.96,12.78
-TIC 92352620,92352620,WASP-94 A b,3.95019,12000,9.643,6170,1.48,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,6.92
-TIC 92449173,92449173,WASP-133 b,2.176423,7456.26,12.22,5700,1.44,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.56,9.90
-TIC 94986319,94986319,TOI-421 c,16.067541,2903.63,9.271,5291,0.866,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.84,3.16
-TIC 95057860,95057860,TOI-4201 b,3.5819194,39601.6,13.5,3794,0.63,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.85,14.19
-TIC 97409519,97409519,WASP-124 b,3.37265,15607,12.19,6050,1.02,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.71,6.44
-TIC 97825640,97825640,TOI-2989 b,3.122832,22934.2,12.71,4672,0.765711,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.56,7.22
-TIC 100100827,100100827,WASP-18 b,0.94145223,10410,8.829,6432,1.319,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27,28.68
-TIC 100566492,100566492,WASP-88 b,4.954,7000,11.12,6430,1.8,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,5.52
-TIC 100990000,100990000,TOI-411 c,9.573083,365.091,7.757,6169,1.117,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.35,5.26
-TIC 101955023,101955023,GJ 1132 b,1.6289291,2443,10.84,3229,0.2211,,catalog_pl_trandep,survey-wide known-planet recovery rate,9,9;10;36,SPOC,120,81,49.73
-TIC 102192004,102192004,WASP-174 b,4.2337005,12018.6,11.33,6399,1.347,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,21.82,5.15
-TIC 103633434,103633434,TOI-1235 b,3.444714,626.518,9.919,3997,0.619,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,14,14;20;21,SPOC,120,81,23.51
-TIC 104024556,104024556,WASP-167 b,2.0219596,8200,10.32,7000,1.79,,catalog_pl_trandep,survey-wide known-planet recovery rate,101,101,SPOC,120,22.16,10.96
-TIC 106402532,106402532,TOI-733 b,4.884765,370.329,8.841,5585,0.937681,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.38,4.79
-TIC 111991770,111991770,WASP-15 b,3.7521,9700,10.44,6300,1.48,,catalog_pl_trandep,survey-wide known-planet recovery rate,102,102,SPOC,120,21.42,5.71
-TIC 112099249,112099249,WASP-184 b,5.1817,6900,12.16,6000,1.65,,catalog_pl_trandep,survey-wide known-planet recovery rate,102,102,SPOC,120,21.44,4.14
-TIC 114749636,114749636,WASP-147 b,4.60273,6400,11.76,5702,1.429,,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,21.94,4.77
-TIC 116156517,116156517,WASP-190 b,5.367753,6200,11.32,6400,1.6,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.48,4.93
-TIC 116483514,116483514,TOI-1411 b,1.4520527,320.407,9.104,4115,0.614,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,16,16;23;24,SPOC,120,81,55.78
-TIC 117979897,117979897,WASP-141 b,3.310651,8300,12.07,5900,1.37,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.59,15.28
-TIC 118327550,118327550,TOI-244 b,7.397225,1060,10.35,3433,0.426,,catalog_pl_trandep,survey-wide known-planet recovery rate,69,69;96;104,SPOC,120,81,10.95
-TIC 118956453,118956453,WASP-170 b,2.3447802,13820,11.94,5600,0.938,,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,23.14,9.87
-TIC 119292328,119292328,TOI-512 b,7.18886,246,8.977,5277,0.89,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,51.46,7.16
-TIC 119584412,119584412,TOI-1801 b,10.64387,1214.16,9.856,3863,0.547,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,22,22;49,SPOC,120,54,5.07
-TIC 120610833,120610833,WASP-45 b,3.126089,12900,11.5,5150,0.855,,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,22.03,7.05
-TIC 120896927,120896927,HD 15337 b,4.7559804,360.21,8.316,5131,0.855,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27,5.68
-TIC 122612091,122612091,WASP-72 b,2.21673,3700,10.46,6250,2.18,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.26,11.85
-TIC 122617317,122617317,TOI-4311 b,0.9902738,223.352,10.72,5063,0.8441,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,27.85
-TIC 124235800,124235800,TOI-4898 b,2.7652047,2845.19,11.93,4201.6,0.639344,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,22.16,8.01
-TIC 124778445,124778445,NGTS-3 A b,1.6753728,26800,13.98,5600,0.93,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,51.46,30.72
-TIC 125739286,125739286,NGTS-2 b,4.511164,9274.22,10.53,6478,1.702,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,102,102,SPOC,120,21.58,4.78
-TIC 127530399,127530399,WASP-132 b,7.1335164,14920.6,11.11,4686,0.758,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,102,102,SPOC,120,21.78,3.05
-TIC 134200185,134200185,TOI-500 b,0.548177,248.7,9.402,4440,0.678,,catalog_pl_trandep,survey-wide known-planet recovery rate,6,6;7;8,SPOC,120,81,147.76
-TIC 138819293,138819293,GJ 436 b,2.6438831,7059.78,8.403,,0.455,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,22,22;49,SPOC,120,54,20.42
-TIC 139285832,139285832,TOI-332 b,0.777038,1137.11,11.53,5251,0.87,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,26.93,34.66
-TIC 139733308,139733308,HATS-5 b,4.763387,11578.8,11.9,5304,0.871,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,10.09
-TIC 140691463,140691463,TOI-157 b,2.0845435,12830,12.02,5404,1.167,,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.93,10.52
-TIC 142105158,142105158,TOI-2200 b,2.9360284,5969.36,12.32,5036.2,0.826247,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.63,7.37
-TIC 142211778,142211778,NGTS-18 b,3.05125,7979.32,13.91,5610,1.38708,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.77,7.46
-TIC 142937186,142937186,TOI-2427 b,1.3060011,644.555,9.014,4072,0.65,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27,20.67
-TIC 143143769,143143769,NGTS-4 b,1.3373508,1204.58,12.37,5143,0.84,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.44,38.47
-TIC 144065872,144065872,WASP-95 b,2.18467,10000,9.499,5830,1.23,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27,12.36
-TIC 144700903,144700903,TOI-532 b,2.3266508,7601.24,12.68,3927,0.612,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.71,21.80
-TIC 146172354,146172354,TOI-1036 b,3.7795213,2402.57,10.29,5664.7,1.17554,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.95,6.07
-TIC 146520535,146520535,TOI-942 c,10.156272,2293.51,11.05,,0.894,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,4.73
-TIC 148497855,148497855,TOI-2986 b,3.2783662,3415,12.07,5906,1.49169,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.92,6.99
-TIC 149603524,149603524,WASP-62 b,4.41195,12000,9.711,6230,1.23,,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.65,4.91
-TIC 150030205,150030205,TOI-286 b,4.5117244,278.567,9.106,5152,0.78,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.65,4.80
-TIC 151759246,151759246,TOI-5800 b,2.6278838,851.242,8.613,4850,0.773,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,54,54;81;92,SPOC,120,81,30.82
-TIC 151825527,151825527,TOI-672 b,3.633581,8127.24,11.67,3810,0.544068,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.93,6.31
-TIC 151920165,151920165,NGTS-24 b,3.4678796,5786.6,12.57,5820,1.58092,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.8,6.58
-TIC 152569268,152569268,TOI-6281 b,1.0542624,407.178,9.954,4533.2,0.874219,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.38,22.18
-TIC 153065527,153065527,TOI-406 c,3.307441,871.208,11.28,3392,0.41,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,8.34
-TIC 153078576,153078576,TOI-2407 b,2.702969,4744.55,12.53,3530,0.567,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.32,18.62
-TIC 157230659,157230659,NGTS-12 b,7.532806,4593.57,11.66,5690,1.52905,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.92,3.04
-TIC 157266693,157266693,HATS-53 b,3.8537768,15642.6,13.16,5644,1.05901,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.7,5.89
-TIC 158025009,158025009,TOI-1416 b,1.0697568,455,9.074,4884,0.793,,catalog_pl_trandep,survey-wide known-planet recovery rate,16,16;23;50,SPOC,120,81,75.72
-TIC 158297421,158297421,HATS-47 b,3.9228038,30580.5,13.67,4512,0.6564,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,22.07,5.63
-TIC 158588995,158588995,TOI-674 b,1.977143,13132.9,11.88,3514,0.421944,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.53,11.40
-TIC 158623531,158623531,WASP-105 b,7.87288,12000,11.28,5070,0.9,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,3.50
-TIC 159418353,159418353,TOI-1739 b,8.3033414,521.825,9.812,4814,0.781,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,19,19;20;21,SPOC,120,81,9.76
-TIC 159951311,159951311,WASP-139 b,5.924262,10700,11.73,5310,0.8,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.57,4.65
-TIC 160148385,160148385,WASP-96 b,3.4252602,13800,11.91,5540,1.05,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.93,7.86
-TIC 160578764,160578764,WASP-192 b,2.8786765,9260,12.1,5910,1.32,,catalog_pl_trandep,survey-wide known-planet recovery rate,102,102,SPOC,120,21.94,7.62
-TIC 160708862,160708862,WASP-178 b,3.3448285,12430,9.879,9360,1.67,,catalog_pl_trandep,survey-wide known-planet recovery rate,102,102,SPOC,120,21.94,6.56
-TIC 161032923,161032923,TOI-1080 b,3.9652482,2969.15,12.71,3065,0.2019,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,103,103,SPOC,120,22.3,5.62
-TIC 162802770,162802770,TOI-2641 b,4.880974,15431.4,11.19,6100,1.27132,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.94,4.70
-TIC 162922904,162922904,WASP-171 b,3.8186244,3820,12.02,5965,2.02635,1.14,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.01,6.03
-TIC 164767175,164767175,HIP 8152 b,10.751014,586.293,9.457,5618,0.9603,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,49.88,4.64
-TIC 165202476,165202476,TOI-4666 b,2.9089165,38569.7,13.33,3793,0.585,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.28,17.28
-TIC 166527623,166527623,HIP 67522 b,6.9594731,4402.21,9.187,5675,1.38,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,22.19,3.19
-TIC 166778944,166778944,TOI-4662 b,4.7034376,1448.49,11.4,4520.4,0.69375,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,26.99,5.74
-TIC 166836920,166836920,WASP-99 b,5.75251,4100,8.93,6150,1.64,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27,4.69
-TIC 167714124,167714124,NGTS-31 b,4.162734,9471.7,12.85,5710,1.7,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.11,12.28
-TIC 168281028,168281028,HATS-38 b,4.375021,3260.52,11.81,5732,1.11563,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,21.77,4.98
-TIC 169765334,169765334,TOI-329 b,5.70439,873.453,10.69,5614,1.5326,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.14,3.88
-TIC 170849515,170849515,HATS-76 b,1.9416423,31383.9,14.86,4016,0.6259,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.07,26.30
-TIC 175532955,175532955,TOI-929 b,5.8301537,1181.55,11.43,4457.2,0.717414,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,4.73
-TIC 176314383,176314383,TOI-2719 b,3.37594,1052.38,12.07,5762,1.69,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,14.23
-TIC 176956893,176956893,TOI-2184 b,6.90683,1298.73,11.41,5966,2.9,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.57,3.12
-TIC 177115354,177115354,TOI-1226 b,3.9288088,501.224,11.55,5434.9,0.986943,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.52,5.48
-TIC 177254988,177254988,TOI-4405 b,5.92144,1162.51,12.38,4467.4,0.687025,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.71,3.67
-TIC 178155732,178155732,HR 858 b,3.585287,213.7,5.905,6354,1.258,,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.11,13.98
-TIC 178709444,178709444,TOI-762 A b,3.4716826,32362.5,13.66,3266,0.426785,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.6,6.51
-TIC 178819686,178819686,TOI-763 b,5.6057,543.033,9.527,5450,0.897,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,22.19,3.96
-TIC 178879588,178879588,HATS-63 b,3.0566527,13437.6,13.26,5627,1.07,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,15.72
-TIC 179317684,179317684,TOI-163 b,4.231306,8620.85,10.87,6495,1.648,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.78,5.15
-TIC 180695581,180695581,TOI-1807 b,0.54937097,338.377,9.036,4914,0.746,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,22,22;23;49,SPOC,120,81,147.44
-TIC 181804752,181804752,LP 791-18 c,4.98991,15707.2,13.56,2960,0.17143,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.42,4.49
-TIC 183120439,183120439,TOI-169 b,2.2554477,7500,11.79,5880,1.288,,catalog_pl_trandep,survey-wide known-planet recovery rate,95,95,SPOC,120,21.81,9.67
-TIC 183537452,183537452,WASP-29 b,3.92273,10000,10.25,4800,0.79,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.92,6.86
-TIC 183985250,183985250,LTT 9779 b,0.792052,2079.19,9.103,5443,0.949,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.2,28.03
-TIC 184240683,184240683,WASP-5 b,1.6284279,11800,11.55,5700,1.029,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.89,16.51
-TIC 188570092,188570092,HATS-72 b,7.3279474,10589.6,11.39,4656.1,0.7214,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.23,3.03
-TIC 188589164,188589164,GJ 3929 b,2.616235,975.202,10.27,3384,0.32,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,24,24;25;78,SPOC,120,81,30.96
-TIC 189625051,189625051,HATS-64 b,4.908897,6667.73,12.49,6554,2.113,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,24.56,5.00
-TIC 192790476,192790476,TOI-2459 b,19.104718,1608.28,9.395,4195,0.6751,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,5,5;6;32,SPOC,120,81,4.24
-TIC 192826603,192826603,NGTS-1 b,2.647298,56894.4,13.91,3916,0.573,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.01,19.27
-TIC 192833836,192833836,TOI-7384 b,6.2340258,10467.9,13.69,3185,0.319,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.19,8.21
-TIC 193336820,193336820,Ross 176 b,5.0066338,878.927,10.44,4041,0.569,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,75,75;76;82,SPOC,120,81,16.18
-TIC 193641523,193641523,TOI-824 b,1.392978,1490,10.07,4600,0.729635,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,24.19,17.36
-TIC 194795551,194795551,TOI-3331 A b,2.0180231,15590,11.32,5609,0.952,,catalog_pl_trandep,survey-wide known-planet recovery rate,104,104,SPOC,120,23.59,11.69
-TIC 197643976,197643976,NGTS-14 A b,3.5357173,2936.41,12.56,5187,0.842,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,7.73
-TIC 198008005,198008005,TOI-858 B b,3.2797178,9740,10.64,5842,1.308,,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.34,15.35
-TIC 200322593,200322593,TOI-540 b,1.2391491,1908.53,11.5,3216,0.1895,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,38.78
-TIC 200805484,200805484,TOI-2654 b,2.9676043,9279.54,13.07,4594.1,0.756095,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.35,16.97
-TIC 201177276,201177276,TOI-2379 b,5.4693827,29864.6,13.65,3707,0.622,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,26.99,4.94
-TIC 201186294,201186294,TOI-1634 b,0.98934551,1284.25,11.01,3550,0.45,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,18,18;86,SPOC,120,54,54.58
-TIC 201248411,201248411,HIP 65 A b,0.9809734,82000,9.9,4590,0.7242,,catalog_pl_trandep,survey-wide known-planet recovery rate,95,95;96;102,SPOC,120,81,82.57
-TIC 201604954,201604954,HATS-29 b,4.6058749,14354.6,11.97,5670,1.073,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,22.02,4.78
-TIC 201642601,201642601,HATS-48 A b,3.1316666,13213,13.17,4546,0.7152,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.74,6.94
-TIC 204317710,204317710,HATS-32 b,2.8126548,13689.5,13.74,5700,1.097,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.08,7.85
-TIC 207077681,207077681,WASP-144 b,2.2783152,11650,12.31,5200,0.81,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,12.00
-TIC 207141131,207141131,HD 18599 b,4.1374354,965.823,8.18,5145,0.767,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.15,5.35
-TIC 209459275,209459275,TOI-559 b,6.9839095,8276,10.57,5925,1.233,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,3.95
-TIC 212253390,212253390,TOI-2211.01,3.0926868,294.453,9.255,5253,0.834,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.62,6.99
-TIC 219189765,219189765,HATS-74 A b,1.7318561,33922.7,14.76,3776.9,0.615219,0.600332,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.41,12.94
-TIC 219344917,219344917,TOI-871 b,14.362565,450,9.761,4929,0.719,,catalog_pl_trandep,survey-wide known-planet recovery rate,4,4;5;6,SPOC,120,81,5.64
-TIC 219698776,219698776,TOI-1243 b,4.6594779,1747.48,11.2,3515,0.511,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,40,40;47;53,SPOC,120,81,17.38
-TIC 219698950,219698950,HATS-1 b,3.446459,16614.8,11.51,5870,0.913091,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.56,6.55
-TIC 220076110,220076110,TOI-2796 b,4.8084983,22400,11.92,5764,1.069,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,9.99
-TIC 220479565,220479565,TOI-269 b,3.6977104,4071.32,12.3,3514,0.398,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.64,5.85
-TIC 221861843,221861843,TOI-3486 b,2.2177811,15150,11.49,4930,0.808106,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.3,10.51
-TIC 224225541,224225541,TOI-251 b,4.93777,813.001,9.326,5875,0.881,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.23,4.50
-TIC 224245334,224245334,TOI-333 b,3.7852503,1260.59,11.52,6241,1.1,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,26.94,7.12
-TIC 228381868,228381868,WASP-165 b,3.465509,5440,12.07,5599,1.75,,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,22.05,6.36
-TIC 229047362,229047362,WASP-25 b,3.7648337,20511.2,11.22,5697,0.884,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,22.16,5.89
-TIC 230982885,230982885,WASP-97 b,2.07276,12000,9.97,5640,1.08,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,13.31
-TIC 231663901,231663901,WASP-46 b,1.4303676,19771.4,12.41,5600,0.858,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.33,19.11
-TIC 231670397,231670397,WASP-73 b,4.08722,3300,9.864,6030,2.55,,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.77,5.33
-TIC 231702397,231702397,TOI-122 b,5.07803,5600,13.08,3403,0.334,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.99,5.32
-TIC 232038798,232038798,WASP-168 b,4.153658,11900,11.32,6000,1.12,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.99,12.28
-TIC 233087860,233087860,TOI-1184 b,5.7484338,1008.41,9.947,4534,0.69,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,14,14;15;16,SPOC,120,81,14.09
-TIC 234523599,234523599,HATS-71 b,3.7955202,48403.2,14.13,3405,0.4783,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.83,5.75
-TIC 234994474,234994474,L 168-9 b,1.401526,612.129,9.23,3842,0.604,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95;102;104,SPOC,120,81,57.79
-TIC 235078021,235078021,TOI-4747 b,5.2192416,1346.87,11.81,5595.1,0.988751,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.03,9.78
-TIC 237320326,237320326,WASP-164 b,1.7771255,15420,12,5806,0.932,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.47,14.90
-TIC 238176110,238176110,WASP-91 b,2.798581,15000,11.04,4920,0.86,,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.98,7.85
-TIC 239332587,239332587,GJ 806 b,0.9263237,867.078,8.728,3600,0.4144,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,75,75;76;82,SPOC,120,81,87.44
-TIC 240968774,240968774,TOI-1467 b,5.9711471,1285.23,10.6,3834,0.491,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,17,17;18;58,SPOC,120,81,13.57
-TIC 243641947,243641947,TOI-3235 b,2.5926184,79912.9,13.25,3388.8,0.3697,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,22.08,8.52
-TIC 248075138,248075138,WASP-42 b,4.9816819,16708.3,11.37,5315,0.892,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,21.8,4.38
-TIC 248111245,248111245,HATS-27 b,4.637038,7848.01,12.33,6438,1.68054,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.4,5.05
-TIC 248351386,248351386,K2-204 b,7.055908,538,12.46,5783,1.253,,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.16,7.11
-TIC 248853232,248853232,WASP-69 b,3.8681388,16462.2,8.863,4792,0.801,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,55,55;81;92,SPOC,120,81,20.94
-TIC 254113311,254113311,TOI-1130 b,4.074554,2317.6,10.14,4360,0.697,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.74,5.34
-TIC 255685030,255685030,TOI-799 b,5.5451914,428.155,10.59,5662.8,0.915519,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.66,3.91
-TIC 257567854,257567854,WASP-22 b,3.53269,10000,11.19,6000,1.24,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,7.81
-TIC 259168516,259168516,TOI-1680 b,4.8026345,4070,13.31,3225,0.213,0.182,catalog_pl_trandep,survey-wide known-planet recovery rate,14,14;15;16,SPOC,120,74.45,15.50
-TIC 259377017,259377017,TOI-270 c,5.66051,3159.99,10.5,3506,0.38,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.34,8.89
-TIC 260004324,260004324,LHS 1815 b,3.814334,396.391,10.14,3643,0.501,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,1,1;2;3,SPOC,120,81,21.24
-TIC 260647166,260647166,HD 108236 c,6.203449,469,8.652,5660,0.864173,1.02,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.66,3.81
-TIC 260708537,260708537,GJ 238 b,1.7446999,144.682,9.369,3485,0.4314,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,1,1;2;3,SPOC,120,81,46.43
-TIC 261136679,261136679,pi Men c,6.2678399,267.59,5.105,5998,1.17,,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,22.06,3.52
-TIC 261867566,261867566,TOI-905 b,3.739494,17180,10.57,5570,1.00018,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.96,6.14
-TIC 262530407,262530407,GJ 3090 b,2.853102,1500.22,9.493,3707,0.516,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96;103;104,SPOC,120,81,28.39
-TIC 266980320,266980320,HD 219666 b,6.034468,1797.99,9.179,5540,1.059,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27,4.47
-TIC 267263253,267263253,HD 2685 b,4.12688,8998.11,9.22,6801,1.56,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,22.06,5.35
-TIC 268766053,268766053,WASP-53 b,3.3098443,19128.4,11.76,4953,0.798,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.16,15.16
-TIC 269217040,269217040,KELT-10 b,4.1662739,14160,10.27,5948,1.209,,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,22.01,5.28
-TIC 271168962,271168962,WASP-131 b,5.3220125,6517,9.472,5990,1.561,,catalog_pl_trandep,survey-wide known-planet recovery rate,102,102,SPOC,120,21.6,4.06
-TIC 271169413,271169413,TOI-4559 b,3.965991,1200,10.91,3558,0.374,,catalog_pl_trandep,survey-wide known-planet recovery rate,11,11;38;64,SPOC,120,81,20.42
-TIC 271478281,271478281,TOI-2194 b,15.337597,696.736,7.426,4756,0.6909,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,67,67;92;94,SPOC,120,81,5.28
-TIC 271893367,271893367,TOI-150.01,5.857487,7142.56,10.9,6255,1.526,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.72,3.71
-TIC 272212970,272212970,HATS-67 b,1.6091788,14439.3,13.17,6594,1.42749,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.63,14.07
-TIC 272213425,272213425,HATS-56 b,4.324799,6211.27,11.11,6536,2.1276,1.31,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.69,5.25
-TIC 274367763,274367763,TOI-3474 b,3.8795105,11480,11.97,6020,1.256,,catalog_pl_trandep,survey-wide known-planet recovery rate,102,102,SPOC,120,22.17,5.72
-TIC 278775625,278775625,TOI-921 b,5.1287191,805.438,11.26,6011.7,1.14165,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.72,4.23
-TIC 281459670,281459670,HATS-30 b,3.1743516,12951.5,11.67,5943,1.061,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,26.99,8.50
-TIC 281541545,281541545,HATS-49 b,4.1480467,12695.8,13.78,4405,0.6977,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,6.65
-TIC 281541555,281541555,HATS-46 b,4.7423729,11834.6,13.04,5495,0.853,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,5.82
-TIC 281575427,281575427,TOI-205 b,4.2530077,248.783,9.453,6302.7,1.45382,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,6.49
-TIC 282485660,282485660,TOI-5005 b,6.3085044,3800,11.13,5749,0.93,,catalog_pl_trandep,survey-wide known-planet recovery rate,103,103,SPOC,120,22.52,3.57
-TIC 285048486,285048486,TOI-1728 b,3.49151,5499.68,10.79,3980,0.6243,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,20,20;47;74,SPOC,120,81,23.20
-TIC 286865921,286865921,WASP-83 b,4.971252,10400,11.5,5510,1.05,,catalog_pl_trandep,survey-wide known-planet recovery rate,101,101,SPOC,120,22.16,4.46
-TIC 287139872,287139872,TOI-1752 b,0.9351861,857.638,12.75,3762,0.527,0.524,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,14,14;15;16,SPOC,120,77.05,82.39
-TIC 287328202,287328202,TOI-6707 b,3.8347936,1101.36,12.33,6289.5,1.58202,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.79,5.68
-TIC 289793076,289793076,HATS-13 b,3.0440499,19716.7,13.16,5523,0.887,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.99,7.22
-TIC 290131778,290131778,HD 202772 A b,3.3088775,4670,7.876,6442,2.554,,catalog_pl_trandep,survey-wide known-planet recovery rate,95,95,SPOC,120,22.12,6.69
-TIC 290348383,290348383,HD 207496 b,6.441008,719.538,7.366,4819,0.769,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101;102;103,SPOC,120,81,12.58
-TIC 290504044,290504044,TOI-3464 b,3.6515568,6540,12.07,6370,1.56,,catalog_pl_trandep,survey-wide known-planet recovery rate,103,103,SPOC,120,22.3,6.11
-TIC 290742484,290742484,NGTS-25 b,2.823093,14942.7,13.55,5321,0.86,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,9.69
-TIC 293435336,293435336,WASP-76 b,1.809882,11780,9.027,6329,1.756,,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,48.24,26.65
-TIC 293457754,293457754,WASP-181 b,4.5195064,15900,12.36,5839,0.965,,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.29,11.13
-TIC 293607057,293607057,BD-14 3065 b,4.2889731,6490,10.63,6935,2.60866,1.44,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.28,5.19
-TIC 293612446,293612446,K2-260 b,2.6266976,9250,12.04,6860,1.755,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.71,19.31
-TIC 295541511,295541511,TOI-1117 b,2.22816,461.353,10.41,5635,1.02422,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.84,10.25
-TIC 296739893,296739893,TOI-620 b,5.0988179,3930,10.21,3708,0.55,,catalog_pl_trandep,survey-wide known-planet recovery rate,62,62;89;99,SPOC,120,81,15.89
-TIC 299798795,299798795,TOI-1224 b,4.1782745,2280,11.56,3326,0.404,,catalog_pl_trandep,survey-wide known-planet recovery rate,95,95,SPOC,120,21.56,5.16
-TIC 299799658,299799658,TOI-1062 b,4.11296,611.11,9.478,5328,0.84,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,22.06,5.36
-TIC 301289516,301289516,GJ 9827 d,6.20183,979.526,9.068,4236,0.58,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,42,42;70;92,SPOC,120,81,13.06
-TIC 305048087,305048087,TOI-237 b,5.436098,3800,13.41,3212,0.211,,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,22.2,4.08
-TIC 305424003,305424003,TOI-907.01,4.5849129,1831.79,9.944,6272,2.05979,1.2,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.32,5.09
-TIC 305739565,305739565,NGTS-27 b,3.3704181,6568.98,12.88,5700,1.77,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,102,102,SPOC,120,21.4,6.35
-TIC 306362738,306362738,WASP-49 b,2.78174,14000,10.82,5600,0.97,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.85,18.28
-TIC 306648160,306648160,TOI-3321 b,3.6525145,9660,10.67,5850,1.46536,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.03,6.31
-TIC 307210830,307210830,L 98-59 c,3.6906764,1486,9.412,3415,0.3155,,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,21.79,5.90
-TIC 307221757,307221757,TOI-4930 b,6.7813024,3006.03,12.07,5624.7,1.15926,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,22.15,3.27
-TIC 307809773,307809773,HD 260655 c,5.70588,1024.94,7.899,3803,0.439,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,43,43;44;45,SPOC,120,81,14.20
-TIC 315002523,315002523,HATS-26 b,3.3023881,7771.25,12.43,6071,2.04,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,24.86,7.53
-TIC 317483660,317483660,TOI-2346 b,3.3312029,11470,11.56,6480,1.38,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.84,15.26
-TIC 317548889,317548889,TOI-480 b,6.866196,309.267,6.78,6174,1.4877,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.85,7.41
-TIC 322307342,322307342,HATS-68 b,3.5862202,5245.83,11.78,6147,1.748,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,7.69
-TIC 325682877,325682877,TOI-4363 b,2.1186759,549.04,11.25,4278.4,0.69132,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.17,23.68
-TIC 333605244,333605244,K2-203 b,9.6952,230,11.55,5026,0.765,,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.16,5.17
-TIC 339522221,339522221,HATS-35 b,1.8209993,11022.1,12.05,6300,1.433,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.91,12.03
-TIC 341405597,341405597,TOI-6699 b,5.3200593,802.114,10.4,4705.1,0.75309,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.97,4.13
-TIC 348755728,348755728,TOI-1883 b,4.508,10479.4,13.35,3554,0.506,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,21.75,4.83
-TIC 348835438,348835438,TOI-2669 b,6.2034,1945.95,9.992,4800,4.1,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,23.21,3.74
-TIC 349972412,349972412,TOI-4504 b,2.4261516,682.445,12.55,,0.93,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.74,8.96
-TIC 350153977,350153977,TOI-908 b,3.183792,807.322,10.65,5626,1.028,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.9,6.88
-TIC 350618622,350618622,TOI-201 d,5.84889,94.6299,8.582,6423,1.31,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.65,3.70
-TIC 351601843,351601843,TOI-1075 b,0.6047328,798.694,11.12,3875,0.581,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101;102;103,SPOC,120,81,133.94
-TIC 353475866,353475866,TOI-1693 b,1.7666957,789.704,10.67,3499,0.46,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,43,43;44;45,SPOC,120,81,45.85
-TIC 354944123,354944123,TOI-4342 b,5.5382592,1274.91,11.03,3866,0.598,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.87,3.95
-TIC 355703913,355703913,HATS-34 b,2.1061607,22485.1,13.18,5380,0.98,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,26.99,12.81
-TIC 357501308,357501308,TOI-2018 b,7.435583,1124.72,8.962,4174,0.62,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,51,51;77;78,SPOC,120,81,10.89
-TIC 358070912,358070912,TOI-3261 b,0.8831331,1701.58,12.49,5068,0.849,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.78,24.67
-TIC 359271092,359271092,GJ 341 b,7.57686,253.616,7.669,3770,0.5066,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,36,36;37;62,SPOC,120,81,10.69
-TIC 360742636,360742636,HATS-33 b,2.5495551,15296.2,11.25,5659,1.022,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.85,8.57
-TIC 362249359,362249359,TOI-833 b,1.0418777,376.571,10.15,3920,0.6,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,9,9;10;11,SPOC,120,81,77.74
-TIC 363851359,363851359,HATS-54 b,2.5441765,7191.11,13.28,5621,1.23,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,22.02,8.65
-TIC 369327947,369327947,LHS 475 b,2.029088,1101,10.15,3300,0.2789,,catalog_pl_trandep,survey-wide known-planet recovery rate,93,93;94;101,SPOC,120,81,39.92
-TIC 369455629,369455629,WASP-182 b,3.3769848,4260,11.45,5638,1.34,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,8.10
-TIC 370133522,370133522,GJ 1252 b,0.5182331,782.472,10.12,3458,0.391,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101;103;104,SPOC,120,81,156.30
-TIC 372172128,372172128,TOI-2196 b,1.1947268,951.891,11.36,5634,1.043,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.89,18.32
-TIC 376353509,376353509,TOI-1648 b,7.331602,826.493,9.583,4850,0.81,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,52,52;59;79,SPOC,120,81,11.05
-TIC 377293776,377293776,TOI-1450 A b,2.0439274,460.049,10.03,3437,0.483,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,14,14;15;16,SPOC,120,81,39.63
-TIC 380589029,380589029,HATS-24 b,1.3484978,16382.8,12.29,6125,1.14759,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.25,17.24
-TIC 381856447,381856447,WASP-145 A b,1.7690381,11600,10.72,4900,0.68,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.99,15.26
-TIC 382602147,382602147,TOI-2384 b,2.135703,29690.2,13.31,3943,0.6113,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.58,10.10
-TIC 384888319,384888319,TOI-4529 b,5.879577,1142.89,10.14,3697,0.48,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,42,42;43;70,SPOC,120,81,13.78
-TIC 386259537,386259537,WASP-169 b,5.6114118,4460,11.33,6110,2.011,,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,21.35,3.80
-TIC 388104525,388104525,WASP-119 b,2.49979,14373.7,11.6,5650,1.2,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.74,8.70
-TIC 389352124,389352124,WASP-7 b,4.9546416,9109.46,9.053,6400,1.432,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27,5.45
-TIC 390651552,390651552,GJ 486 b,1.4671213,1387.1,8.822,3317,0.3243,,catalog_pl_trandep,survey-wide known-planet recovery rate,23,23;50,SPOC,120,54,36.81
-TIC 391903064,391903064,TOI-3353.01,4.6657965,573.736,8.784,6365,1.0207,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.79,4.67
-TIC 391949880,391949880,TOI-128.01,4.9404681,324.109,7.985,6086,1.13,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,22.06,4.46
-TIC 392747437,392747437,NGTS-26 b,4.5199279,13840.6,14.22,5550,1.16,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,102,102,SPOC,120,21.94,4.85
-TIC 393414358,393414358,WASP-63 b,4.37808,6100,10.44,5550,1.86,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,51.45,11.75
-TIC 394357918,394357918,TOI-4184 b,4.9019804,9115,14.26,3238,0.2347,,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.91,4.47
-TIC 394657039,394657039,TOI-159 b,3.7628396,10585.2,10.51,7287,1.62,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.82,5.80
-TIC 394722182,394722182,TOI-2236 b,3.5315902,7011,10.87,6248,1.573,,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.82,6.18
-TIC 396562848,396562848,LHS 1478 b,1.9495378,2142.47,11.05,3381,0.246,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,18,18;19;25,SPOC,120,81,41.55
-TIC 397362481,397362481,HD 101581 c,6.20401,207.554,6.721,4675,0.63,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,25.66,4.14
-TIC 398943781,398943781,WASP-41 b,3.0524,19000,10.79,5545,0.83,,catalog_pl_trandep,survey-wide known-planet recovery rate,101,101,SPOC,120,22.16,7.26
-TIC 399702475,399702475,K2-384 f,13.62749,3426.66,13.77,3623,0.348,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.28,3.69
-TIC 399722652,399722652,K2-208 b,4.19097,309,11.83,5500,0.872,,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.28,12.00
-TIC 399731211,399731211,K2-211 b,0.669561,222,12.38,5117,0.818,,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.28,75.10
-TIC 399870368,399870368,HAT-P-70 b,2.7443245,8443,9.337,8450,1.858,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.6,18.44
-TIC 401604346,401604346,TOI-2193 A b,2.1225735,191,11.4,5966,1.248,,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.85,10.30
-TIC 402026209,402026209,WASP-4 b,1.338231,23120,11.83,,0.912,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.96,20.14
-TIC 403224672,403224672,HD 213885 b,1.008035,200,7.384,5978,1.1011,,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27,26.78
-TIC 405425498,405425498,TOI-2227 b,4.2217582,552.677,10.01,5889.5,1.20847,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.88,5.18
-TIC 406941612,406941612,TOI-912 b,4.6780691,1783.32,10.49,3572,0.419,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,93,93;100;101,SPOC,120,81,17.31
-TIC 407591297,407591297,TOI-5388.01,2.5946748,915.313,10.57,3440,0.3,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,21,21;48,SPOC,120,54,20.81
-TIC 408137826,408137826,TOI-941 b,8.5146089,2538.4,11,5745.9,1.1849,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.51,5.93
-TIC 408310006,408310006,WASP-166 b,5.44354,2810,8.868,6050,1.22,,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,25.66,4.71
-TIC 408636441,408636441,TOI-1759 b,18.85019,2325.16,9.928,4065,0.597,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,56,56;57;58,SPOC,120,81,4.30
-TIC 411697517,411697517,K2-308 b,3.38628,5374.91,14.41,6100,1.24,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.71,14.98
-TIC 411839167,411839167,EPIC 246851721 b,6.180235,4640,10.82,6202,1.586,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.71,8.21
-TIC 413248763,413248763,GJ 357 b,3.9306,955,8.741,3505,0.337,,catalog_pl_trandep,survey-wide known-planet recovery rate,62,62;89;99,SPOC,120,81,20.61
-TIC 413376180,413376180,HATS-2 b,1.3541338,17324.1,12.75,,0.876,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,21.79,16.09
-TIC 417931300,417931300,TOI-2068 b,7.768915,970,11.18,3710,0.535,,catalog_pl_trandep,survey-wide known-planet recovery rate,14,14;15;21,SPOC,120,81,10.43
-TIC 420202798,420202798,TOI-4961 b,7.479182,15410,11.66,5380,0.969314,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.66,3.16
-TIC 422655579,422655579,WASP-71 b,2.90367,4400,10.16,6050,1.82,,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.28,17.32
-TIC 422756130,422756130,TOI-1695 b,3.1342791,1236,11.03,3690,0.515,,catalog_pl_trandep,survey-wide known-planet recovery rate,18,18;19;24,SPOC,120,81,25.84
-TIC 423275733,423275733,WASP-142 b,2.052868,9160,12.34,6010,1.64,,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,24.41,11.89
-TIC 424196109,424196109,TOI-5007 b,2.543371,23954.1,13.64,3793,0.655522,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.6,9.28
-TIC 425817867,425817867,WASP-110 b,3.7784022,20106.1,12.05,5392,0.853,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.88,5.79
-TIC 425997655,425997655,HD 23472 d,3.97664,93.788,8.751,4684,0.71,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.9,5.51
-TIC 429304876,429304876,TOI-682.01,6.8392388,1213,9.223,5085,1.08433,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.13,3.38
-TIC 436575927,436575927,K2-394 b,5.095717,604.343,11.44,4938,0.631,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,43,43;44;70,SPOC,120,81,15.90
-TIC 437242640,437242640,WASP-34 b,4.31768,13000,9.757,5700,1.10901,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.94,5.31
-TIC 437248515,437248515,WASP-31 b,3.4059096,16150,11.46,6302,1.26867,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.35,6.56
-TIC 437261733,437261733,HATS-59 b,5.416081,12474.8,13.3,5670,1.09531,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.46,4.15
-TIC 439456714,439456714,TOI-277 b,3.994,4504.18,11.73,4031,0.362,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,49.77,12.46
-TIC 441422655,441422655,NGTS-21 b,1.5433897,25256.9,14.55,4660,0.86,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.81,14.13
-TIC 441738827,441738827,TOI-2084 b,6.0784247,1950,13.33,3551,0.467,0.464,catalog_pl_trandep,survey-wide known-planet recovery rate,16,16,SPOC,120,22.04,3.63
-TIC 445903569,445903569,TOI-1994 b,4.0337142,2969,10.24,7700,2.3,,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,25.66,6.36
-TIC 446549906,446549906,TOI-2107 b,2.4545467,21310,11.38,5627,0.932,,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,22.08,8.99
-TIC 448098793,448098793,TOI-3135 b,3.7065585,16160,11.1,5890,1.02752,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.49,6.34
-TIC 448589187,448589187,WASP-175 b,3.0652907,10640,12.31,6229,1.22466,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.46,7.33
-TIC 449197831,449197831,TOI-2458 b,3.73659,391.8,8.71,6005,1.31,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.31,13.46
-TIC 452006073,452006073,TOI-3071 b,1.266938,2510.87,11.87,6177,1.35787,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.58,18.61
-TIC 452808876,452808876,WASP-82 b,2.70579,6300,9.539,6480,2.1,,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,17.76
-TIC 452866790,452866790,GJ 3473 b,1.1980035,1013.52,11.2,3347,0.364,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,7,7;34;61,SPOC,120,81,67.61
-TIC 453668803,453668803,TOI-6564 b,3.985413,7821.04,9.569,5943,1.71105,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.58,5.92
-TIC 453789494,453789494,WASP-172 b,5.477433,7200,10.73,6900,1.91,,catalog_pl_trandep,survey-wide known-planet recovery rate,101,101,SPOC,120,22.19,4.05
-TIC 454069765,454069765,NGTS-13 b,4.119027,4300,12.11,5819,1.79413,,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.97,5.58
-TIC 455036659,455036659,HAT-P-64 b,4.007232,10174.3,12.16,6457,1.735,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,11.99
-TIC 466840711,466840711,OGLE2-TR-L9 b,2.4855335,11770,14.15,6933,1.59944,1.79,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.91,9.62
-TIC 467971286,467971286,HATS-69 b,2.2252577,12219.6,13.19,5137,0.8785,,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.64,9.72
-TIC 915110182,915110182,OGLE-TR-113 b,1.4324752,21030,14.7,4790,0.774,,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,25.66,17.91
+target,tic_id,planet,expected_period_days,expected_depth_ppm,tmag,source_rowupdate,purpose,sector,sectors,author,cadence_seconds,observed_baseline_days,expected_transits
+TIC 1003831,1003831,TOI-564 b,1.651144,9200,10.67,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,20.78,12.59
+TIC 1309019,1309019,NGTS-17 b,3.24253,9083.52,13.77,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.42,15.86
+TIC 1333933,1333933,NGTS-15 b,3.27623,14039.8,13.96,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.39,15.69
+TIC 1528696,1528696,NGTS-6 b,0.882059,32660.3,13.17,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,54.47
+TIC 2760219,2760219,TOI-2382 b,4.6612061,6280,11.44,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,22.03,4.73
+TIC 4070275,4070275,TOI-4364 b,5.424019,1780,11.4,catalog_pl_trandep,survey-wide known-planet recovery rate,5,5;32;98,SPOC,120,81,14.93
+TIC 4918918,4918918,Wolf 327 b,0.5734745,784.03,10.78,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,21,21;48,SPOC,120,54,94.16
+TIC 6663331,6663331,HATS-28 b,3.1810781,17710.1,13.29,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,22.11,6.95
+TIC 7088246,7088246,HATS-23 b,2.1605156,25413.4,13.29,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,22.11,10.24
+TIC 9006668,9006668,TOI-238 b,1.273099,357.429,9.927,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.08,17.34
+TIC 9344899,9344899,TIC 9344899 b,8.5821566,7100,12.73,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.54,5.89
+TIC 9385460,9385460,HATS-31 b,3.37796,8122.31,12.53,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,21.81,6.46
+TIC 9989136,9989136,TOI-5734 b,6.1841876,907.776,8.545,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,20,20;47;60,SPOC,120,81,13.10
+TIC 10837041,10837041,TOI-2411 b,0.7826942,513.029,10.42,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.1,64.01
+TIC 11561667,11561667,HATS-77 b,3.0876262,34687.6,14.92,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,25.66,8.31
+TIC 12421862,12421862,TOI-198 b,10.215213,892.9,9.928,catalog_pl_trandep,survey-wide known-planet recovery rate,2,2;29;69,SPOC,120,81,7.93
+TIC 13021029,13021029,WASP-61 b,3.8559,8800,11.72,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,12.46
+TIC 13349647,13349647,WASP-36 b,1.537366,19166.6,12.21,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,21.65,14.08
+TIC 14614418,14614418,HATS-18 b,0.83784,17927.7,13.39,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.86,27.28
+TIC 14661418,14661418,HATS-22 b,4.7228124,20203.3,12.48,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.77,4.82
+TIC 15445551,15445551,WASP-87 b,1.682795,7650,10.35,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.19,13.78
+TIC 19028197,19028197,GJ 3470 b,3.3366496,5866.77,10.25,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,44,44;45;46,SPOC,120,81,24.28
+TIC 19342878,19342878,WASP-149 b,1.332813,16834,10.8,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,21.97,16.49
+TIC 19684256,19684256,HATS-52 b,1.3666544,18434.4,13.18,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,23.5,17.20
+TIC 21113347,21113347,HATS-58 A b,4.2180896,6166.11,11.4,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.38,5.54
+TIC 22221375,22221375,HD 86226 c,3.98442,353.665,7.364,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.13,5.80
+TIC 22233480,22233480,TOI-4438 b,7.446295,3633.94,11.27,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,40,40;52;53,SPOC,120,81,10.88
+TIC 23434737,23434737,TOI-1203 b,4.1572888,139.702,8,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.38,5.62
+TIC 25155310,25155310,TOI-114.01,3.2887898,7005.72,10.61,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.86,6.65
+TIC 25375553,25375553,TOI-143.01,2.3109689,6829.42,9.775,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,95,95,SPOC,120,22.09,9.56
+TIC 28230919,28230919,TOI-1144.01,4.8878037,4279,8.508,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,54,54;55;56,SPOC,120,81,16.57
+TIC 28900646,28900646,TOI-1685 b,0.66913923,795.144,11.11,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,19,19;59;86,SPOC,120,81,121.05
+TIC 29344935,29344935,HATS-14 b,2.7667641,13096.1,13.24,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,22.04,7.96
+TIC 29960110,29960110,TOI-1201 b,2.4919863,1899.54,10.95,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,4,4;31,SPOC,120,54,21.67
+TIC 31374837,31374837,TOI-431 d,12.46103,1702.55,8.171,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.47,4.05
+TIC 31858843,31858843,TOI-1069.01,2.9776446,13022,10.43,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,22.11,7.43
+TIC 32499655,32499655,HATS-44 b,2.7439004,16758.6,13.55,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,17.51
+TIC 32949762,32949762,WASP-160 B b,3.7684952,16630,12.34,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,12.75
+TIC 33521996,33521996,HATS-6 b,3.3252725,32300,13.34,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.47,15.18
+TIC 33595516,33595516,TOI-849 b,0.765548,1183.59,11.55,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,36.03
+TIC 35009898,35009898,TOI-654.01,1.527561,2570.56,12.23,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.85,14.96
+TIC 35516889,35516889,WASP-19 b,0.78883852,20770,11.6,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,25.14,31.86
+TIC 36452991,36452991,TOI-2969 b,1.8237146,26077.3,11.94,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,25.13,13.78
+TIC 36724087,36724087,LTT 3780 b,0.76837931,1032,10.58,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.05,30.00
+TIC 36734222,36734222,WASP-43 b,0.813475,25500,11.12,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.87,28.12
+TIC 37348844,37348844,NGTS-10 b,0.7668944,31563.4,13.61,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.47,65.81
+TIC 37749396,37749396,TOI-260 b,13.475853,667.047,8.499,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,3,3;42;70,SPOC,120,81,6.01
+TIC 38846515,38846515,WASP-100 b,2.84938,7600,10.32,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.66,7.60
+TIC 43647325,43647325,WASP-35 b,3.16158,15000,10.44,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,15.20
+TIC 46432937,46432937,TIC 46432937 b,1.4404453,53078.5,12.37,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.78,35.26
+TIC 48103627,48103627,TOI-657.01,4.5696698,9861.08,12.44,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,25.66,5.62
+TIC 49043968,49043968,WASP-193 b,6.2463475,12480,11.63,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.37,3.58
+TIC 49045066,49045066,TOI-2992 b,3.007812,6660,11.97,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.65,7.53
+TIC 50618703,50618703,TOI-544 b,1.548352,881.877,9.65,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,6,6;32;98,SPOC,120,81,52.31
+TIC 50712784,50712784,WASP-161 b,5.4060425,4509.2,10.56,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,21.42,3.96
+TIC 52005579,52005579,Gliese 12 b,12.761418,1035.18,10.18,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,42,42;43;57,SPOC,120,81,6.35
+TIC 52204645,52204645,TOI-209 b,4.3794359,873.639,10.85,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.83,4.98
+TIC 52368076,52368076,TOI-125 b,4.65382,870,10.2,catalog_pl_trandep,survey-wide known-planet recovery rate,95,95,SPOC,120,21.79,4.68
+TIC 53735810,53735810,WASP-66 b,4.08605,6700,11.25,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.86,5.60
+TIC 54962195,54962195,TOI-663 b,2.598902,1652.16,11.76,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.92,8.82
+TIC 55092869,55092869,KELT-11 b,4.7362087,2659.73,7.321,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.13,4.88
+TIC 55650590,55650590,TOI-206 b,0.7363104,1159.56,12.43,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.5,29.21
+TIC 58542531,58542531,TOI-1683.01,3.0575356,1193.88,9.794,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,19,19;43;44,SPOC,120,81,26.49
+TIC 59128183,59128183,TOI-2453 b,4.4414346,3502.53,12.42,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.52,11.37
+TIC 61538902,61538902,WASP-129 b,5.748145,11276,11.37,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.18,4.03
+TIC 62085710,62085710,TOI-6677 b,5.4506066,1158.54,10.47,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.21,4.99
+TIC 62483237,62483237,TOI-139 b,11.07085,1033.11,9.364,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,1,1;28;68,SPOC,120,81,7.32
+TIC 66561343,66561343,TOI-892 b,10.62656,6257.68,10.97,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.84,4.78
+TIC 70440470,70440470,TOI-126.01,3.0354017,16196.2,12.79,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,95,95,SPOC,120,21.92,7.22
+TIC 70524163,70524163,TOI-2421 b,4.3474032,2949,10.69,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.37,6.07
+TIC 70899085,70899085,LP 714-47 b,4.052032,5284.33,10.73,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,5,5;32,SPOC,120,54,13.33
+TIC 73228647,73228647,TOI-755.02,6.7418796,450.542,9.463,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.38,3.47
+TIC 73649615,73649615,TOI-756 b,1.2392495,2602.38,12.56,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.38,18.87
+TIC 76923707,76923707,TOI-181 b,4.532,7300,10.47,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,22.13,4.88
+TIC 77031414,77031414,WASP-173 A b,1.3866532,12300,10.96,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,22.17,15.99
+TIC 77044471,77044471,HATS-16 b,2.686502,11644.5,13.26,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.12,8.24
+TIC 77156657,77156657,WASP-159 b,3.840401,4530,11.88,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,51.42,13.39
+TIC 77156829,77156829,LHS 1678 d,4.9652229,747.288,10.43,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.27,10.32
+TIC 77253676,77253676,TOI-697 b,8.6078871,498.842,9.355,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.42,5.97
+TIC 77287067,77287067,NGTS-23 b,4.0764326,11025.1,13.59,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.14,12.55
+TIC 79748331,79748331,TOI-1064 b,6.443868,1067,10.01,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,4.24
+TIC 79920467,79920467,TOI-3288 b,1.4338647,27885.6,13.3,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,19.07
+TIC 89020549,89020549,TOI-132 b,2.1097019,1213.69,10.81,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,26.96,12.78
+TIC 92352620,92352620,WASP-94 A b,3.95019,12000,9.643,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,6.92
+TIC 92449173,92449173,WASP-133 b,2.176423,7456.26,12.22,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.56,9.90
+TIC 94986319,94986319,TOI-421 c,16.067541,2903.63,9.271,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.84,3.16
+TIC 95057860,95057860,TOI-4201 b,3.5819194,39601.6,13.5,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.85,14.19
+TIC 97409519,97409519,WASP-124 b,3.37265,15607,12.19,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.71,6.44
+TIC 97825640,97825640,TOI-2989 b,3.122832,22934.2,12.71,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.56,7.22
+TIC 100100827,100100827,WASP-18 b,0.94145223,10410,8.829,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27,28.68
+TIC 100566492,100566492,WASP-88 b,4.954,7000,11.12,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,5.52
+TIC 100990000,100990000,TOI-411 c,9.573083,365.091,7.757,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.35,5.26
+TIC 101955023,101955023,GJ 1132 b,1.6289291,2443,10.84,catalog_pl_trandep,survey-wide known-planet recovery rate,9,9;10;36,SPOC,120,81,49.73
+TIC 102192004,102192004,WASP-174 b,4.2337005,12018.6,11.33,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,21.82,5.15
+TIC 103633434,103633434,TOI-1235 b,3.444714,626.518,9.919,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,14,14;20;21,SPOC,120,81,23.51
+TIC 104024556,104024556,WASP-167 b,2.0219596,8200,10.32,catalog_pl_trandep,survey-wide known-planet recovery rate,101,101,SPOC,120,22.16,10.96
+TIC 106402532,106402532,TOI-733 b,4.884765,370.329,8.841,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.38,4.79
+TIC 111991770,111991770,WASP-15 b,3.7521,9700,10.44,catalog_pl_trandep,survey-wide known-planet recovery rate,102,102,SPOC,120,21.42,5.71
+TIC 112099249,112099249,WASP-184 b,5.1817,6900,12.16,catalog_pl_trandep,survey-wide known-planet recovery rate,102,102,SPOC,120,21.44,4.14
+TIC 114749636,114749636,WASP-147 b,4.60273,6400,11.76,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,21.94,4.77
+TIC 116156517,116156517,WASP-190 b,5.367753,6200,11.32,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.48,4.93
+TIC 116483514,116483514,TOI-1411 b,1.4520527,320.407,9.104,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,16,16;23;24,SPOC,120,81,55.78
+TIC 117979897,117979897,WASP-141 b,3.310651,8300,12.07,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.59,15.28
+TIC 118327550,118327550,TOI-244 b,7.397225,1060,10.35,catalog_pl_trandep,survey-wide known-planet recovery rate,69,69;96;104,SPOC,120,81,10.95
+TIC 118956453,118956453,WASP-170 b,2.3447802,13820,11.94,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,23.14,9.87
+TIC 119292328,119292328,TOI-512 b,7.18886,246,8.977,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,51.46,7.16
+TIC 119584412,119584412,TOI-1801 b,10.64387,1214.16,9.856,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,22,22;49,SPOC,120,54,5.07
+TIC 120247528,120247528,TOI-1071.01,3.5544026,10164.9,11.58,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,22.01,6.19
+TIC 120610833,120610833,WASP-45 b,3.126089,12900,11.5,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,22.03,7.05
+TIC 120896927,120896927,HD 15337 b,4.7559804,360.21,8.316,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27,5.68
+TIC 120916706,120916706,TOI-263.01,0.5568212,42426.1,15.62,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.16,90.09
+TIC 122612091,122612091,WASP-72 b,2.21673,3700,10.46,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.26,11.85
+TIC 122617317,122617317,TOI-4311 b,0.9902738,223.352,10.72,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,27.85
+TIC 124235800,124235800,TOI-4898 b,2.7652047,2845.19,11.93,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,22.16,8.01
+TIC 124778445,124778445,NGTS-3 A b,1.6753728,26800,13.98,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,51.46,30.72
+TIC 125739286,125739286,NGTS-2 b,4.511164,9274.22,10.53,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,102,102,SPOC,120,21.58,4.78
+TIC 127530399,127530399,WASP-132 b,7.1335164,14920.6,11.11,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,102,102,SPOC,120,21.78,3.05
+TIC 134200185,134200185,TOI-500 b,0.548177,248.7,9.402,catalog_pl_trandep,survey-wide known-planet recovery rate,6,6;7;8,SPOC,120,81,147.76
+TIC 138819293,138819293,GJ 436 b,2.6438831,7059.78,8.403,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,22,22;49,SPOC,120,54,20.42
+TIC 139285832,139285832,TOI-332 b,0.777038,1137.11,11.53,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,26.93,34.66
+TIC 139733308,139733308,HATS-5 b,4.763387,11578.8,11.9,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,10.09
+TIC 140691463,140691463,TOI-157 b,2.0845435,12830,12.02,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.93,10.52
+TIC 142105158,142105158,TOI-2200 b,2.9360284,5969.36,12.32,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.63,7.37
+TIC 142211778,142211778,NGTS-18 b,3.05125,7979.32,13.91,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.77,7.46
+TIC 142937186,142937186,TOI-2427 b,1.3060011,644.555,9.014,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27,20.67
+TIC 143143769,143143769,NGTS-4 b,1.3373508,1204.58,12.37,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.44,38.47
+TIC 144065872,144065872,WASP-95 b,2.18467,10000,9.499,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27,12.36
+TIC 144700903,144700903,TOI-532 b,2.3266508,7601.24,12.68,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.71,21.80
+TIC 146172354,146172354,TOI-1036 b,3.7795213,2402.57,10.29,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.95,6.07
+TIC 146520535,146520535,TOI-942 c,10.156272,2293.51,11.05,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,4.73
+TIC 148497855,148497855,TOI-2986 b,3.2783662,3415,12.07,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.92,6.99
+TIC 149603524,149603524,WASP-62 b,4.41195,12000,9.711,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.65,4.91
+TIC 150030205,150030205,TOI-286 b,4.5117244,278.567,9.106,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.65,4.80
+TIC 151759246,151759246,TOI-5800 b,2.6278838,851.242,8.613,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,54,54;81;92,SPOC,120,81,30.82
+TIC 151825527,151825527,TOI-672 b,3.633581,8127.24,11.67,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.93,6.31
+TIC 151920165,151920165,NGTS-24 b,3.4678796,5786.6,12.57,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.8,6.58
+TIC 152476657,152476657,TOI-415.01,3.6112621,5684.09,10.58,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.34,13.94
+TIC 152569268,152569268,TOI-6281 b,1.0542624,407.178,9.954,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.38,22.18
+TIC 153065527,153065527,TOI-406.02,6.614911,1060.57,11.28,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,4.17
+TIC 153078576,153078576,TOI-2407 b,2.702969,4744.55,12.53,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.32,18.62
+TIC 157230659,157230659,NGTS-12 b,7.532806,4593.57,11.66,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.92,3.04
+TIC 157266693,157266693,HATS-53 b,3.8537768,15642.6,13.16,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.7,5.89
+TIC 158025009,158025009,TOI-1416 b,1.0697568,455,9.074,catalog_pl_trandep,survey-wide known-planet recovery rate,16,16;23;50,SPOC,120,81,75.72
+TIC 158297421,158297421,HATS-47 b,3.9228038,30580.5,13.67,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,22.07,5.63
+TIC 158588995,158588995,TOI-674 b,1.977143,13132.9,11.88,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.53,11.40
+TIC 158623531,158623531,WASP-105 b,7.87288,12000,11.28,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,3.50
+TIC 159418353,159418353,TOI-1739 b,8.3033414,521.825,9.812,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,19,19;20;21,SPOC,120,81,9.76
+TIC 159951311,159951311,WASP-139 b,5.924262,10700,11.73,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.57,4.65
+TIC 160148385,160148385,WASP-96 b,3.4252602,13800,11.91,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.93,7.86
+TIC 160578764,160578764,WASP-192 b,2.8786765,9260,12.1,catalog_pl_trandep,survey-wide known-planet recovery rate,102,102,SPOC,120,21.94,7.62
+TIC 160708862,160708862,WASP-178 b,3.3448285,12430,9.879,catalog_pl_trandep,survey-wide known-planet recovery rate,102,102,SPOC,120,21.94,6.56
+TIC 161032923,161032923,TOI-1080 b,3.9652482,2969.15,12.71,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,103,103,SPOC,120,22.3,5.62
+TIC 162802770,162802770,TOI-2641 b,4.880974,15431.4,11.19,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.94,4.70
+TIC 162922904,162922904,WASP-171 b,3.8186244,3820,12.02,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.01,6.03
+TIC 164767175,164767175,HIP 8152 b,10.751014,586.293,9.457,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,49.88,4.64
+TIC 165202476,165202476,TOI-4666 b,2.9089165,38569.7,13.33,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.28,17.28
+TIC 166527623,166527623,HIP 67522 b,6.9594731,4402.21,9.187,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,22.19,3.19
+TIC 166778944,166778944,TOI-4662 b,4.7034376,1448.49,11.4,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,26.99,5.74
+TIC 166836920,166836920,WASP-99 b,5.75251,4100,8.93,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27,4.69
+TIC 167714124,167714124,NGTS-31 b,4.162734,9471.7,12.85,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.11,12.28
+TIC 168281028,168281028,HATS-38 b,4.375021,3260.52,11.81,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,21.77,4.98
+TIC 169765334,169765334,TOI-329 b,5.70439,873.453,10.69,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.14,3.88
+TIC 170729775,170729775,TOI-2449.01,16.654243,10168,9.9,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,51.42,3.09
+TIC 170849515,170849515,HATS-76 b,1.9416423,31383.9,14.86,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.07,26.30
+TIC 175532955,175532955,TOI-929 b,5.8301537,1181.55,11.43,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,4.73
+TIC 176314383,176314383,TOI-2719 b,3.37594,1052.38,12.07,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,14.23
+TIC 176956893,176956893,TOI-2184 b,6.90683,1298.73,11.41,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.57,3.12
+TIC 177115354,177115354,TOI-1226 b,3.9288088,501.224,11.55,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.52,5.48
+TIC 177254988,177254988,TOI-4405 b,5.92144,1162.51,12.38,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.71,3.67
+TIC 178155732,178155732,HR 858 b,3.585287,213.7,5.905,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.11,13.98
+TIC 178709444,178709444,TOI-762 A b,3.4716826,32362.5,13.66,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.6,6.51
+TIC 178819686,178819686,TOI-763 b,5.6057,543.033,9.527,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,22.19,3.96
+TIC 178879588,178879588,HATS-63 b,3.0566527,13437.6,13.26,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,15.72
+TIC 179317684,179317684,TOI-163 b,4.231306,8620.85,10.87,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.78,5.15
+TIC 180695581,180695581,TOI-1807 b,0.54937097,338.377,9.036,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,22,22;23;49,SPOC,120,81,147.44
+TIC 180991313,180991313,TOI-2330.01,2.2088214,7770,11.87,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.87,10.36
+TIC 181804752,181804752,LP 791-18 c,4.98991,15707.2,13.56,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.42,4.49
+TIC 183120439,183120439,TOI-169 b,2.2554477,7500,11.79,catalog_pl_trandep,survey-wide known-planet recovery rate,95,95,SPOC,120,21.81,9.67
+TIC 183537452,183537452,WASP-29 b,3.92273,10000,10.25,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.92,6.86
+TIC 183985250,183985250,LTT 9779 b,0.792052,2079.19,9.103,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.2,28.03
+TIC 184240683,184240683,WASP-5 b,1.6284279,11800,11.55,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.89,16.51
+TIC 188570092,188570092,HATS-72 b,7.3279474,10589.6,11.39,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.23,3.03
+TIC 188589164,188589164,GJ 3929 b,2.616235,975.202,10.27,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,24,24;25;78,SPOC,120,81,30.96
+TIC 189625051,189625051,HATS-64 b,4.908897,6667.73,12.49,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,24.56,5.00
+TIC 192790476,192790476,TOI-2459 b,19.104718,1608.28,9.395,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,5,5;6;32,SPOC,120,81,4.24
+TIC 192826603,192826603,NGTS-1 b,2.647298,56894.4,13.91,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.01,19.27
+TIC 192833836,192833836,TOI-7384 b,6.2340258,10467.9,13.69,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.19,8.21
+TIC 193336820,193336820,Ross 176 b,5.0066338,878.927,10.44,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,75,75;76;82,SPOC,120,81,16.18
+TIC 193641523,193641523,TOI-824 b,1.392978,1490,10.07,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,24.19,17.36
+TIC 194795551,194795551,TOI-3331 A b,2.0180231,15590,11.32,catalog_pl_trandep,survey-wide known-planet recovery rate,104,104,SPOC,120,23.59,11.69
+TIC 197643976,197643976,NGTS-14 A b,3.5357173,2936.41,12.56,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,7.73
+TIC 198008005,198008005,TOI-858 B b,3.2797178,9740,10.64,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.34,15.35
+TIC 200322593,200322593,TOI-540 b,1.2391491,1908.53,11.5,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,38.78
+TIC 200805484,200805484,TOI-2654 b,2.9676043,9279.54,13.07,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.35,16.97
+TIC 201177276,201177276,TOI-2379 b,5.4693827,29864.6,13.65,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,26.99,4.94
+TIC 201186294,201186294,TOI-1634 b,0.98934551,1284.25,11.01,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,18,18;86,SPOC,120,54,54.58
+TIC 201248411,201248411,HIP 65 A b,0.9809734,82000,9.9,catalog_pl_trandep,survey-wide known-planet recovery rate,95,95;96;102,SPOC,120,81,82.57
+TIC 201604954,201604954,HATS-29 b,4.6058749,14354.6,11.97,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,22.02,4.78
+TIC 201642601,201642601,HATS-48 A b,3.1316666,13213,13.17,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.74,6.94
+TIC 204317710,204317710,HATS-32 b,2.8126548,13689.5,13.74,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.08,7.85
+TIC 207077681,207077681,WASP-144 b,2.2783152,11650,12.31,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,12.00
+TIC 207141131,207141131,HD 18599 b,4.1374354,965.823,8.18,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.15,5.35
+TIC 209459275,209459275,TOI-559 b,6.9839095,8276,10.57,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,3.95
+TIC 212253390,212253390,TOI-2211.01,3.0926868,294.453,9.255,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.62,6.99
+TIC 219189765,219189765,HATS-74 A b,1.7318561,33922.7,14.76,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.41,12.94
+TIC 219344917,219344917,TOI-871 b,14.362565,450,9.761,catalog_pl_trandep,survey-wide known-planet recovery rate,4,4;5;6,SPOC,120,81,5.64
+TIC 219698776,219698776,TOI-1243 b,4.6594779,1747.48,11.2,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,40,40;47;53,SPOC,120,81,17.38
+TIC 219698950,219698950,HATS-1 b,3.446459,16614.8,11.51,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.56,6.55
+TIC 220076110,220076110,TOI-2796 b,4.8084983,22400,11.92,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,9.99
+TIC 220479565,220479565,TOI-269 b,3.6977104,4071.32,12.3,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.64,5.85
+TIC 221861843,221861843,TOI-3486 b,2.2177811,15150,11.49,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.3,10.51
+TIC 224225541,224225541,TOI-251 b,4.93777,813.001,9.326,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96,SPOC,120,22.23,4.50
+TIC 224245334,224245334,TOI-333 b,3.7852503,1260.59,11.52,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,26.94,7.12
+TIC 228381868,228381868,WASP-165 b,3.465509,5440,12.07,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,22.05,6.36
+TIC 229047362,229047362,WASP-25 b,3.7648337,20511.2,11.22,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,22.16,5.89
+TIC 230982885,230982885,WASP-97 b,2.07276,12000,9.97,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,13.31
+TIC 231663901,231663901,WASP-46 b,1.4303676,19771.4,12.41,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.33,19.11
+TIC 231670397,231670397,WASP-73 b,4.08722,3300,9.864,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.77,5.33
+TIC 231702397,231702397,TOI-122 b,5.07803,5600,13.08,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.99,5.32
+TIC 231736113,231736113,TOI-1406.01,10.573982,5460,11.43,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,4.54
+TIC 232038798,232038798,WASP-168 b,4.153658,11900,11.32,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.99,12.28
+TIC 233087860,233087860,TOI-1184 b,5.7484338,1008.41,9.947,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,14,14;15;16,SPOC,120,81,14.09
+TIC 234523599,234523599,HATS-71 b,3.7955202,48403.2,14.13,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.83,5.75
+TIC 234994474,234994474,L 168-9 b,1.401526,612.129,9.23,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95;102;104,SPOC,120,81,57.79
+TIC 235078021,235078021,TOI-4747 b,5.2192416,1346.87,11.81,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,51.03,9.78
+TIC 236387002,236387002,TOI-2119.01,7.2008611,50063,10.4,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,24,24;25;51,SPOC,120,81,11.25
+TIC 237320326,237320326,WASP-164 b,1.7771255,15420,12,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.47,14.90
+TIC 238176110,238176110,WASP-91 b,2.798581,15000,11.04,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.98,7.85
+TIC 239332587,239332587,GJ 806 b,0.9263237,867.078,8.728,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,75,75;76;82,SPOC,120,81,87.44
+TIC 240968774,240968774,TOI-1467 b,5.9711471,1285.23,10.6,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,17,17;18;58,SPOC,120,81,13.57
+TIC 243641947,243641947,TOI-3235 b,2.5926184,79912.9,13.25,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,22.08,8.52
+TIC 248075138,248075138,WASP-42 b,4.9816819,16708.3,11.37,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,21.8,4.38
+TIC 248111245,248111245,HATS-27 b,4.637038,7848.01,12.33,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.4,5.05
+TIC 248351386,248351386,K2-204 b,7.055908,538,12.46,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.16,7.11
+TIC 248853232,248853232,WASP-69 b,3.8681388,16462.2,8.863,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,55,55;81;92,SPOC,120,81,20.94
+TIC 254113311,254113311,TOI-1130 b,4.074554,2317.6,10.14,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.74,5.34
+TIC 255685030,255685030,TOI-799 b,5.5451914,428.155,10.59,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.66,3.91
+TIC 257567854,257567854,WASP-22 b,3.53269,10000,11.19,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,7.81
+TIC 259168516,259168516,TOI-1680 b,4.8026345,4070,13.31,catalog_pl_trandep,survey-wide known-planet recovery rate,14,14;15;16,SPOC,120,74.45,15.50
+TIC 259377017,259377017,TOI-270 c,5.66051,3159.99,10.5,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.34,8.89
+TIC 260004324,260004324,LHS 1815 b,3.814334,396.391,10.14,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,1,1;2;3,SPOC,120,81,21.24
+TIC 260647166,260647166,HD 108236 c,6.203449,469,8.652,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.66,3.81
+TIC 260708537,260708537,GJ 238 b,1.7446999,144.682,9.369,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,1,1;2;3,SPOC,120,81,46.43
+TIC 261136679,261136679,pi Men c,6.2678399,267.59,5.105,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,22.06,3.52
+TIC 261867566,261867566,TOI-905 b,3.739494,17180,10.57,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.96,6.14
+TIC 262530407,262530407,GJ 3090 b,2.853102,1500.22,9.493,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,96,96;103;104,SPOC,120,81,28.39
+TIC 266980320,266980320,HD 219666 b,6.034468,1797.99,9.179,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27,4.47
+TIC 267263253,267263253,HD 2685 b,4.12688,8998.11,9.22,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,22.06,5.35
+TIC 268766053,268766053,WASP-53 b,3.3098443,19128.4,11.76,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.16,15.16
+TIC 269217040,269217040,KELT-10 b,4.1662739,14160,10.27,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,22.01,5.28
+TIC 271168962,271168962,WASP-131 b,5.3220125,6517,9.472,catalog_pl_trandep,survey-wide known-planet recovery rate,102,102,SPOC,120,21.6,4.06
+TIC 271169413,271169413,TOI-4559 b,3.965991,1200,10.91,catalog_pl_trandep,survey-wide known-planet recovery rate,11,11;38;64,SPOC,120,81,20.42
+TIC 271478281,271478281,TOI-2194 b,15.337597,696.736,7.426,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,67,67;92;94,SPOC,120,81,5.28
+TIC 271893367,271893367,TOI-150.01,5.857487,7142.56,10.9,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.72,3.71
+TIC 272212970,272212970,HATS-67 b,1.6091788,14439.3,13.17,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.63,14.07
+TIC 272213425,272213425,HATS-56 b,4.324799,6211.27,11.11,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.69,5.25
+TIC 274367763,274367763,TOI-3474 b,3.8795105,11480,11.97,catalog_pl_trandep,survey-wide known-planet recovery rate,102,102,SPOC,120,22.17,5.72
+TIC 278775625,278775625,TOI-921 b,5.1287191,805.438,11.26,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.72,4.23
+TIC 281459670,281459670,HATS-30 b,3.1743516,12951.5,11.67,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,26.99,8.50
+TIC 281541545,281541545,HATS-49 b,4.1480467,12695.8,13.78,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,6.65
+TIC 281541555,281541555,HATS-46 b,4.7423729,11834.6,13.04,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,5.82
+TIC 281575427,281575427,TOI-205 b,4.2530077,248.783,9.453,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,6.49
+TIC 282485660,282485660,TOI-5005 b,6.3085044,3800,11.13,catalog_pl_trandep,survey-wide known-planet recovery rate,103,103,SPOC,120,22.52,3.57
+TIC 285048486,285048486,TOI-1728 b,3.49151,5499.68,10.79,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,20,20;47;74,SPOC,120,81,23.20
+TIC 286099128,286099128,TOI-3422.01,3.7788779,17654.1,12.24,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,23.24,6.15
+TIC 286865921,286865921,WASP-83 b,4.971252,10400,11.5,catalog_pl_trandep,survey-wide known-planet recovery rate,101,101,SPOC,120,22.16,4.46
+TIC 287139872,287139872,TOI-1752 b,0.9351861,857.638,12.75,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,14,14;15;16,SPOC,120,77.05,82.39
+TIC 287328202,287328202,TOI-6707 b,3.8347936,1101.36,12.33,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.79,5.68
+TIC 287563610,287563610,TOI-840.01,3.7993182,7590,13.05,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,101,101,SPOC,120,21.97,5.78
+TIC 289793076,289793076,HATS-13 b,3.0440499,19716.7,13.16,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.99,7.22
+TIC 290131778,290131778,HD 202772 A b,3.3088775,4670,7.876,catalog_pl_trandep,survey-wide known-planet recovery rate,95,95,SPOC,120,22.12,6.69
+TIC 290348383,290348383,HD 207496 b,6.441008,719.538,7.366,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101;102;103,SPOC,120,81,12.58
+TIC 290504044,290504044,TOI-3464 b,3.6515568,6540,12.07,catalog_pl_trandep,survey-wide known-planet recovery rate,103,103,SPOC,120,22.3,6.11
+TIC 290742484,290742484,NGTS-25 b,2.823093,14942.7,13.55,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,9.69
+TIC 293435336,293435336,WASP-76 b,1.809882,11780,9.027,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,48.24,26.65
+TIC 293457754,293457754,WASP-181 b,4.5195064,15900,12.36,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.29,11.13
+TIC 293607057,293607057,BD-14 3065 b,4.2889731,6490,10.63,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.28,5.19
+TIC 293612446,293612446,K2-260 b,2.6266976,9250,12.04,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.71,19.31
+TIC 295541511,295541511,TOI-1117 b,2.22816,461.353,10.41,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.84,10.25
+TIC 296739893,296739893,TOI-620 b,5.0988179,3930,10.21,catalog_pl_trandep,survey-wide known-planet recovery rate,62,62;89;99,SPOC,120,81,15.89
+TIC 299798795,299798795,TOI-1224 b,4.1782745,2280,11.56,catalog_pl_trandep,survey-wide known-planet recovery rate,95,95,SPOC,120,21.56,5.16
+TIC 299799658,299799658,TOI-1062 b,4.11296,611.11,9.478,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,22.06,5.36
+TIC 301289516,301289516,GJ 9827 d,6.20183,979.526,9.068,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,42,42;70;92,SPOC,120,81,13.06
+TIC 305048087,305048087,TOI-237 b,5.436098,3800,13.41,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,22.2,4.08
+TIC 305424003,305424003,TOI-907.01,4.5849129,1831.79,9.944,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.32,5.09
+TIC 305739565,305739565,NGTS-27 b,3.3704181,6568.98,12.88,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,102,102,SPOC,120,21.4,6.35
+TIC 306362738,306362738,WASP-49 b,2.78174,14000,10.82,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.85,18.28
+TIC 306648160,306648160,TOI-3321 b,3.6525145,9660,10.67,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.03,6.31
+TIC 307210830,307210830,L 98-59 c,3.6906764,1486,9.412,catalog_pl_trandep,survey-wide known-planet recovery rate,96,96,SPOC,120,21.79,5.90
+TIC 307221757,307221757,TOI-4930 b,6.7813024,3006.03,12.07,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,22.15,3.27
+TIC 307809773,307809773,HD 260655 c,5.70588,1024.94,7.899,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,43,43;44;45,SPOC,120,81,14.20
+TIC 315002523,315002523,HATS-26 b,3.3023881,7771.25,12.43,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,24.86,7.53
+TIC 317483660,317483660,TOI-2346 b,3.3312029,11470,11.56,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.84,15.26
+TIC 317548889,317548889,TOI-480 b,6.866196,309.267,6.78,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.85,7.41
+TIC 322307342,322307342,HATS-68 b,3.5862202,5245.83,11.78,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27.58,7.69
+TIC 325682877,325682877,TOI-4363 b,2.1186759,549.04,11.25,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.17,23.68
+TIC 333605244,333605244,K2-203 b,9.6952,230,11.55,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.16,5.17
+TIC 339522221,339522221,HATS-35 b,1.8209993,11022.1,12.05,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.91,12.03
+TIC 341405597,341405597,TOI-6699 b,5.3200593,802.114,10.4,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.97,4.13
+TIC 348755728,348755728,TOI-1883 b,4.508,10479.4,13.35,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,21.75,4.83
+TIC 348835438,348835438,TOI-2669 b,6.2034,1945.95,9.992,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,23.21,3.74
+TIC 349972412,349972412,TOI-4504 b,2.4261516,682.445,12.55,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.74,8.96
+TIC 350153977,350153977,TOI-908 b,3.183792,807.322,10.65,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.9,6.88
+TIC 350618622,350618622,TOI-201 d,5.84889,94.6299,8.582,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.65,3.70
+TIC 351601843,351601843,TOI-1075 b,0.6047328,798.694,11.12,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101;102;103,SPOC,120,81,133.94
+TIC 353475866,353475866,TOI-1693 b,1.7666957,789.704,10.67,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,43,43;44;45,SPOC,120,81,45.85
+TIC 354944123,354944123,TOI-4342 b,5.5382592,1274.91,11.03,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.87,3.95
+TIC 355703913,355703913,HATS-34 b,2.1061607,22485.1,13.18,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,26.99,12.81
+TIC 357501308,357501308,TOI-2018 b,7.435583,1124.72,8.962,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,51,51;77;78,SPOC,120,81,10.89
+TIC 358070912,358070912,TOI-3261 b,0.8831331,1701.58,12.49,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.78,24.67
+TIC 359271092,359271092,GJ 341 b,7.57686,253.616,7.669,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,36,36;37;62,SPOC,120,81,10.69
+TIC 360742636,360742636,HATS-33 b,2.5495551,15296.2,11.25,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.85,8.57
+TIC 362249359,362249359,TOI-833 b,1.0418777,376.571,10.15,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,9,9;10;11,SPOC,120,81,77.74
+TIC 363851359,363851359,HATS-54 b,2.5441765,7191.11,13.28,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,22.02,8.65
+TIC 369327947,369327947,LHS 475 b,2.029088,1101,10.15,catalog_pl_trandep,survey-wide known-planet recovery rate,93,93;94;101,SPOC,120,81,39.92
+TIC 369455629,369455629,WASP-182 b,3.3769848,4260,11.45,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27.35,8.10
+TIC 370133522,370133522,GJ 1252 b,0.5182331,782.472,10.12,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101;103;104,SPOC,120,81,156.30
+TIC 372172128,372172128,TOI-2196 b,1.1947268,951.891,11.36,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.89,18.32
+TIC 376353509,376353509,TOI-1648 b,7.331602,826.493,9.583,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,52,52;59;79,SPOC,120,81,11.05
+TIC 377293776,377293776,TOI-1450 A b,2.0439274,460.049,10.03,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,14,14;15;16,SPOC,120,81,39.63
+TIC 380589029,380589029,HATS-24 b,1.3484978,16382.8,12.29,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.25,17.24
+TIC 381856447,381856447,WASP-145 A b,1.7690381,11600,10.72,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.99,15.26
+TIC 382602147,382602147,TOI-2384 b,2.135703,29690.2,13.31,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.58,10.10
+TIC 384888319,384888319,TOI-4529 b,5.879577,1142.89,10.14,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,42,42;43;70,SPOC,120,81,13.78
+TIC 386259537,386259537,WASP-169 b,5.6114118,4460,11.33,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,21.35,3.80
+TIC 388104525,388104525,WASP-119 b,2.49979,14373.7,11.6,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.74,8.70
+TIC 389352124,389352124,WASP-7 b,4.9546416,9109.46,9.053,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,105,105,TESScut,158,27,5.45
+TIC 390651552,390651552,GJ 486 b,1.4671213,1387.1,8.822,catalog_pl_trandep,survey-wide known-planet recovery rate,23,23;50,SPOC,120,54,36.81
+TIC 391903064,391903064,TOI-3353.01,4.6657965,573.736,8.784,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.79,4.67
+TIC 391949880,391949880,TOI-128.01,4.9404681,324.109,7.985,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,22.06,4.46
+TIC 392747437,392747437,NGTS-26 b,4.5199279,13840.6,14.22,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,102,102,SPOC,120,21.94,4.85
+TIC 393414358,393414358,WASP-63 b,4.37808,6100,10.44,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,51.45,11.75
+TIC 393940766,393940766,TOI-148.01,4.8670758,4965.81,11.78,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,95,95,SPOC,120,21.74,4.47
+TIC 394357918,394357918,TOI-4184 b,4.9019804,9115,14.26,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.91,4.47
+TIC 394657039,394657039,TOI-159 b,3.7628396,10585.2,10.51,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.82,5.80
+TIC 394722182,394722182,TOI-2236 b,3.5315902,7011,10.87,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.82,6.18
+TIC 396562848,396562848,LHS 1478 b,1.9495378,2142.47,11.05,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,18,18;19;25,SPOC,120,81,41.55
+TIC 397362481,397362481,HD 101581 c,6.20401,207.554,6.721,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,99,99,SPOC,120,25.66,4.14
+TIC 398943781,398943781,WASP-41 b,3.0524,19000,10.79,catalog_pl_trandep,survey-wide known-planet recovery rate,101,101,SPOC,120,22.16,7.26
+TIC 399702475,399702475,K2-384 f,13.62749,3426.66,13.77,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,50.28,3.69
+TIC 399722652,399722652,K2-208 b,4.19097,309,11.83,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.28,12.00
+TIC 399731211,399731211,K2-211 b,0.669561,222,12.38,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.28,75.10
+TIC 399870368,399870368,HAT-P-70 b,2.7443245,8443,9.337,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.6,18.44
+TIC 401604346,401604346,TOI-2193 A b,2.1225735,191,11.4,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,21.85,10.30
+TIC 402026209,402026209,WASP-4 b,1.338231,23120,11.83,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,26.96,20.14
+TIC 403224672,403224672,HD 213885 b,1.008035,200,7.384,catalog_pl_trandep,survey-wide known-planet recovery rate,105,105,TESScut,158,27,26.78
+TIC 404340025,404340025,TOI-834.01,2.6755521,14341,10.7,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.45,8.77
+TIC 405425498,405425498,TOI-2227 b,4.2217582,552.677,10.01,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.88,5.18
+TIC 406941612,406941612,TOI-912 b,4.6780691,1783.32,10.49,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,93,93;100;101,SPOC,120,81,17.31
+TIC 407591297,407591297,TOI-5388.01,2.5946748,915.313,10.57,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,21,21;48,SPOC,120,54,20.81
+TIC 408137826,408137826,TOI-941 b,8.5146089,2538.4,11,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.51,5.93
+TIC 408310006,408310006,WASP-166 b,5.44354,2810,8.868,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,25.66,4.71
+TIC 408636441,408636441,TOI-1759 b,18.85019,2325.16,9.928,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,56,56;57;58,SPOC,120,81,4.30
+TIC 411697517,411697517,K2-308 b,3.38628,5374.91,14.41,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,50.71,14.98
+TIC 411839167,411839167,EPIC 246851721 b,6.180235,4640,10.82,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.71,8.21
+TIC 413248763,413248763,GJ 357 b,3.9306,955,8.741,catalog_pl_trandep,survey-wide known-planet recovery rate,62,62;89;99,SPOC,120,81,20.61
+TIC 413376180,413376180,HATS-2 b,1.3541338,17324.1,12.75,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,101,101,SPOC,120,21.79,16.09
+TIC 417931300,417931300,TOI-2068 b,7.768915,970,11.18,catalog_pl_trandep,survey-wide known-planet recovery rate,14,14;15;21,SPOC,120,81,10.43
+TIC 420202798,420202798,TOI-4961 b,7.479182,15410,11.66,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.66,3.16
+TIC 422655579,422655579,WASP-71 b,2.90367,4400,10.16,catalog_pl_trandep,survey-wide known-planet recovery rate,97,97,SPOC,120,50.28,17.32
+TIC 422756130,422756130,TOI-1695 b,3.1342791,1236,11.03,catalog_pl_trandep,survey-wide known-planet recovery rate,18,18;19;24,SPOC,120,81,25.84
+TIC 423275733,423275733,WASP-142 b,2.052868,9160,12.34,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,24.41,11.89
+TIC 424196109,424196109,TOI-5007 b,2.543371,23954.1,13.64,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.6,9.28
+TIC 425561347,425561347,TOI-2215.01,5.7772122,1470.38,9.977,catalog_toi_pl_trandep,survey-wide known-planet recovery rate,67,67;92;94,SPOC,120,81,14.02
+TIC 425817867,425817867,WASP-110 b,3.7784022,20106.1,12.05,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.88,5.79
+TIC 425997655,425997655,HD 23472 d,3.97664,93.788,8.751,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.9,5.51
+TIC 429304876,429304876,TOI-682.01,6.8392388,1213,9.223,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.13,3.38
+TIC 436575927,436575927,K2-394 b,5.095717,604.343,11.44,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,43,43;44;70,SPOC,120,81,15.90
+TIC 437242640,437242640,WASP-34 b,4.31768,13000,9.757,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.94,5.31
+TIC 437248515,437248515,WASP-31 b,3.4059096,16150,11.46,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.35,6.56
+TIC 437261733,437261733,HATS-59 b,5.416081,12474.8,13.3,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,22.46,4.15
+TIC 439456714,439456714,TOI-277 b,3.994,4504.18,11.73,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,97,97,SPOC,120,49.77,12.46
+TIC 441422655,441422655,NGTS-21 b,1.5433897,25256.9,14.55,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,95,95,SPOC,120,21.81,14.13
+TIC 441738827,441738827,TOI-2084 b,6.0784247,1950,13.33,catalog_pl_trandep,survey-wide known-planet recovery rate,16,16,SPOC,120,22.04,3.63
+TIC 445903569,445903569,TOI-1994 b,4.0337142,2969,10.24,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,25.66,6.36
+TIC 446549906,446549906,TOI-2107 b,2.4545467,21310,11.38,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,22.08,8.99
+TIC 448098793,448098793,TOI-3135 b,3.7065585,16160,11.1,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.49,6.34
+TIC 448589187,448589187,WASP-175 b,3.0652907,10640,12.31,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.46,7.33
+TIC 449197831,449197831,TOI-2458 b,3.73659,391.8,8.71,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,50.31,13.46
+TIC 452006073,452006073,TOI-3071 b,1.266938,2510.87,11.87,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.58,18.61
+TIC 452808876,452808876,WASP-82 b,2.70579,6300,9.539,catalog_pl_trandep,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,17.76
+TIC 452866790,452866790,GJ 3473 b,1.1980035,1013.52,11.2,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,7,7;34;61,SPOC,120,81,67.61
+TIC 453668803,453668803,TOI-6564 b,3.985413,7821.04,9.569,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,100,100,SPOC,120,23.58,5.92
+TIC 453789494,453789494,WASP-172 b,5.477433,7200,10.73,catalog_pl_trandep,survey-wide known-planet recovery rate,101,101,SPOC,120,22.19,4.05
+TIC 454069765,454069765,NGTS-13 b,4.119027,4300,12.11,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,22.97,5.58
+TIC 455036659,455036659,HAT-P-64 b,4.007232,10174.3,12.16,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,98,98,SPOC,120,48.05,11.99
+TIC 466840711,466840711,OGLE2-TR-L9 b,2.4855335,11770,14.15,catalog_pl_trandep,survey-wide known-planet recovery rate,100,100,SPOC,120,23.91,9.62
+TIC 467971286,467971286,HATS-69 b,2.2252577,12219.6,13.19,derived_from_pl_rade_st_rad,survey-wide known-planet recovery rate,94,94,SPOC,120,21.64,9.72
+TIC 915110182,915110182,OGLE-TR-113 b,1.4324752,21030,14.7,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,25.66,17.91

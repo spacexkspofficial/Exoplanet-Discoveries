@@ -64,8 +64,46 @@ with open(latest("nasa_ps"), encoding="utf-8", newline="") as fh:
              "depth_ppm": depth_ppm, "depth_src": depth_src,
              "tmag": f(r.get("sy_tmag"))}
         )
-print(f"known transiting planets with a usable depth: "
+print(f"confirmed transiting planets with a usable depth: "
       f"{sum(len(v) for v in planets.values())} on {len(planets)} hosts")
+
+# Extend with validated TOIs. Dispositions CP (confirmed planet) and KP (known
+# planet) carry vetted ephemerides; PC is an unvetted candidate and FP/FA are
+# rejections, so neither belongs in a recovery denominator. This matters for
+# the shallow end: the confirmed-planet table skews large, and these rows are
+# where sub-1000 ppm statistics come from. TOI pl_trandep is already ppm --
+# nasa_ps pl_trandep is a percentage, and mixing the two would inflate depths
+# 10,000-fold.
+VALID_TOI = {"CP", "KP"}
+toi_added = 0
+with open(latest("nasa_toi"), encoding="utf-8", newline="") as fh:
+    for r in csv.DictReader(fh):
+        if str(r.get("tfopwg_disp") or "").strip().upper() not in VALID_TOI:
+            continue
+        t = f(r.get("tid"))
+        per = f(r.get("pl_orbper"))
+        dep = f(r.get("pl_trandep"))
+        if t is None or not per or per <= 0 or not dep or dep <= 0:
+            continue
+        tic = int(t)
+        # Do not double-count a planet the confirmed table already supplies.
+        if any(abs(p["period"] - per) / per < 0.01 for p in planets.get(tic, [])):
+            continue
+        planets.setdefault(tic, []).append(
+            {
+                "planet": f"TOI-{str(r.get('toi') or '').strip()}",
+                "period": per,
+                "depth_ppm": dep,
+                "depth_src": "catalog_toi_pl_trandep",
+                "tmag": f(r.get("st_tmag")),
+                "st_rad": f(r.get("st_rad")),
+                "st_teff": f(r.get("st_teff")),
+            }
+        )
+        toi_added += 1
+print(f"validated TOIs (CP/KP) added: {toi_added}")
+print(f"total pool: {sum(len(v) for v in planets.values())} planets "
+      f"on {len(planets)} hosts")
 
 pat = re.compile(r"TIC_(\d+)_")
 best = {}
