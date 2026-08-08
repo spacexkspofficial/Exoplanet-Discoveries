@@ -1,0 +1,2 @@
+﻿target,tic_id,sectors,ra,dec,tmag,teff_k,stellar_radius_solar,stellar_mass_solar,distance_pc,contamination_ratio,gaia_source_id
+TIC 298732908,298732908,14;15;16,278.43957299682,55.35810977015,13.102,3894.0,0.598,0.586,156.745,0.0102,2147623118475342976

@@ -22,6 +22,17 @@
       15.0
     ]
   },
+  "stellar_parameter_repair": {
+    "columns_added": [
+      "stellar_mass_solar"
+    ],
+    "columns_renamed": {
+      "radius_solar": "stellar_radius_solar"
+    },
+    "previous_target_list_sha256": "2c51ee239fc7fd3d6c65b34135bc732a8a6f3e2fb21184ece4549229695040b1",
+    "reason": "cohort shipped radius_solar; the campaign reads stellar_radius_solar, leaving T3 depth_physicality and duration_density not_evaluable for all 953 searched stars",
+    "sample_unchanged": true
+  },
   "target_list": "targets\\p5_primary_m_dwarf_ncvz.csv",
-  "target_list_sha256": "2c51ee239fc7fd3d6c65b34135bc732a8a6f3e2fb21184ece4549229695040b1"
+  "target_list_sha256": "7e6cfec8c2afe63c259b2468015ee97c33203b4867c96fc98cbb93afbcada6f1"
 }

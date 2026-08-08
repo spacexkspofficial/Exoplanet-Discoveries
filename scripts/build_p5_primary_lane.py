@@ -155,7 +155,17 @@ def main(argv: list[str] | None = None) -> int:
                 "dec": row.get("DEJ2000"),
                 "tmag": row.get("Tmag"),
                 "teff_k": row.get("Teff"),
-                "radius_solar": row.get("Rad"),
+                # These two names are load-bearing, not cosmetic. The campaign
+                # lifts stellar parameters off the target-list row by exact key
+                # (campaign.py `_batch_target_spec`), so a cohort that spells
+                # radius anything other than `stellar_radius_solar` silently
+                # leaves T3's depth_physicality and duration_density
+                # `not_evaluable` for every star in it -- which is what happened
+                # to the first 1,000-star pass of this lane (correction 57).
+                # duration_density additionally needs the mass: density comes
+                # from `catalog_stellar_mass_and_radius` or not at all.
+                "stellar_radius_solar": row.get("Rad"),
+                "stellar_mass_solar": row.get("Mass"),
                 "distance_pc": row.get("Dist"),
                 "contamination_ratio": row.get("Rcont"),
                 "gaia_source_id": row.get("GAIA"),

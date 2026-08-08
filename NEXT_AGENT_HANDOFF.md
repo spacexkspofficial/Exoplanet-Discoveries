@@ -1,161 +1,213 @@
-# P4 handoff — 2026-08-06
+# P5 handoff — 2026-08-07 (evening)
 
-Supersedes the 2026-08-05 reboot handoff, which described a shutdown state
-that no longer applies.
+Supersedes the P4 handoff of the same date, which described the state before
+lane 6.1's first pass had been run.
 
 ## What this session did
 
-Built P4's vetting layer end to end and ran the parts that could be run.
-18 commits on `codex/p2-catalog-matching`, `bc05dba..9e5bb23`, worktree clean.
-**465 tests pass** from a clean checkout (327 at session start).
+Ran P5 lane 6.1's first 1,000-star pass, twice: once on a cohort whose stellar
+parameters never reached the pipeline, and once repaired. Corrected a
+throughput figure that would have re-planned the lane's cadence around a number
+that was 45× wrong. Three ledger entries: **corrections 55, 56, 57**.
 
-Nothing here has changed any star's status. Every P4 evidence row is written
-**non-voting and with no verdict**, so `rebuild_star_state` skips it — see the
-open decision on precedence below.
+Nothing here has changed any star's status, and no packet was promoted. The
+three governance decisions carried over from P4 remain **open and untouched**.
 
-## Where P4 stands against its own exit
+## Read this first: the throughput figure in the previous handoff was wrong
 
-The plan's exit is "regression suite green; ≥80% of the backlog resolves into
-a terminal or review lane with full evidence chains; TIC 234994474 carries a
-real verdict."
+It said ~5.7 min/target, "download-bound", and "1,000 targets near 4 days",
+and recommended considering a one-sector first pass to cut cost. All of that
+came from dividing a 27-minute wall clock by 4 targets.
+
+| | 4-target smoke | 100-target ramp | 1,000-star pass |
+|---|---:|---:|---:|
+| wall clock | 27.0 min | **27.8 min** | 221 min (targets) |
+| fixed overhead | ~92% | 55% | ~7% |
+| marginal rate | — | **475 stars/hour** | ~475/hour |
+
+25× the targets for 3% more wall clock. The overhead is two synchronous
+`roll_cache()` walks of the 88 GB cache (`campaign.py:868`, `campaign.py:1089`)
+plus the synchronous final dashboard export — all scaling with **cache size,
+not target count**. The pass is analysis-bound, not download-bound, and the
+CLI's GIL warning does not bite (475/h achieved against a 4-thread theoretical
+438/h), so `--analysis-processes` is unnecessary. Full detail in correction 55.
+
+**The one-sector economy should not be taken.** It would also have changed the
+screen — `sde_min_single_sector` 11.5 against `sde_min_multisector` 8.0,
+`min_transits` 2 against 3 — so it measures the rediscovery rate over a
+different detection population. It is a different question, not a cheaper
+route to the same one.
+
+## Results: lane 6.1, first pass
+
+`results/campaign/p5_primary_ncvz_1000/` — **v1, screened with two physical
+vetoes inert. Superseded; keep for comparison only.**
 
 | | |
-|---|---|
-| Known-object regression suite | **Green**, 502 cases, and measured against three deliberate breaks (34 failures each) |
-| Backlog resolution | **98.1%** (1,337/1,363), of which **351 stars (25.8%) carry a terminal verdict** and 986 are filed leads (correction 53) |
-| TIC 234994474 | **Done, and it is a downgrade** — `science_vetted_lead` → `single_sector_unconfirmed` (corrections 51, 52) |
+|---|---:|
+| targets | 1,000 |
+| searched | **953** |
+| no processed light curve | **47** |
+| survivors | **1** |
+| errors other than missing data | 0 |
 
-**All three exit clauses are satisfied, and the measurement now says what it
-means.** The 98.1% is split: **351 stars (25.8%) carry a terminal verdict** —
-330 killed by the calibrated red-noise floor, 11 localized off target, 10 EB
-rediscoveries — and 986 are review-lane leads, meaning every declared source
-was checked and none explains them. Both count toward the plan's exit; only
-the first is an answer about the signal.
+**The 47 are real absence, not a throttled connection.** All 47 reproduce
+identically on a fresh connection 15 minutes later; the cliff sits at exactly
+Tmag 13.5 (0 failures in 938 below it, 47 of 62 above); and 15 targets above
+13.5 succeeded, interleaved through the same magnitude range and the same
+30-minute window. This is the inverse of correction 48 — a failure that wore
+the throttling signature and was genuine sky. **The effective cohort is 953**,
+and ~6% of the Tmag 12.5–13.53 selection has no SPOC/TESS-SPOC/QLP product,
+which is the thinning §6.1's rationale predicts. That belongs in the lane's
+sample definition as a measured completeness caveat.
 
-That is a defensible P4 exit. The remaining judgement is whether 986 filed
-leads is an acceptable state to enter P5 with, which is an owner's call.
+### The candidate
 
-## Built and committed
+**TIC 298732908**, and it is **not a rediscovery** — no TOI, no confirmed
+planet, no known-signal mask, no relation to a catalogued period.
 
-- **Snapshots** (`snapshots.py`): 8 sources fetched and content-hashed —
-  nasa_toi 8,113 · nasa_ps 6,336 · tess_eb 4,584 · gaia_dr3 8,453 · vsx 252 ·
-  gaia_nss_sb1 79 · asassn_variables 61 · gaia_nss_eb 1.
-- **Identity graph** (`identity.py`, ledger schema v2): 1,363 canonical nodes,
-  9,847 ranked counterpart edges. **616 stars (45.2%) have more than one
-  plausible Gaia counterpart inside one TESS pixel.**
-- **Adjudication** (`adjudicate.py`): §4.3 period **and** epoch matching.
-- **Pixel vetting v2** (`pixel.py`) — **run on real pixels**, below.
-- **T7 cross-reduction** — **run on the real cohort** (`results/p4/t7_pilot_v3/`):
-  60 stars, 0 errors, 0 search failures. 37 genuinely have no alternate
-  reduction; 9 have ≥2 informative independent reductions; **5 agree on depth
-  and survive the undetrended SAP fold**; 0 promoted, all blocked on stacked
-  vetoes a single-sector cohort cannot measure (correction 54).
-- **T7 gate** (`crossreduction.py`), **T8 fit** (`transitfit.py`),
-  **packet assembly** (`packet.py`), **review queue** (`/api/review-queue`),
-  **vetting panel** (`/api/vetting`).
-- `packet_ready_for_review` added as the 24th status (Appendix C additive).
+On the repaired cohort (`results/campaign/p5_verify_survivor/`): P = 14.705 d,
+depth 5,742 ppm, duration 3.85 h, 3 transits, red-noise-adjusted S/N 8.73,
+implied radius **0.451 R_Jup ≈ 5.1 R⊕** on a 0.598 R☉ host, contamination
+0.010. All six T3 checks now return real verdicts and all pass; no review
+flags. Its own triage still says, correctly, that passing this gate does not
+establish a planet candidate.
 
-## Real measurements worth carrying forward
+Its named follow-up path is exactly the P4 machinery that already exists:
+`pixel-vet` (three passes, one per sector), T7 cross-reduction, TCE check.
+**None of that has been run on it yet.** That is the first science action
+available to the next session.
 
-**Backlog re-adjudication** (`results/p4/readjudication_v1/`): **330 stars
-fail the calibrated red-noise floor** — screened before P3 made red-noise an
-enforced verdict, and failing on numbers their own reports already carried.
-52 more are explained by a catalog. Verified against the source reports, not
-just self-consistency.
+## The defect that forced a re-run
 
-**Pixel pilot** (`results/p4/pixel_pilot_v3/`, 60 stars, 57 measured, all on
-the target's own discovery sector): **11 stars localize significantly off
-target**, offsets 0.72–4.31 px at 4.6σ–42.5σ. These are the first genuine
-`pixel_offset_contamination` candidates this stack has produced. 3 more show
-aperture growth; the two tests flag **disjoint sets**, which is worth an
-owner's eye rather than summing to 14. **0 host reassignments** — TESS cannot
-resolve a counterpart inside one 21″ pixel.
+`build_p5_primary_lane.py` wrote the stellar radius as `radius_solar`; the
+campaign lifts stellar parameters off the target-list row by exact key and
+reads `stellar_radius_solar`. Every other cohort in `targets/` uses the
+canonical name. Consequence: `depth_physicality` and `duration_density` were
+`not_evaluable` for **953 of 953** stars — including the primary EB
+discriminator — and `stellar_mass_solar` was absent entirely, which
+`duration_density` also needs.
 
-Do **not** read the 31 `no_depth_in_target_aperture` verdicts as evidence
-against those signals: they are raw undetrended TESScut sums, and the campaign
-found these signals in detrended photometry.
+This was not cosmetic. With both values present, `search_grid.density_source`
+resolves to `catalog_stellar_mass_and_radius` and the duration ladder becomes
+density-informed, so **the fits move**: the survivor went 14.669 d → 14.705 d,
+7,435 → 5,742 ppm, 2.35 → 3.85 h. Correction 57 has the full table.
 
-## Decisions taken at the close
+**Fixed data-only, deliberately** — `campaign` is on decision 4's
+byte-identical list, so teaching the reader an alias would un-match the trusted
+release to repair a cohort file. The cohort was re-enriched from the same TIC
+cone query matched by TIC id: 1,000/1,000 resolved, **radius unchanged for all
+1,000** (so the sample provably did not drift), mass added for all 1,000.
+`target_list_sha256` moves `2c51ee23…` → `7e6cfec8…`; the manifest records the
+old hash and the reason. The builder is fixed with a comment saying why the
+names are load-bearing.
 
-The owner delegated the three open questions. PROGRESS records these in full
-under "Decisions taken at the P4 close".
+## In flight when this was written
 
-1. **Status precedence: the ledger is authoritative** — its stage-then-
-   precedence fold is the principled rule, and keeping a survivor lead alive
-   is the safer error in a discovery survey. **Recorded, not implemented.** An
-   attempt to re-scope the parity gate was reverted (correction 50): it was
-   turning into "edit the gate until it passes". Two findings survive that
-   attempt and should shape the real fix — separating the precedence
-   divergence *does* reduce `star_status_differences` to `{}`, and P4's
-   identity enrichment has created a second, legitimate divergence class the
-   exporter structurally cannot match. **The exporter has outlived its role as
-   a field-level parity oracle**; re-scoping it deserves its own session.
-2. **TRICERATOPS: unchanged, and do not relax the packet contract.** Making
-   FPP optional would manufacture a pass. `incomplete` with
-   `false_positive_probability` named as the blocker is the correct state.
-   Installing TRICERATOPS is the fix.
-3. **Missing release row: fixed.** The ledger now holds
-   `trusted sig1:f78342a7…`, re-recorded by the project's own finalizer with
-   every gate re-validated on the way in.
-4. **Signature churn: deliberately not changed.** Every detection-kernel
-   module is byte-identical to the P3 calibration commit `36c935b` and
-   `ScienceConfig` still digests to the pinned P3 value, so correction 39 is a
-   defect in the identity scheme rather than in the science. Switching the
-   scheme now would un-match the release just restored; it must land together
-   with a re-signed calibration. **This is P5's entry work.**
+**`results/campaign/p5_primary_ncvz_1000_v2/`** — the full re-run on the
+repaired cohort, launched ~19:35 local, ~2.4 hours. It will **exit 1** with
+`state: retry_pending`; that is by design (`campaign.py:1155`, `:1159`) because
+the same 47 targets have no data. It is not a crash. Compare v1 against v2 to
+measure what the revived vetoes actually caught.
 
-## Still open
+## What the first pass cannot answer, and why it matters
 
-- Promoting any P4 evidence to voting, which waits on decision 1 landing.
-- The first assembled packet, which waits on decision 2.
+**Detection rate: 1/953 = 0.10%. §6.1 predicts 0.3–0.8%.** Three to eight times
+below the lane's own forecast.
 
-## Next actions, in order
+That number cannot be interpreted yet, and this is the substantive open
+question. §6.1's kill criterion is ">95% of detectable signals are
+rediscoveries **and** completeness is healthy". Both clauses fail to resolve:
 
-1. **A multi-sector cohort, so the stacked-fold vetoes can run.** Every one of
-   the 60 T7 stars was blocked on stacked secondary/odd-even, which
-   single-sector data cannot measure. That single missing check is now the
-   only thing standing between the 5 best leads and a full §4.5 evaluation.
-2. **Widen both pilots.** Pixel vetting and T7 agree where they overlap (see
-   TIC 76804724 below), and both runners are now correct and fast — ~10 s per
-   star with the cache warm.
-3. **TRICERATOPS**, which blocks every packet from `ready`.
+1. **Underpowered.** §6.1's arithmetic gives 3–8 detections per 1,000 stars,
+   and the measured catalogued fraction is ~1% (9 TOI hosts, 4 confirmed-planet
+   hosts in 953). A rediscovery fraction cannot be separated from 95% with a
+   handful of objects. §6.1 quotes its own yield "per **10,000** stars".
+2. **No completeness surface for this cohort.** §5.1 line 658: "A campaign
+   without its completeness surface cannot leave 'diagnostic' status."
+   Injection–recovery exists (P3 built it: 2,840 injections, 14.2% random /
+   5.1% promotion-grade completeness) but was measured on P3's cohort.
 
-### The five leads worth looking at first
+A yield this far under forecast is exactly the case the criterion was written
+to adjudicate, and "the niche is thin" and "our completeness is poor" predict
+the same observation. **Only §5.1 separates them.**
 
-TICs **4809705, 18654235, 55757565, 67013276, 76804724** — depth agreement
-across informative independent reductions *and* presence in the undetrended
-SAP fold. Two of §4.5's four requirements each.
+### The approved next step
 
-**TIC 76804724 comes with a warning**: it also localizes 4.31 pixels off
-target at 16.9σ. Two independent stages agree its signal is real and that it
-does not belong to that star.
+Owner approved running the §5.1 completeness sample on this cohort.
+`scripts/run_p3_calibration.py` is the right instrument unmodified — its config
+already implements §5.1 exactly (`random_sample_fraction=0.05`,
+`archetype_count=50`, 20 random-phase + 20 edge injections per star,
+`depth_noise_multipliers=(0.5, 1, 2, 4, 8)`, `impact_parameters=(0, 0.5, 0.8)`,
+`photon_noise_hours=3.0`).
+
+Pre-flight on the **repaired** cohort: **94 sampled stars, 3,760 injection
+searches** (the archetype sample changed once radius became a real feature —
+it had been null for every star). Plus the driver's own baseline and the
+inverted/scrambled nulls. Estimate several hours; measure it rather than trust
+the estimate, and note §5.1's "~1× the cohort's base search cost" prose
+underestimates the configured budget by roughly 4×.
+
+```
+python scripts/run_p3_calibration.py \
+  --targets targets/p5_primary_m_dwarf_ncvz.csv \
+  --output-dir results/p5/calibration_ncvz_1000 \
+  --author SPOC --cadence-seconds 120 \
+  --workers 4 --download-workers 3 --prefetch 32
+```
+
+**It requires a clean worktree** (`require_clean_repository`). `--allow-dirty`
+exists but marks the output diagnostic-only, which is circular when the whole
+purpose is a surface that lets the campaign leave diagnostic status.
+
+## Still open — owner's, not to be settled unilaterally
+
+1. **`--trusted-first-pass` is unsatisfiable for any new cohort**, because the
+   signature includes `target_list_hash`. Options A/B/C stand; C
+   (diagnostic-only) is what has been running. Note this session **changed**
+   `target_list_sha256`, which is directly adjacent to this decision.
+2. **Status precedence (correction 38)** — decided in principle, ledger
+   authoritative, **not implemented**. Blocks promoting P4 evidence to voting.
+3. **TRICERATOPS** — its `not_run` FPP correctly blocks every packet from
+   `ready`. Installing it is the fix; relaxing the contract is not.
 
 ## Operational notes
 
-- **Always set this inline**, in every shell that touches science:
+- **Always set inline**, in every shell touching science:
   `$env:EXOHUNT_CACHE_DIR = 'E:\Agentic AI\Exoplanet Server\exohunt-cache\lightkurve'`
-- Cache is **83.1 GB**; catalog snapshots live in `%LOCALAPPDATA%\exohunt\snapshots`.
-- Ledger: 83,555 stars, 217,156 evidence rows, schema v3.
-  **Checkpoint the WAL after any bulk import** — an uncheckpointed 381 MB WAL
-  made the dashboard return 503 (correction 40).
-- Dashboard: `.venv\Scripts\exohunt-dashboard.exe`, port 8765. `/api/summary`
-  is back inside its gate at **22.5 ms warm** (was 1,546 ms).
-- **Be polite to MAST.** Three of this phase's five corrections came from
-  data-acquisition mistakes, not science mistakes.
+- **`--cache-max-gb` can be silently inert.** `campaign.py:568` derives the
+  effective cap as `workspace_max − 1 GB − workspace_size`. With
+  `--workspace-max-gb 95` the cache cap landed at 88.04 GB against a live
+  88.0400 GB cache — **871 KB of headroom**, and `campaign.py:619` can abort a
+  run over it. Now `--workspace-max-gb 200` → 120 GB effective, ~30 GB free.
+  E: has 824 GB free; the 95 GB ceiling was self-imposed.
+- Cache ~90 GB. Every campaign pays a ~8 min head and ~7 min tail walking it;
+  that is fixed cost, not a hang.
+- **The checkpoint lags the durable per-target reports.** `batch_status.json`
+  can still show the *previous* run's terminal state minutes into a new one.
+  Verify liveness by process and by report mtimes, never by the checkpoint
+  alone.
+- PowerShell here is 5.1: no `&&`, no ternary. Use `;` and `if ($?) { }`.
+- Be polite to MAST. Sustained 1,000-target runs at `--download-workers 3`
+  produced **zero** transport errors across ~1,100 cold targets tonight.
 
-## The pattern worth reading before you trust anything here
+## The pattern worth reading before trusting anything here
 
-Corrections 46, 47 and 48 are all the same failure in different clothes: a
-plausible result that was an artifact of how it was obtained. 22 host
-reassignments from apertures that overlapped; a whole pilot run against
-sectors 2–12 for signals discovered in 98–105; an empty archive response that
-was really a throttled connection. Each looked like a finding. Two of the
-three were caught only because a *second* check disagreed.
+Corrections 46–50 were one failure in four costumes: a plausible result that
+was an artifact of how it was obtained. **Correction 55 is the fifth, and it
+had already survived one self-correction** — the first reading ("0 of 4 after
+20 minutes, stalled") was retracted as a stale checkpoint, correctly, and the
+replacement number was then drawn just as carelessly and quoted with more
+confidence. *A correction is not evidence that the replacement was measured.*
 
-Correction 50 is the same failure pointed at the tooling instead of the data:
-adding exemptions to a parity gate until it went green, one defensible step at
-a time. It was caught by noticing the *direction*, not any single step.
+**Correction 57 is the shape to watch for next.** A veto that cannot run does
+not report as failing — it reports as *not blocking*, and in aggregate that is
+indistinguishable from a clean pass. The T3 block said `"passes": true,
+"rejection_reasons": []` while a third of its checks had never executed.
+`not_evaluable` is not a pass, and nothing in the summary path was
+distinguishing the two.
 
-Where two independent checks disagree in this codebase, the disagreement is
-usually the signal — and when a gate starts failing, the first question is
-whether it has found something, not how to make it stop.
+And once this session predicted a veto verdict from stale inputs, got the right
+answer, and only got it because the margin to the kill span was wide. Where two
+independent checks disagree, the disagreement is the signal — and when a gate
+starts failing, the first question is whether it has found something.

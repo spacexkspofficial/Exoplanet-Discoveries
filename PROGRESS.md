@@ -1788,6 +1788,96 @@ the current stack can settle.
     `--workspace-max-gb 200`: effective cap 120 GB, 32 GB headroom, on a volume
     with 824 GB free. The 95 GB ceiling was self-imposed, not physical.
 
+56. **The 100-target ramp predicted throughput almost exactly and the science
+    population not at all, because the cohort is Tmag-sorted.** The ramp built
+    to measure marginal cost (correction 55) was the first 100 rows of
+    `p5_primary_m_dwarf_ncvz.csv`, which is sorted ascending by Tmag — so it is
+    the brightest and least contaminated tenth of the sample, not a random one.
+
+    | | first 100 | full 953 |
+    |---|---:|---:|
+    | clearing the 7.1 red-noise floor | 15% | **52%** |
+    | fitted depth > 5% (EB-like) | 4% | **36%** |
+    | survivors | 0 | 1 |
+
+    Nine times the deep-eclipse rate and three times the floor-clearing rate in
+    the other nine tenths. Had the ramp been used to forecast the cohort's
+    detection or false-positive population — which is one short step from using
+    it to forecast the lane's yield — the forecast would have been wrong by
+    roughly an order of magnitude in the direction of "this cohort is quiet".
+
+    The instrument was valid for the question it was built for and invalid for a
+    question never asked of it. Recorded because the inference "the sample that
+    validated the pipeline also characterises the population" is cheap to make
+    and was available here: the same 100 rows, the same run, the same tables.
+    **A head-of-list slice of a sorted cohort is a throughput sample, never a
+    population sample.** Any future ramp intended to say something about yield
+    must be drawn at random, or stratified, from the whole cohort.
+
+57. **Two of T3's six physical vetoes were inert for the entire P5 first pass,
+    because the cohort spelled one column differently.** Across all 953
+    searched stars:
+
+    | T3 check | verdict | stated reason |
+    |---|---|---|
+    | `depth_physicality` | `not_evaluable` **953/953** | stellar radius unavailable |
+    | `duration_density` | `not_evaluable` **953/953** | stellar density unavailable |
+
+    `depth_physicality` is the primary EB discriminator — it converts depth into
+    an implied companion radius and kills anything above the 2.0 R_Jup
+    planet-lane ceiling. `duration_density` is described in its own docstring as
+    "the strongest test the pipeline was not running". Neither ran on any star,
+    including the one survivor.
+
+    **Cause.** `build_p5_primary_lane.py` wrote the column as `radius_solar`;
+    `campaign.py`'s `_batch_target_spec` lifts stellar parameters off the
+    target-list row by exact key and reads `stellar_radius_solar`. Every other
+    cohort in `targets/` uses the canonical name; the P5 builder is the only one
+    that does not. The value was never missing — the lane *selects* on
+    `max_radius_solar < 0.6`, so a radius was known for all 1,000 stars and sat
+    in the file the whole time under a name nothing reads. `stellar_mass_solar`
+    was absent outright, and `duration_density` needs it: density resolves from
+    `catalog_stellar_mass_and_radius` or not at all.
+
+    **The fix is data-only, deliberately.** `campaign` is on the decision-4 list
+    of modules that must stay byte-identical to calibration commit `36c935b`, so
+    teaching the reader an alias would un-match the trusted release to repair a
+    cohort file. The cohort was re-enriched in place from the same TIC cone
+    query, matched by TIC id: 1,000/1,000 resolved, radius **unchanged for all
+    1,000** (confirming the sample did not drift), mass added for 1,000.
+    `target_list_sha256` moves `2c51ee23…` → `7e6cfec8…`; the manifest records
+    the previous hash and the reason.
+
+    **The missing parameters were changing fits, not just blanking verdicts.**
+    Re-running the one survivor on the repaired cohort moved the search itself,
+    because `search_grid.density_source` resolves to
+    `catalog_stellar_mass_and_radius` only when both values are present, and the
+    duration ladder is derived from it:
+
+    | TIC 298732908 | v1 (inert) | v2 (repaired) |
+    |---|---:|---:|
+    | period | 14.669 d | 14.705 d |
+    | depth | 7,435 ppm | 5,742 ppm |
+    | duration | 2.35 h | 3.85 h |
+    | implied radius | — (not evaluable) | 0.451 R_Jup |
+
+    Both vetoes return `pass` and the star remains an `automated_survivor`, but
+    the fit it survives on is a different fit. A predicted verdict computed from
+    the v1 fit (ratio 0.739, 0.513 R_Jup) reached the right conclusion off the
+    wrong inputs — the margin to the kill spans was wide enough to absorb the
+    error. That is luck, not method, and it is the reason the whole cohort is
+    being re-run rather than having its verdict fields patched.
+
+    **What makes this worth a ledger entry rather than a bug fix.** The T3 block
+    reported `"passes": true` with `"rejection_reasons": []` for the survivor
+    while a third of its checks had never executed. A veto that cannot run does
+    not report as failing — it reports as *not blocking*, which aggregates into
+    something indistinguishable from a clean pass. The run's own summary counted
+    it as vetted. **`not_evaluable` is not a pass, and nothing in the summary
+    path was distinguishing the two.** Any future campaign report should surface
+    per-check evaluability alongside the verdict, so a screen that quietly lost
+    a third of its physical tests cannot present as a screen that ran.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
