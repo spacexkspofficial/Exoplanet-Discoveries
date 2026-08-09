@@ -519,6 +519,21 @@ def _import_star_metadata(
             )
 
 
+# Evidence kinds that exist only in the ledger. The dashboard exporter walks
+# campaign result files and cannot see these, so a star whose status they
+# decide will legitimately differ between the two projections.
+#
+# Adding a kind here weakens the parity gate, so each one needs a reason:
+#   t5_readjudication -- P4 catalog adjudication, promoted to voting by owner
+#                        decision 3. Lives in the ledger; no campaign file
+#                        carries it.
+#   search_artifact   -- owner decision 2a's artifact vetoes, derived from the
+#                        common-mode screen's recorded flags.
+LEDGER_ONLY_EVIDENCE_KINDS: frozenset[str] = frozenset(
+    {"t5_readjudication", "search_artifact"}
+)
+
+
 def parity_check(
     conn: sqlite3.Connection, workspace: str | Path = "."
 ) -> dict[str, Any]:
@@ -574,7 +589,7 @@ def parity_check(
         for status in statuses
         if exporter_counts.get(status, 0) != ledger_counts.get(status, 0)
     }
-    star_status_differences = {
+    all_status_differences = {
         str(tic_id): {
             "exporter": exporter_star_statuses.get(tic_id),
             "ledger_api": api_star_statuses.get(tic_id),
@@ -585,20 +600,79 @@ def parity_check(
         if exporter_star_statuses.get(tic_id)
         != api_star_statuses.get(tic_id)
     }
+
+    # Correction 50 / owner decision 3. The exporter is a *file-derived*
+    # projection: it walks campaign reports. The ledger projects those same
+    # files plus evidence that exists only in the ledger -- promoted T5
+    # adjudications, and the decision-2a search-artifact vetoes. Once the
+    # ledger holds a verdict no file contains, the two cannot agree, and that
+    # is the system working rather than drifting.
+    #
+    # So the gate does not compare the two totals and declare a failure. It
+    # separates the differences the ledger can *account for* from the ones it
+    # cannot, and only the unaccounted ones fail. `star_state.decided_by_
+    # evidence_id` names the exact row that decided each status, so this is a
+    # lookup rather than an inference.
+    #
+    # The rule this replaces edited the gate until it passed, and was reverted
+    # (correction 50). The difference is that this itemizes the divergence
+    # instead of hiding it: `explained_status_differences` stays in the report
+    # and is counted.
+    decided_by_ledger_only: set[int] = set()
+    try:
+        for row in conn.execute(
+            "SELECT s.tic_id AS tic_id FROM star_state s "
+            "JOIN evidence e ON e.evidence_id = s.decided_by_evidence_id "
+            f"WHERE e.kind IN ({','.join('?' * len(LEDGER_ONLY_EVIDENCE_KINDS))})",
+            tuple(sorted(LEDGER_ONLY_EVIDENCE_KINDS)),
+        ):
+            decided_by_ledger_only.add(int(row["tic_id"]))
+    except sqlite3.Error:
+        # An older ledger without these kinds simply has none of them.
+        decided_by_ledger_only = set()
+
+    explained_status_differences = {
+        tic: diff
+        for tic, diff in all_status_differences.items()
+        if int(tic) in decided_by_ledger_only
+    }
+    star_status_differences = {
+        tic: diff
+        for tic, diff in all_status_differences.items()
+        if int(tic) not in decided_by_ledger_only
+    }
     # context_report was a raw filesystem path in survey.json and is not
     # consumed by the browser.  The API deliberately exposes evidence source
     # provenance through /api/star/{tic} instead.  Every other legacy display
     # field must remain byte-for-byte equivalent on frozen inputs.
     ignored_star_fields = {"context_report"}
     star_payload_differences: dict[str, dict[str, Any]] = {}
+    explained_payload_differences: dict[str, dict[str, Any]] = {}
     for tic_id in sorted(set(exporter_stars) | set(api_stars)):
         exported = exporter_stars.get(tic_id)
         projected = api_stars.get(tic_id)
         if exported is None or projected is None:
+            # Presence is never "explained": a star the ledger holds and the
+            # exporter does not (or vice versa) is a real import defect
+            # regardless of which evidence decided its status.
             star_payload_differences[str(tic_id)] = {
                 "exporter_present": exported is not None,
                 "ledger_api_present": projected is not None,
             }
+            continue
+        if tic_id in decided_by_ledger_only:
+            # The status field, and anything the exporter derives from it,
+            # necessarily differs here. Recorded, not counted against parity.
+            field_differences = {
+                field: {
+                    "exporter": exported.get(field),
+                    "ledger_api": projected.get(field),
+                }
+                for field in sorted(set(exported) - ignored_star_fields)
+                if exported.get(field) != projected.get(field)
+            }
+            if field_differences:
+                explained_payload_differences[str(tic_id)] = field_differences
             continue
         field_differences = {
             field: {
@@ -610,11 +684,13 @@ def parity_check(
         }
         if field_differences:
             star_payload_differences[str(tic_id)] = field_differences
+    # `differences` is a per-status *count* rollup of the same stars compared
+    # above, so it cannot disagree unless a star does. It stays in the report
+    # for readability but is not a second, independent gate -- keying `match`
+    # on it would re-fail every star already accounted for above.
     return {
         "match": (
-            not differences
-            and not star_status_differences
-            and not star_payload_differences
+            not star_status_differences and not star_payload_differences
         ),
         "exporter_total": sum(exporter_counts.values()),
         "ledger_total": sum(ledger_counts.values()),
@@ -623,4 +699,12 @@ def parity_check(
         "differences": differences,
         "star_status_differences": star_status_differences,
         "star_payload_differences": star_payload_differences,
+        # Divergence the ledger accounts for: stars whose current status was
+        # decided by evidence that exists only in the ledger and therefore
+        # cannot appear in a file-derived export. Itemized so the number is
+        # visible rather than absorbed.
+        "explained_status_differences": explained_status_differences,
+        "explained_payload_differences": explained_payload_differences,
+        "explained_by_ledger_only_evidence": len(explained_status_differences),
+        "ledger_only_evidence_kinds": sorted(LEDGER_ONLY_EVIDENCE_KINDS),
     }

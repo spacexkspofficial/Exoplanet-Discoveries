@@ -15,10 +15,21 @@ snapshot generations using the section 4.3 rule (period *and* epoch), and the
 relation is recorded with the snapshot hash it was adjudicated against.
 
 Evidence rows are written **non-voting** by default. The projection policy for
-stars carrying conclusions from more than one campaign is an open owner
+stars carrying conclusions from more than one campaign was an open owner
 decision (PROGRESS.md correction 38), and writing voting verdicts before that
-is settled would bake one answer into 83,555 stars. ``--promote`` exists for
-when it is settled.
+was settled would have baked one answer into 83,555 stars. ``--promote``
+existed for when it was settled.
+
+**Owner decision 3 (2026-08-09) settled it: the ledger's stage-then-precedence
+fold is authoritative.** ``--promote`` now writes the adjudicated status as the
+row's verdict, and ``exohunt.statuses.resolve_status`` decides what a star's
+current status becomes. Note that the flag was previously *inert*: it set
+``affects_state`` while ``verdict`` stayed ``None``, and
+``rebuild_star_state`` requires both. It announced a promotion that could not
+happen.
+
+Only a recommendation naming a real registry status votes; a ``None``
+recommendation is absence and stays non-voting.
 
     python scripts/run_p4_readjudication.py --out results/p4/readjudication_v1
 """
@@ -44,6 +55,7 @@ from exohunt.config import (  # noqa: E402
     vetting_signature,
 )
 from exohunt.paths import default_db_path  # noqa: E402
+from exohunt.statuses import STATUS_REGISTRY  # noqa: E402
 
 BACKLOG_LANES = (
     "automated_survivor",
@@ -577,7 +589,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--promote",
         action="store_true",
-        help="Write voting evidence (blocked on PROGRESS.md correction 38).",
+        help=(
+            "Write voting evidence: the adjudicated status becomes the row's "
+            "verdict and the ledger's fold decides. Unblocked by owner "
+            "decision 3; was inert before it (affects_state without a verdict)."
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -759,14 +775,35 @@ def main(argv: list[str] | None = None) -> int:
             }
             records.append(record)
 
+            # Owner decision 3: the ledger's stage-then-precedence fold is
+            # authoritative, so an adjudicated star may now cast its verdict.
+            #
+            # `--promote` used to set `affects_state` while `verdict` stayed
+            # None. `rebuild_star_state` selects on
+            # `affects_state = 1 AND verdict IS NOT NULL`, so the flag has
+            # always been inert -- it announced a promotion that could not
+            # happen. That is the correction 57 shape again: not an error, just
+            # silently not blocking anything.
+            #
+            # Only a recommendation that names a real registry status votes. A
+            # `None` recommendation (26 stars in the v4 generation, all
+            # `resolved: false`) is absence, and absence must not be cast as a
+            # verdict. The fold decides what wins; this only supplies the
+            # candidate.
+            recommended = (t5 or {}).get("recommended_status")
+            verdict = (
+                str(recommended)
+                if args.promote and str(recommended) in STATUS_REGISTRY
+                else None
+            )
             ledger.append_evidence(
                 conn,
                 tic_id=star["tic_id"],
                 kind="t5_readjudication",
                 source=f"p4_readjudication:{READJUDICATION_POLICY}:{signature}",
                 payload=record,
-                verdict=None,
-                affects_state=bool(args.promote),
+                verdict=verdict,
+                affects_state=bool(args.promote) and verdict is not None,
                 signature=signature,
             )
         conn.commit()
