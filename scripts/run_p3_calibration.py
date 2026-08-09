@@ -51,11 +51,45 @@ from exohunt.config import (  # noqa: E402
 from exohunt.progress import TRACKER  # noqa: E402
 
 
-def _atomic_json(path: Path, payload: object) -> None:
+def _atomic_json(path: Path, payload: object, *, attempts: int = 12) -> None:
+    """Write JSON atomically, tolerating a reader holding the destination.
+
+    On Windows `os.replace` fails with `PermissionError: [WinError 5]` when any
+    other process has the *destination* open, even read-only. That killed a
+    13-hour calibration at 187/1,000 stars: a progress watcher was polling
+    `p3_progress.json` every few minutes, and one of those reads happened to
+    overlap a checkpoint write.
+
+    The failure mode is the worst kind -- the run dies on a *status update*,
+    long after the science it was recording succeeded, and the checkpoint it
+    died writing is the thing that would have made the loss cheap. A dashboard,
+    an antivirus scan, OneDrive, or a `grep` is enough to trigger it.
+
+    So retry with a short backoff rather than letting a transient reader end a
+    multi-day job. Progress reporting must never be able to kill the run it
+    reports on.
+    """
+
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
     temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    temporary.replace(path)
+    for attempt in range(attempts):
+        try:
+            temporary.replace(path)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                # Out of retries. A checkpoint we cannot write is worth a
+                # warning, but never worth losing the run over.
+                print(
+                    f"WARNING: could not replace {path} after {attempts} "
+                    "attempts; leaving the previous checkpoint in place and "
+                    "continuing.",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                return
+            time.sleep(0.25 * (attempt + 1))
 
 
 def _specs(
