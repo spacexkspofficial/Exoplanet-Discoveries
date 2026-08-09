@@ -345,8 +345,35 @@ def _adjudicate_catalog_relation(
 
 
 def _screening_flags(result) -> dict[str, bool]:
+    # Imported here rather than at module scope: `commonmode` reads campaign
+    # results and pulls in the wider result-loading path, which this module
+    # deliberately does not depend on.
+    from .commonmode import spacecraft_harmonic
+    from .config import CURRENT_CONFIG
+
     duty_cycle = result.duration_hours / (result.period_days * 24.0)
     return {
+        # Owner decision 2b. The common-mode screen has recorded this per
+        # target since P2 and nothing acted on it; correction 72 measured it
+        # enriched 1.60x among automated survivors (8.2% of the screened
+        # population, 13.2% of survivors).
+        #
+        # Unlike the other two flags in that correction this one is grid-free:
+        # it is TESS orbital physics, not an artefact of a search grid that has
+        # since been replaced. `commonmode.DURATION_GRID_HOURS` still names the
+        # retired fixed 0.25-6.0 h grid, whose lower rail (0.25 h) is below the
+        # live `duration_min_hours` of 0.5 h and therefore unreachable, so
+        # those two flags are deliberately NOT promoted into the kernel here.
+        # The campaign path already rejects rails against the live grid.
+        #
+        # This veto has a known cost: planets do exist at 6.85 d. The
+        # re-calibration measures that cost directly as a completeness drop at
+        # the harmonic periods, which is what decision 5B is for. Set
+        # `veto_spacecraft_harmonic=False` to measure the surface without it.
+        "period_on_spacecraft_harmonic": (
+            CURRENT_CONFIG.search.veto_spacecraft_harmonic
+            and spacecraft_harmonic(result.period_days) is not None
+        ),
         "white_noise_depth_snr_below_7_1": result.depth_snr < 7.1,
         "fewer_than_two_observed_transits": result.observed_transits < 2,
         "odd_even_mismatch_over_3_sigma": (

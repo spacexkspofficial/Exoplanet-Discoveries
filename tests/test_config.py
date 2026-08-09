@@ -27,13 +27,16 @@ from exohunt.config import (
 # moving this pin, which is what proved the layer was added *beside* the
 # detection identity rather than inside it.
 #
-# MOVED DELIBERATELY, 2026-08-09, owner decision 1 (the kernel may be
+# MOVED DELIBERATELY, 2026-08-09, owner decisions 1 and 2b (the kernel may be
 # modified). The P3-certified value was:
 #   dcdb2bf009a1667246d69b87af533af590befbcece8648623592990d18cd1594
-# `SearchConfig` gained the near-tie peak-selection parameters and its
-# `policy_version` went v3 -> v4-neartie, so the detection identity genuinely
-# changed and the digest must follow. This is the one case the pin is *not*
-# guarding against: an intended, owner-approved change to the search itself.
+# `SearchConfig` gained the near-tie peak-selection parameters (decision 1),
+# `veto_spacecraft_harmonic` (decision 2b), and its `policy_version` went
+# v3 -> v4-neartie, so the detection identity genuinely changed and the digest
+# must follow. This is the one case the pin is *not* guarding against: an
+# intended, owner-approved change to the search itself. Both changes are
+# batched into a single re-calibration on purpose -- each one separately would
+# cost another ~16.5 h per 1,000-star cohort.
 #
 # Consequence, and it is not cosmetic: **there is currently no passing release
 # report for this signature**, so `--trusted-first-pass` is unsatisfiable until
@@ -42,7 +45,7 @@ from exohunt.config import (
 # start -- that would re-point a stored certification at code it never
 # measured.
 P3_CERTIFIED_CONFIG_HASH = (
-    "697c9b4e09f7398a5c4d41eb407613b777ec841a4a30dbef908659045e63542a"
+    "2697cd21849202e9eafb8f12a42ecbf633be28dc1cbf8920ef7d805214e83124"
 )
 
 

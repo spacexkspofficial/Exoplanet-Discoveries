@@ -1833,6 +1833,11 @@ def _hunt_from_light_curve(
         rejection_reasons.append("the fitted transit duty cycle exceeds 15 percent")
     if screening_flags["transit_depth_over_5_percent"]:
         rejection_reasons.append("the fitted transit depth exceeds 5 percent")
+    if screening_flags.get("period_on_spacecraft_harmonic"):
+        rejection_reasons.append(
+            "the best-fit period sits on a TESS-orbit harmonic, where "
+            "instrumental power concentrates"
+        )
     if best_period_in_overscan:
         rejection_reasons.append(
             "the best-fit period is in the search-grid overscan zone"

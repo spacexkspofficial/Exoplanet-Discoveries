@@ -106,6 +106,11 @@ class SearchConfig:
     # Peaks closer than this in fractional period are the same peak sampled
     # twice, not competing hypotheses.
     near_tie_separation_fraction: float = 0.02
+    # Owner decision 2b: reject fits sitting on a TESS-orbit harmonic. The
+    # other two flags from correction 72 are not promoted here -- see the note
+    # in `screening._screening_flags`; their grid constants are stale. Turn
+    # this off to measure a completeness surface without the veto.
+    veto_spacecraft_harmonic: bool = True
 
 
 @dataclass(frozen=True, slots=True)
