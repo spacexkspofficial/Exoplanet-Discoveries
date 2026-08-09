@@ -257,6 +257,39 @@ sectors). `make-targets` resolves sectors via MAST at ~2 queries per star.
 already-searched hosts still show a strongest *residual* signal matching the
 catalogued period within 1% (allowing 1:2, 2:1, 1:3, 3:1) despite masking.
 
+## Actionable now, in the vetting layer (no kernel re-signing)
+
+Everything below sits outside the frozen detection kernel, so it needs no
+re-signed calibration. Ranked by value.
+
+1. **Promote three computed-but-unused flags to vetoes** (correction 72). The
+   common-mode screen already records `spacecraft_harmonic`,
+   `duration_at_grid_rail` and `period_at_search_ceiling` per target and
+   nothing acts on them. Measured across 84,374 screened targets they are
+   enriched **1.63×, 2.92× and 2.40×** among automated survivors (5.7σ, 13.8σ,
+   7.8σ), and together flag **311 of 990 survivors (31.4%)** against 14.8% of
+   the population. This is a status change, so it is an owner call — but the
+   evidence is measured, not intuited.
+
+2. **Run the common-mode screen as part of every campaign.** It was never
+   invoked on P5 (correction 69) or on 85% of the survey (correction 71). It
+   is now caught up, but nothing makes it automatic. **Run it per campaign** —
+   `--campaign-root results/campaign` pools everything and silently retracts
+   1,665 established systematics by diluting the expectation (correction 71).
+
+3. **Add `camera`/`ccd` to cohort builders.** Their absence left the P5 dip
+   registry at `s14-camunknown-ccdunknown` with zero windows (corrections 57,
+   69), disabling the second shared-systematic guard.
+
+4. **Emit campaign-format residual reports from the null runs**, so the
+   common-mode screen can be applied to inverted/scrambled results. Without
+   that, correction 70's "would screening fix the false-alarm gate?" can only
+   be answered indirectly.
+
+Not actionable without an owner decision on decision 4: the ~1 d rail-pinning
+family, which is the dominant search failure in three independent cohorts
+(corrections 63, 65, 66) and lives in the frozen kernel.
+
 ## Still open — owner's, not to be settled unilaterally
 
 1. **`--trusted-first-pass` is unsatisfiable for any new cohort**, because the
