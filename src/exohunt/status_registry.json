@@ -220,6 +220,17 @@
     "precedence": 0
   },
   {
+    "slug": "search_artifact_rejected",
+    "label": "Search Artifact — Fit Sits On An Instrument Or Grid Rail",
+    "short_label": "Search artifact",
+    "help": "The fit lands on a spacecraft harmonic, on the first or last value of the duration grid, or at the search ceiling. None of these is a property of the star: they are places a fit goes when it is describing a trend, a momentum dump, or the edge of the search rather than a transit. Measured across 84,374 screened targets these three flags are enriched 1.60x, 2.86x and 2.35x among automated survivors and together account for 311 of 1,010 of them, against 14.8% of the screened population. Unlike the shared-ephemeris screen this is a single-star verdict and needs no neighbours to establish.",
+    "symbol": "⌐",
+    "color": "#78716c",
+    "css_class": "muted",
+    "evidence_stage": "population_screen",
+    "precedence": 1
+  },
+  {
     "slug": "false_positive",
     "label": "Vetted False Positive",
     "short_label": "False positive",

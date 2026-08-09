@@ -17,11 +17,13 @@ from exohunt.statuses import (
 
 def test_registry_is_complete_and_frontend_generation_cannot_drift() -> None:
     # 23 at P1, plus `packet_ready_for_review` added for P4's section 4.7
-    # packet. Appendix C makes registry evolution additive and requires the
-    # existing 23 to keep their slugs, so this count is raised deliberately
-    # rather than relaxed -- a status appearing without this line changing is
-    # the drift the pin exists to catch.
-    assert len(STATUS_DEFINITIONS) == 24
+    # packet, plus `search_artifact_rejected` added for owner decision 2
+    # (promoting the three computed-but-unused artifact flags to vetoes).
+    # Appendix C makes registry evolution additive and requires the existing
+    # slugs to be kept, so this count is raised deliberately rather than
+    # relaxed -- a status appearing without this line changing is the drift
+    # the pin exists to catch.
+    assert len(STATUS_DEFINITIONS) == 25
     assert len(STATUS_REGISTRY) == len(STATUS_DEFINITIONS)
     assert generated_path().read_text(encoding="utf-8") == render_typescript()
 
@@ -53,6 +55,9 @@ def test_registry_preserves_the_exporters_existing_labels() -> None:
     assert COMMON_MODE_LABELS == {
         "common_mode_systematic": "Observatory systematic - shared ephemeris",
         "localized_coincidence": "Shared ephemeris with close neighbours",
+        "search_artifact_rejected": (
+            "Search artifact - fit sits on an instrument or grid rail"
+        ),
     }
 
 
