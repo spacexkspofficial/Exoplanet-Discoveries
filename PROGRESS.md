@@ -2483,6 +2483,54 @@ the current stack can settle.
     addressing the spacecraft-harmonic residue and the ~1 d rail-pinning family
     separately, and the latter lives in the frozen detection kernel.
 
+71. **85% of the survey had never been common-mode screened, and screening it
+    survey-wide would have destroyed 1,665 established verdicts.** Correction 69
+    found the screen had never been run on the P5 campaign. Auditing the rest:
+
+    | | targets | screened before |
+    |---|---:|---|
+    | `full_remaining_pool` | 64,614 | **none** |
+    | `sector101_6000` | 6,000 | none |
+    | `sector100_detector_balanced_4327` | 4,327 | none |
+    | `sector100_small_star_3128` | 3,125 | none |
+    | total unscreened | **71,459 of 84,450 (85%)** | |
+
+    Screening each campaign added **72,336 verdicts**, of which 72,062 are
+    `independent_timing` and 274 the P5 `localized_coincidence` family. Coverage
+    goes 12,038 → 84,374 with **zero retractions**. Notably `full_remaining_pool`
+    flags nothing at all, so the P5 cohort's 28.8% is a sharp outlier rather
+    than the survey norm.
+
+    **The near-miss is the part worth recording.** The obvious way to close a
+    coverage gap is one run over everything, and `--campaign-root
+    results/campaign` does exactly that: 84,377 targets across 23 campaigns in
+    69 seconds. It reports 3,950 `common_mode_systematic` against the
+    established screen's 5,615 — **it would have retracted 1,665 systematics**,
+    and the importer takes newest-file-wins per TIC, so the import would have
+    applied them silently.
+
+    TIC 325384023 shows why the broad run is wrong:
+
+    | | per-campaign | survey-wide |
+    |---|---:|---:|
+    | shared targets | 436 | 29 |
+    | period-group targets | 562 | 96 |
+    | expected shared | 7.77 | 23.05 |
+    | **enrichment** | **56.11** | **1.26** |
+    | verdict | `common_mode_systematic` | `independent_timing` |
+
+    Pooling every campaign inflates the phase-uniform expectation and shatters
+    the period grouping, so a 56× detection reads as 1.26×. **The screen's
+    verdict is defined relative to the cohort it is run over**, and the cohort
+    is meant to be one campaign — a spacecraft event is shared by stars observed
+    together, not by every star the survey ever touched. The survey-wide file
+    was deleted rather than imported.
+
+    Method note for anyone extending this: check the transition matrix between
+    an old and a new screen before importing, not the headline counts. The
+    survey-wide run looked like an improvement on every summary statistic —
+    seven times the coverage, same tool, same code — and was a regression.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
