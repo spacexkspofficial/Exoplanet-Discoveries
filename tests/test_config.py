@@ -20,13 +20,29 @@ from exohunt.config import (
     vetting_signature,
 )
 
-# The configuration digest P3 certified. `results/p3/release_report.json` stores
-# `trusted_release` for the signature built over this hash at git:36c935b, so a
-# change here retires that release whether or not anyone noticed. P4 adds a
-# whole vetting layer; this pin is what proves the layer was added *beside* the
+# The configuration digest the current detection identity hashes to.
+# `results/p3/release_report.json` stores `trusted_release` for the signature
+# built over the *previous* hash at git:36c935b, so a change here retires that
+# release whether or not anyone noticed. P4 added a whole vetting layer without
+# moving this pin, which is what proved the layer was added *beside* the
 # detection identity rather than inside it.
+#
+# MOVED DELIBERATELY, 2026-08-09, owner decision 1 (the kernel may be
+# modified). The P3-certified value was:
+#   dcdb2bf009a1667246d69b87af533af590befbcece8648623592990d18cd1594
+# `SearchConfig` gained the near-tie peak-selection parameters and its
+# `policy_version` went v3 -> v4-neartie, so the detection identity genuinely
+# changed and the digest must follow. This is the one case the pin is *not*
+# guarding against: an intended, owner-approved change to the search itself.
+#
+# Consequence, and it is not cosmetic: **there is currently no passing release
+# report for this signature**, so `--trusted-first-pass` is unsatisfiable until
+# decision 5B's re-calibration completes and certifies it. Runs remain
+# diagnostic in the meantime. Do not restore the old value to make a campaign
+# start -- that would re-point a stored certification at code it never
+# measured.
 P3_CERTIFIED_CONFIG_HASH = (
-    "dcdb2bf009a1667246d69b87af533af590befbcece8648623592990d18cd1594"
+    "697c9b4e09f7398a5c4d41eb407613b777ec841a4a30dbef908659045e63542a"
 )
 
 

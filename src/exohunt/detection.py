@@ -8,6 +8,7 @@ produce impressive Box Least Squares (BLS) peaks.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from typing import Any
 
 import numpy as np
 from astropy.timeseries import BoxLeastSquares
@@ -243,6 +244,94 @@ def _event_depths(
     return np.asarray(numbers, dtype=int), np.asarray(depths, dtype=float)
 
 
+def _event_depth_consistency(
+    time: np.ndarray,
+    flux: np.ndarray,
+    period: float,
+    transit_time: float,
+    duration: float,
+) -> float:
+    """How significantly the folded per-epoch depths agree on one real depth.
+
+    Used only to break ties between BLS peaks of indistinguishable power. A
+    genuine repeating transit dims the star by the same amount every epoch; an
+    alias or a noise peak folds unrelated cadences together and the per-epoch
+    depths disagree. Returns ``-inf`` when the fold produces too few usable
+    events or a non-positive median depth, so such a candidate can never win a
+    tie.
+
+    Deliberately *not* the event count: preferring more events would prefer
+    shorter periods, which is the grid-rail failure this module is separately
+    trying to reduce.
+    """
+
+    numbers, depths = _event_depths(time, flux, period, transit_time, duration)
+    if depths.size < 2:
+        return float("-inf")
+    median_depth = float(np.nanmedian(depths))
+    if not np.isfinite(median_depth) or median_depth <= 0:
+        return float("-inf")
+    scatter = _robust_scatter(depths)
+    standard_error = scatter / np.sqrt(depths.size)
+    if not np.isfinite(standard_error) or standard_error <= 0:
+        # Identical depths across epochs. Real, but the ratio is undefined;
+        # rank it by depth alone so the ordering stays total and finite.
+        return float(median_depth / _DEPTH_CONSISTENCY_FLOOR)
+    return float(median_depth / max(standard_error, _DEPTH_CONSISTENCY_FLOOR))
+
+
+# Fractional-depth floor for the tie-break ratio. Well below any depth TESS
+# photometry resolves, so it only ever guards a division.
+_DEPTH_CONSISTENCY_FLOOR = 1e-12
+
+
+def _near_tied_candidates(
+    periods: np.ndarray,
+    powers: np.ndarray,
+    best: int,
+    *,
+    relative_tolerance: float,
+    max_candidates: int,
+    separation_fraction: float,
+) -> list[int]:
+    """Independent peaks whose power is within tolerance of the strongest.
+
+    Returns ``[best]`` when nothing else is close, which is the common case and
+    keeps the selection byte-identical to a bare ``argmax``.
+    """
+
+    if relative_tolerance <= 0 or max_candidates <= 1:
+        return [best]
+    best_power = float(powers[best])
+    if not np.isfinite(best_power) or best_power <= 0:
+        return [best]
+
+    threshold = best_power * (1.0 - relative_tolerance)
+    close = np.flatnonzero(np.nan_to_num(powers, nan=-np.inf) >= threshold)
+    if close.size <= 1:
+        return [best]
+
+    # Strongest first, then keep only peaks separated from those already held:
+    # adjacent grid points of one peak are the same hypothesis sampled twice.
+    order = close[np.argsort(powers[close])[::-1]]
+    selected: list[int] = []
+    for index in order:
+        period = float(periods[index])
+        if any(
+            abs(period - float(periods[other]))
+            / min(period, float(periods[other]))
+            < separation_fraction
+            for other in selected
+        ):
+            continue
+        selected.append(int(index))
+        if len(selected) >= max_candidates:
+            break
+    if best not in selected:
+        selected.insert(0, best)
+    return selected
+
+
 def _odd_even_sigma(numbers: np.ndarray, depths: np.ndarray) -> float | None:
     odd = depths[numbers % 2 != 0]
     even = depths[numbers % 2 == 0]
@@ -452,6 +541,9 @@ def search_transits(
     durations_hours: np.ndarray | None = None,
     frequency_factor: float = 8.0,
     max_period_grid_size: int = 100_000,
+    near_tie_relative_power: float = 1e-3,
+    near_tie_max_candidates: int = 5,
+    near_tie_separation_fraction: float = 0.02,
 ) -> tuple[DetectionResult, dict[str, np.ndarray]]:
     """Return the strongest BLS signal and arrays useful for plotting.
 
@@ -509,7 +601,60 @@ def search_transits(
         frequency_factor=effective_frequency_factor,
         oversample=duration_oversample,
     )
-    best = int(np.nanargmax(power.power))
+    strongest = int(np.nanargmax(power.power))
+
+    # Correction 64: 14 of 53 lost known planets had the true period among the
+    # recorded BLS peaks and were not selected, two of them at relative power
+    # 0.9999999. A difference of 1e-7 in a screening statistic is not evidence,
+    # and `argmax` resolves it on grid order. Where independent peaks are that
+    # close, choose the one whose folded epochs actually agree on a depth.
+    periods_all = np.asarray(power.period, dtype=float)
+    powers_all = np.asarray(power.power, dtype=float)
+    candidates = _near_tied_candidates(
+        periods_all,
+        powers_all,
+        strongest,
+        relative_tolerance=near_tie_relative_power,
+        max_candidates=near_tie_max_candidates,
+        separation_fraction=near_tie_separation_fraction,
+    )
+    best = strongest
+    tie_break: dict[str, Any] | None = None
+    if len(candidates) > 1:
+        scored = [
+            (
+                _event_depth_consistency(
+                    t,
+                    y,
+                    float(power.period[index]),
+                    float(power.transit_time[index]),
+                    float(power.duration[index]),
+                ),
+                index,
+            )
+            for index in candidates
+        ]
+        finite = [entry for entry in scored if np.isfinite(entry[0])]
+        if finite:
+            best = int(max(finite, key=lambda entry: entry[0])[1])
+        tie_break = {
+            "candidates": [
+                {
+                    "period_days": float(power.period[index]),
+                    "relative_power": (
+                        float(powers_all[index] / powers_all[strongest])
+                        if powers_all[strongest] > 0
+                        else float("nan")
+                    ),
+                    "event_depth_consistency": float(score),
+                }
+                for score, index in scored
+            ],
+            "strongest_power_period_days": float(power.period[strongest]),
+            "selected_period_days": float(power.period[best]),
+            "changed_selection": bool(best != strongest),
+        }
+
     period = float(power.period[best])
     duration = float(power.duration[best])
     transit_time = float(power.transit_time[best])
@@ -549,6 +694,9 @@ def search_transits(
         "bls_sde": np.asarray(signal_detection_efficiency(power.power)),
         "effective_frequency_factor": np.asarray(effective_frequency_factor),
         "period_grid_was_capped": np.asarray(required_factor > frequency_factor),
+        # Present only when peaks were actually tied, so its absence means
+        # "the strongest peak won outright" rather than "nothing was checked".
+        "near_tie": tie_break,
     }
     return result, arrays
 
@@ -674,10 +822,17 @@ def independent_period_peaks(
     period_grid: np.ndarray,
     power: np.ndarray,
     *,
-    count: int = 5,
+    count: int = 20,
     separation_fraction: float = 0.02,
 ) -> list[dict[str, float]]:
-    """Return separated high-power periods for human inspection."""
+    """Return separated high-power periods for human inspection.
+
+    Correction 64 could not distinguish "the true period was absent from the
+    periodogram" from "it was there, just deeper than the five peaks we kept"
+    -- the two have opposite fixes, and only the second is recoverable without
+    new photometry. Twenty peaks is a few hundred bytes per target and makes
+    that question answerable.
+    """
 
     periods = np.asarray(period_grid, dtype=float)
     powers = np.asarray(power, dtype=float)

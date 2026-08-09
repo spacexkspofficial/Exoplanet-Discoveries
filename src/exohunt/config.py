@@ -33,7 +33,7 @@ class SearchConfig:
 
     # Bump when search semantics change without changing a numeric threshold;
     # checkpoint reuse compares this complete config.
-    policy_version: str = "bls-screen-tls-red-noise-decider-v3"
+    policy_version: str = "bls-screen-tls-red-noise-decider-v4-neartie"
     # Periodic claims need three transits in multi-sector data; two-transit
     # single-sector signals route to `needs_additional_sector` instead of
     # surviving. Two-transit "periods" are the alias factory (TOI-700 c was
@@ -90,6 +90,22 @@ class SearchConfig:
     # depth clears this many standard errors; sign alone lets empty windows
     # vote "present" half the time by chance (measured in test_search).
     alias_event_sigma: float = 3.0
+    # Correction 64: 14 of 53 lost known planets had the true period among the
+    # five recorded BLS peaks and simply were not selected -- `pi Men c` at
+    # rank 4 and `WASP-169 b` at rank 3, both at relative power 0.9999999.
+    # At that separation the BLS statistic has saturated and `argmax` is
+    # choosing on grid order and floating-point noise, not on evidence. When
+    # independent peaks agree in power to within this fraction, the tie is
+    # broken on how consistently the folded per-epoch depths agree instead.
+    # Set to 0.0 to restore bare `argmax`.
+    near_tie_relative_power: float = 1e-3
+    # Only this many independent near-tied peaks are re-examined. The cost is
+    # one fold per candidate; the cap keeps a flat periodogram from turning
+    # into a linear scan.
+    near_tie_max_candidates: int = 5
+    # Peaks closer than this in fractional period are the same peak sampled
+    # twice, not competing hypotheses.
+    near_tie_separation_fraction: float = 0.02
 
 
 @dataclass(frozen=True, slots=True)
