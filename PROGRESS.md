@@ -2389,6 +2389,60 @@ the current stack can settle.
     is an owner-level finding about whether §6.1 is viable as specified, and it
     is not settled here.
 
+69. **The epoch-enrichment failure is one shared systematic at 17.82 d, the
+    screen that catches it already exists, and it was never run on the P5
+    campaign.** Chasing correction 68's `epoch_enrichment = 4.989`:
+
+    The histogram's worst bins are not scattered. They sit at BTJD 1697.833,
+    1715.667, 1733.479 and 1751.312 — **a 17.82-day cadence**, each holding
+    180–248 aligned signals against ~50 expected. Globally the histogram is
+    unremarkable (180,591 aligned against 181,123 expected, ratio 0.997) and
+    only **12 bins** breach the ceiling, so this is not diffuse noise; it is one
+    repeating feature.
+
+    The fitted periods say the same thing outright. Across the 953 searched
+    stars the modal fitted period is **17.82 d, and 190 stars land in
+    17.7–17.95 d** — unrelated stars, one period. That is an observatory
+    systematic by definition.
+
+    **`campaign_common_mode_screen` reads `None` for all 953 targets.** The
+    screen whose entire purpose is "a shared ephemeris is evidence against an
+    astrophysical origin" was not applied. Running it now
+    (`results/p5/common_mode_p5_v2.json`):
+
+    | | |
+    |---|---:|
+    | flagged `localized_coincidence` | **274 / 953 (28.8%)** |
+    | of the 190-star 17.82 d family, flagged | **189** |
+    | survivor TIC 298732908 | `independent_timing`, shared_targets 0, enrichment 0.0 |
+
+    The screen catches 189 of 190. **The systematic was always detectable; the
+    detector was switched off.**
+
+    **Two separate pathologies, and only one is common-mode.** The flagged
+    population is long-period — 17.82 d (153), 21.45 d (39), 18.42 d (29). The
+    679 unflagged cluster near **1.0 d**, which is the red-noise rail-pinning of
+    corrections 63/65/66: those fits share no epoch, so common-mode cannot see
+    them and a different fix is needed. Also recorded: 43 targets sit at the
+    20 d `period_at_search_ceiling`, and 21.45 d is *above* the search maximum —
+    overscan-zone fits that should never have reached scoring.
+
+    **What this does and does not settle.** Correction 68's false-alarm
+    comparison remains apples-to-apples: both the 0.42% inverted rate and the
+    single real survivor were measured *without* the screen. But both numbers
+    should fall once it is applied, so the gate failure is likely recoverable
+    without touching the frozen kernel. The survivor's own standing improves
+    slightly — it is not part of the shared family — though correction 68's
+    arithmetic still means one survivor is not evidence.
+
+    **Related to correction 57's unfixed half.** The dip registry recorded its
+    cohort as `s14-camunknown-ccdunknown` with **zero windows**, because the P5
+    cohort omits `camera`/`ccd`. `campaign.py` warns that target lists missing
+    those columns "leave the cohort at sector scope", which dilutes a
+    detector-local systematic below the `dip_min_fraction: 0.1` threshold. Two
+    independent guards against shared systematics were disabled at once — one by
+    a missing column, one by never being invoked.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
