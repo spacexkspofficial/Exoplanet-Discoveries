@@ -22,6 +22,9 @@ id_ed25519
 # Python
 .venv/
 venv/
+# TRICERATOPS runs in its own interpreter so its numba/numpy pins cannot
+# move the numpy the detection kernel is calibrated against. See exohunt.fpp.
+.venv-triceratops/
 .pip-cache/
 __pycache__/
 *.py[cod]
