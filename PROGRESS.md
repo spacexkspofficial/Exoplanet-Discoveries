@@ -2443,6 +2443,46 @@ the current stack can settle.
     independent guards against shared systematics were disabled at once — one by
     a missing column, one by never being invoked.
 
+70. **The common-mode screen is a partial fix for the false-alarm gates, not a
+    complete one, and the residue sits on the spacecraft period.** Testing
+    correction 69's fix against the actual null survivors that broke correction
+    68's gates:
+
+    | null survivor | fitted period | common-mode verdict |
+    |---|---:|---|
+    | TIC 229944662 (inverted) | 13.98 d | **localized_coincidence** |
+    | TIC 233056405 (inverted) | 5.70 d | independent_timing |
+    | TIC 272887739 (inverted) | 12.88 d | **localized_coincidence** |
+    | TIC 420113184 (inverted) | 12.58 d | **localized_coincidence** |
+    | TIC 229444326 (scrambled) | 9.97 d | independent_timing |
+    | TIC 237103326 (scrambled) | 1.00 d | independent_timing |
+
+    Screening removes **3 of 4 inverted** survivors, taking that rate from
+    0.00421 to **0.00105 — still marginally over the 0.001 budget** — and
+    **0 of 2 scrambled**, leaving 0.00211 untouched at 2.1× over. So the screen
+    substantially repairs one gate and does nothing for the other.
+
+    **Where the residue lives.** Three of the four inverted survivors fall at
+    12.58–13.98 d, bracketing TESS's **13.7 d orbital period**, which is the
+    `spacecraft_harmonic` the screen already computes per target. Inverting
+    flux turns a systematic brightening into a dip, so a spacecraft-locked
+    artifact is exactly what a sign-flip null should expose — the null test is
+    working as designed and is telling us the residual false alarms are
+    instrumental, not astrophysical.
+
+    **Caveat on this measurement.** The common-mode verdicts were computed from
+    each star's *real* fitted ephemeris, while the survivors above come from the
+    inverted and scrambled runs, whose fitted periods differ. This is therefore
+    indicative rather than exact. The clean test is to run the screen over the
+    null results themselves, which needs those runs emitting campaign-format
+    residual reports; they currently do not.
+
+    **Consequence for the fix path.** Correction 69's screen should be applied
+    to every campaign — it was simply never invoked — but it will not by itself
+    return this cohort to a passing §5.2 budget. Closing the remainder means
+    addressing the spacecraft-harmonic residue and the ~1 d rail-pinning family
+    separately, and the latter lives in the frozen detection kernel.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
