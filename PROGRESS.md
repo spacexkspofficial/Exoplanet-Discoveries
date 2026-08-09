@@ -2332,6 +2332,63 @@ the current stack can settle.
     faint M dwarfs. Reconciling those two is the next real question, and the
     3/3 cell is three planets.
 
+68. **The P5 cohort fails its false-alarm gates, and the lane's one candidate is
+    statistically indistinguishable from noise.** The full §5.1/§5.2 calibration
+    finished on the repaired cohort: 89 injection stars, **3,560 injections**,
+    950 baseline / 950 inverted / 950 scrambled
+    (`results/p5/calibration_ncvz_1000/`). Completeness confirms correction 66
+    at full scale — random-phase 0.1843, **promotion 0.0809**, edge promotion
+    0.0697 — so the 8% figure is settled.
+
+    The gates are the story:
+
+    | gate | measured | budget | |
+    |---|---:|---:|---|
+    | inverted survivor rate | **4/950 = 0.00421** | ≤0.001 | **FAIL, 4.2×** |
+    | scrambled survivor rate | **2/950 = 0.00211** | ≤0.001 | **FAIL, 2.1×** |
+    | epoch enrichment | **4.989** | ≤2.0 | **FAIL, 2.5×** |
+    | t3 pass rate | 0.00105 | 0.002–0.02 | **FAIL, below floor** |
+    | median recovered depth bias | 0.0371 | ≤0.05 | pass |
+    | edge recovery gap | 0.0 | ≤0.03 | pass |
+
+    `release_gate_passes: false`, and this time it is not the n=4 artifact that
+    made the smoke fail — the sample is full size.
+
+    **Inverted flux is sign-flipped, so a survivor there is a false alarm by
+    construction.** The measured rate is 0.42%. Across the 953 real targets the
+    first pass searched, that predicts **4.01 false alarms. The first pass
+    produced 1 survivor.** We found *fewer* apparent candidates than the noise
+    model predicts should appear from noise alone.
+
+    **So TIC 298732908 must not be carried as a candidate.** Nothing about it
+    has changed — TLS SDE 10.09, FAP 8×10⁻⁵, all six T3 checks passing, no
+    review flags, not a rediscovery (corrections 62, 57). What changed is the
+    denominator: on this cohort the pipeline manufactures roughly four such
+    objects from pure noise, so one survivor is not evidence of anything. It
+    stays a lead worth vetting, and it cannot be vetted by the pixel test
+    because it is QLP-only (correction 60).
+
+    **This is a cohort property, not a pipeline regression.** P3's calibration
+    on a brighter cohort measured inverted 0/500 and scrambled 0/500 — clean.
+    The identical kernel on faint M dwarfs produces 4 and 2. That is consistent
+    with everything else measured this phase: at low S/N the search locks onto
+    unrelated short-period structure (corrections 63, 65, 66), and some of that
+    structure survives screening.
+
+    **Epoch enrichment at 4.99 against a ceiling of 2.0** says recovered events
+    cluster in time far more than chance, which is the signature of an
+    observatory or detrending systematic rather than astrophysics. P3 measured
+    1.468 on its cohort. This deserves its own investigation and is the most
+    concrete lead for *why* the false-alarm rate is elevated.
+
+    **Consequences.** The lane cannot leave diagnostic status: §5.1 requires a
+    completeness surface, which now exists, but §5.2's false-alarm budget is
+    breached. Any yield estimate for §6.1 must now carry a ~0.4% per-star false
+    alarm rate, which at the lane's measured 8% completeness means false alarms
+    outnumber recoverable real planets over most of the parameter space. That
+    is an owner-level finding about whether §6.1 is viable as specified, and it
+    is not settled here.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
