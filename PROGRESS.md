@@ -2531,6 +2531,44 @@ the current stack can settle.
     survey-wide run looked like an improvement on every summary statistic —
     seven times the coverage, same tool, same code — and was a regression.
 
+72. **A third of the survivor list is already flagged as artifact-like by
+    discriminators the pipeline computes and never uses.** The common-mode
+    screen records three per-target facts alongside its verdict —
+    `spacecraft_harmonic` (ratio against TESS's 13.7 d orbit),
+    `duration_at_grid_rail`, and `period_at_search_ceiling` — and nothing vetoes
+    on any of them. Now that the whole survey is screened (correction 71),
+    they can be tested against 84,374 targets and 990 screened survivors:
+
+    | flag | population | survivors | enrichment | approx. |
+    |---|---:|---:|---:|---:|
+    | `spacecraft_harmonic` | 8.23% | 13.43% | **1.63×** | 5.7σ |
+    | `duration_at_grid_rail` | 5.22% | 15.25% | **2.92×** | 13.8σ |
+    | `period_at_search_ceiling` | 3.16% | 7.58% | **2.40×** | 7.8σ |
+
+    Taken together, **311 of 990 survivors (31.4%) carry at least one flag,
+    against 14.8% of the population — 2.12× enriched.** 679 survivors carry
+    none. Adding the shared-ephemeris verdict to the union changes nothing,
+    because a common-mode-flagged star already holds that status rather than
+    `automated_survivor`, so these three are entirely additional signal.
+
+    **All three have a physical reading.** A period at a low-order ratio of the
+    spacecraft orbit, a duration pinned to a search-grid rail, and a period
+    pinned at the 20 d search ceiling are each a statement that the fit was
+    shaped by the instrument or the grid rather than by the star. That is the
+    same mechanism corrections 63, 65, 66 and 68 each found from a different
+    direction; this entry just shows it is already labelled in stored data.
+
+    **Not acted on.** Demoting 311 stars is a status change, and status
+    precedence remains an open owner decision with P4 evidence still non-voting.
+    Recorded so the decision can be made on measured enrichment rather than
+    intuition. Worth noting the fix would sit in the vetting layer, not the
+    frozen detection kernel — these flags are produced by the common-mode
+    screen, so promoting them to vetoes needs no re-signing of the calibration.
+
+    **The 679 unflagged survivors are the honest candidate pool**, and for the
+    P5 cohort specifically correction 68's false-alarm arithmetic still applies
+    on top of that.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
