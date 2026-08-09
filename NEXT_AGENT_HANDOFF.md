@@ -61,7 +61,17 @@ and ~6% of the Tmag 12.5–13.53 selection has no SPOC/TESS-SPOC/QLP product,
 which is the thinning §6.1's rationale predicts. That belongs in the lane's
 sample definition as a measured completeness caveat.
 
-### The candidate
+### The candidate — DO NOT CARRY IT AS ONE (correction 68)
+
+The completed calibration measures this cohort's false-alarm rate at **0.42%**
+from inverted flux, where a survivor is a false alarm by construction. Across
+the 953 real targets searched that predicts **4.01 false alarms**. The first
+pass produced **1 survivor** — fewer than noise alone should generate.
+
+Nothing about the object below has changed or been found wrong. What changed is
+the denominator. It remains a lead worth vetting; it is not evidence of a
+planet, and it cannot be pixel-vetted (correction 60, it is QLP-only).
+
 
 **TIC 298732908**, and it is **not a rediscovery** — no TOI, no confirmed
 planet, no known-signal mask, no relation to a catalogued period.
@@ -158,9 +168,19 @@ searches** (the archetype sample changed once radius became a real feature —
 it had been null for every star), plus baseline/inverted/scrambled on all
 1,000. Total **6,760 searches**.
 
-**It is RUNNING** (`results/p5/calibration_ncvz_1000/`), launched after a
-4-star smoke validated the path end to end: 160 injections, **0 errors**, all
-gates computing, a real completeness surface produced.
+**COMPLETE** (`results/p5/calibration_ncvz_1000/`) — 89 injection stars, 3,560
+injections, 950 baseline/inverted/scrambled, 50 no-data errors, ~16.5 h.
+
+**Completeness: 0.1843 raw, 0.0809 promotion.** **Three gates fail**: inverted
+survivors 4/950 and scrambled 2/950 against a 0.001 budget, epoch enrichment
+4.989 against a ceiling of 2.0, and t3 pass rate below its floor. Depth bias
+and edge recovery gap pass. `release_gate_passes: false`, and at full sample
+size this is not the n=4 artifact that failed the smoke.
+
+**Read correction 68 before drawing any conclusion from the first pass.** The
+false-alarm rate alone accounts for more survivors than the pass produced.
+Epoch enrichment at 2.5× its ceiling — against P3's 1.468 on a brighter cohort
+— is the most concrete lead for why, and is the single best next investigation.
 
 Cost, measured rather than estimated (correction 58): **172 searches in 120.7
 min = 85.5 searches/hour**, so the full 6,760 searches is roughly **20–80
