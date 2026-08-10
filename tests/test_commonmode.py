@@ -164,6 +164,49 @@ def test_campaigns_are_screened_separately(tmp_path: Path) -> None:
     assert payload["verdicts"]["5000"]["campaign"] == "alpha"
 
 
+def test_a_running_campaign_is_reported_as_unscreened(tmp_path: Path) -> None:
+    """The screen must say it could not see a campaign that is still running.
+
+    `batch_summary.json` is written once, at the end of a run, so a campaign in
+    flight is invisible to the summary glob. `full_remaining_pool` was in that
+    state for four days and the screen reported success over the rest.
+    """
+
+    _campaign(tmp_path, "finished", [_row(5000 + index, 6.85, 4080.2) for index in range(30)])
+    running = tmp_path / "results" / "campaign" / "still_running"
+    running.mkdir(parents=True)
+    (running / "batch_progress.json").write_text(
+        json.dumps({"state": "running", "total_targets": 64614}), encoding="utf-8"
+    )
+
+    payload = screen_campaign_root(
+        tmp_path / "results" / "campaign", workspace=tmp_path
+    )
+
+    assert [entry["campaign"] for entry in payload["campaigns"]] == ["finished"]
+    skipped = payload["skipped_campaigns"]
+    assert [entry["campaign"] for entry in skipped] == ["still_running"]
+    assert skipped[0]["reason"] == "no_batch_summary"
+
+
+def test_a_campaign_without_an_epoch_is_reported_rather_than_dropped(
+    tmp_path: Path,
+) -> None:
+    """A campaign that cannot be screened must not look like one that was."""
+
+    rows = [_row(7000 + index, 6.85, 4080.2) for index in range(30)]
+    for row in rows:
+        del row["transit_time"]
+    _campaign(tmp_path, "no_epoch", rows)
+
+    payload = screen_campaign_root(
+        tmp_path / "results" / "campaign", workspace=tmp_path
+    )
+
+    assert payload["campaigns"] == []
+    assert payload["skipped_campaigns"][0]["reason"] == "no_ephemeris"
+
+
 def test_dashboard_demotes_a_science_lead_that_shares_its_ephemeris(
     tmp_path: Path,
 ) -> None:

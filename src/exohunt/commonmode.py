@@ -440,6 +440,27 @@ def _backfill_ephemeris_fields(
     return repaired
 
 
+def _unsummarised_campaigns(
+    campaign_root: str | Path, summaries: Sequence[Path]
+) -> list[Path]:
+    """Campaign directories this screen cannot see, newest-looking first.
+
+    ``batch_summary.json`` is written once, at the end of a run. A campaign that
+    is still going -- or that was interrupted -- has only ``batch_progress.json``,
+    so ``rglob`` on summaries does not find it and it is screened as though it did
+    not exist. `full_remaining_pool` spent four days in exactly that state.
+    """
+
+    screened_directories = {path.parent.resolve() for path in summaries}
+    unsummarised: list[Path] = []
+    for progress_path in sorted(Path(campaign_root).rglob("batch_progress.json")):
+        directory = progress_path.parent
+        if directory.resolve() in screened_directories:
+            continue
+        unsummarised.append(directory)
+    return unsummarised
+
+
 def screen_campaign_root(
     campaign_root: str | Path, workspace: str | Path = "."
 ) -> dict[str, Any]:
@@ -453,16 +474,46 @@ def screen_campaign_root(
 
     root = Path(workspace).resolve()
     campaigns: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
     verdicts: dict[int, dict[str, Any]] = {}
 
     summaries = sorted(Path(campaign_root).rglob("batch_summary.json"))
+    for directory in _unsummarised_campaigns(campaign_root, summaries):
+        skipped.append(
+            {
+                "campaign": directory.name,
+                "summary": None,
+                "reason": "no_batch_summary",
+                "detail": (
+                    "The campaign has a progress file but no batch_summary.json, so "
+                    "it is still running or was interrupted. The summary is written "
+                    "once at the end of a run, and this screen reads only summaries."
+                ),
+            }
+        )
     for summary_path in summaries:
         try:
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError) as exc:
+            skipped.append(
+                {
+                    "campaign": summary_path.parent.name,
+                    "summary": str(summary_path),
+                    "reason": "unreadable_summary",
+                    "detail": f"{type(exc).__name__}: {exc}",
+                }
+            )
             continue
         rows = summary.get("results")
         if not isinstance(rows, list) or not rows:
+            skipped.append(
+                {
+                    "campaign": summary_path.parent.name,
+                    "summary": str(summary_path),
+                    "reason": "no_result_rows",
+                    "detail": "The summary carries no `results` list to screen.",
+                }
+            )
             continue
         target_list = str(summary.get("target_list") or "")
         metadata_path = Path(target_list)
@@ -473,6 +524,17 @@ def screen_campaign_root(
 
         screened = screen_campaign(rows, metadata=metadata)
         if not screened:
+            skipped.append(
+                {
+                    "campaign": summary_path.parent.name,
+                    "summary": str(summary_path),
+                    "reason": "no_ephemeris",
+                    "detail": (
+                        f"None of {len(rows)} row(s) carried both a period and an "
+                        "epoch, even after backfilling from the per-target reports."
+                    ),
+                }
+            )
             continue
         name = summary_path.parent.name
         counts: dict[str, int] = {}
@@ -516,6 +578,7 @@ def screen_campaign_root(
             "observatory_spread_deg": OBSERVATORY_SPREAD_DEG,
         },
         "campaigns": campaigns,
+        "skipped_campaigns": sorted(skipped, key=lambda item: str(item["campaign"])),
         "counts": totals,
         "screened_targets": len(verdicts),
         "verdicts": {str(tic): value for tic, value in sorted(verdicts.items())},

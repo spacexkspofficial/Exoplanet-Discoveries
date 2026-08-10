@@ -1293,7 +1293,24 @@ def _common_mode_screen(args: argparse.Namespace) -> int:
     print(f"Screened {total} target(s) across {len(payload['campaigns'])} campaign(s).")
     for verdict, count in sorted(counts.items(), key=lambda item: -item[1]):
         print(f"  {verdict}: {count} ({100 * count / total:.1f}%)")
-    print(f"Wrote {destination} and {csv_path}")
+
+    # A campaign this screen could not read is a coverage gap, and a coverage gap
+    # that prints nothing is indistinguishable from full coverage. 85% of the
+    # survey sat unscreened for thirteen days behind exactly that silence.
+    skipped = payload.get("skipped_campaigns") or []
+    if skipped:
+        print(f"\nNOT screened: {len(skipped)} campaign(s).")
+        for entry in skipped:
+            print(f"  {entry['campaign']}: {entry['reason']}")
+            print(f"    {entry['detail']}")
+        print(
+            "  These targets carry no shared-ephemeris verdict. Screen each one "
+            "again once its campaign finishes, with --campaign-root pointed at that "
+            "campaign alone -- a pooled re-run dilutes the phase expectation and "
+            "retracts established systematics (correction 71)."
+        )
+
+    print(f"\nWrote {destination} and {csv_path}")
     print(
         "A shared ephemeris is evidence against an astrophysical origin; "
         "surviving signals are still not planet candidates."

@@ -2569,6 +2569,71 @@ the current stack can settle.
     P5 cohort specifically correction 68's false-alarm arithmetic still applies
     on top of that.
 
+73. **The 85% coverage gap had no code defect behind it — the screen is a
+    one-shot command whose output is a file, and nothing re-runs it when a
+    campaign lands.** Correction 71 measured the gap; the epoch backfill in
+    `91f8b74` explained only 7 small campaigns and 84 targets of it, and left
+    the cause of the bulk open. This is the cause, and it is duller and more
+    dangerous than a parsing bug.
+
+    `results/vetting/common_mode/common_mode_screen.json` — the default
+    `--output` of `common-mode-screen` — is stamped **2026-07-26T18:52Z** and
+    holds 12,038 verdicts. The four campaigns that make up the gap finished
+    **after** it:
+
+    | campaign | targets | `batch_summary.json` written |
+    |---|---:|---|
+    | `sector100_small_star_3128` | 3,125 | 2026-08-04 02:33 |
+    | `sector100_detector_balanced_4327` | 4,327 | 2026-08-05 00:14 |
+    | `sector101_6000` | 6,000 | 2026-08-05 11:53 |
+    | `full_remaining_pool` | 64,614 | 2026-08-06 09:47 |
+
+    Nobody re-ran the screen, nothing re-ran it on their behalf, and no check
+    compares screened targets against searched targets. The July file kept
+    existing and kept being read, so coverage looked established while the
+    survey quadrupled behind it. Thirteen days.
+
+    **Two mechanisms kept it invisible, and both are the ledger's recurring
+    shape — a check that cannot run does not report as failing.**
+
+    *First:* `batch_summary.json` is written once, by `campaign.py:1142`, after
+    `publish_progress("finalizing")`. There is no incremental write. So a
+    campaign is invisible to `screen_campaign_root`'s summary glob for its whole
+    run — four days for `full_remaining_pool` — and **permanently** if it is
+    interrupted. `results/campaign/sector100_spoc` is in that state now:
+    `state: interrupted`, 24 of 5,000 targets, invisible since 2026-07-27.
+
+    *Second:* every campaign summary carries a `campaign_level_screening.common_mode`
+    key, which reads as though the campaign screened itself. It did not.
+    `_quarantine_invalid_common_mode` (`campaign.py:1583`) only strips the
+    retired midpoint-density veto and stamps every row
+    `"campaign_common_mode_screen": "not applied"`. The reassuring key and the
+    literal string "not applied" sit in the same file.
+
+    **Fixed by making the silence audible**, not by automating a re-run — an
+    automatic screen would have to choose a cohort, and correction 71 is the
+    record of what choosing wrong costs. `screen_campaign_root` had two bare
+    `continue`s that dropped a campaign leaving no trace; it now returns
+    `skipped_campaigns` with a reason per campaign (`no_batch_summary`,
+    `unreadable_summary`, `no_result_rows`, `no_ephemeris`), and the CLI prints
+    them under a `NOT screened:` heading. On this workspace it names three that
+    were previously silent: `sector100_spoc`, `p5_retry_47`, `p5_verify_survivor`.
+
+    **One latent bug found and deliberately not counted as damage.**
+    `dashboard.py:122` merges every `common_mode_screen.json` under `results/`
+    in `sorted()` path order, last write winning per TIC — not newest, not
+    strongest. `results/vetting/…` sorts after `results/campaign/…`, so the
+    July 26 file wins every TIC it shares with the August per-campaign screens.
+    The transition matrix says it currently shares **none**: 12,038 stale and
+    72,336 fresh, disjoint, summing to correction 71's 84,374. So this is a trap
+    set, not a trap sprung, and reporting it as a live regression would have
+    been wrong. It becomes real the moment any campaign is screened twice.
+
+    Method note, and the reason the previous paragraph is not a scarier one:
+    the sort order alone *looks* like proof of damage. Only the old→new
+    transition matrix — the same instrument correction 71 prescribes — shows
+    there is none.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
