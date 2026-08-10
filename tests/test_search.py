@@ -204,6 +204,71 @@ def test_alias_adjudication_keeps_a_correct_period() -> None:
     assert double["score"] < verdict["candidates"][0]["score"]
 
 
+def test_a_triple_period_alias_is_punished_by_its_skipped_transits() -> None:
+    """The blind spot: phase 0.5 cannot see a 3x alias.
+
+    At three times the true period, phase 0.5 lands at 1.5 P -- between
+    transits -- so the half-phase test finds nothing and the candidate escapes
+    unpunished. Measured cost on the 341-star known-planet cohort when the
+    ladder was first wired in with only that test: 8 exact periods converted
+    into triple-period aliases against 3 aliases fixed, taking exact
+    recoveries 288 -> 283. The headline `recovered` count did not move at all,
+    because a harmonic alias still scores as recovered.
+    """
+
+    time, flux = _quiet_curve_with_transits(3.0, 2.0, 3.0, 8_000.0)
+    verdict = adjudicate_alias(
+        time, flux, period_days=3.0, transit_time=2.0, duration_hours=3.0
+    )
+    triple = next(
+        row
+        for row in verdict["candidates"]
+        if row["period_days"] == pytest.approx(9.0)
+    )
+    # The old test is blind here, and that is the point of this one.
+    assert triple["half_phase_depth_ratio"] < 0.1
+    # The generalized sub-phase probe sees the skipped transits at 1/3 and 2/3.
+    assert triple["max_sub_phase_depth_ratio"] > 0.9
+    best = max(verdict["candidates"], key=lambda row: row["score"])
+    assert best["period_days"] == pytest.approx(3.0)
+    assert triple["score"] < best["score"]
+
+
+def test_alias_adjudication_recovers_the_true_period_from_one_third() -> None:
+    """31 of 341 known planets were reported at exactly P/3 and none recovered."""
+
+    time, flux = _quiet_curve_with_transits(3.0, 2.0, 3.0, 8_000.0)
+    verdict = adjudicate_alias(
+        time,
+        flux,
+        period_days=1.0,  # reported at one third of the truth
+        transit_time=2.0,
+        duration_hours=3.0,
+    )
+    assert verdict["adjudicated"]
+    assert verdict["changed"]
+    assert verdict["chosen_period_days"] == pytest.approx(3.0)
+
+
+def test_the_ratio_field_is_the_alias_ratio_not_a_depth_fraction() -> None:
+    """Regression: the sub-phase loop shadowed the enclosing `ratio`.
+
+    That silently rewrote every row's `ratio` with a depth fraction, which
+    broke the lookup of the reported ephemeris and reported `changed` for
+    periods the ladder had actually left alone.
+    """
+
+    time, flux = _quiet_curve_with_transits(3.0, 2.0, 3.0, 8_000.0)
+    verdict = adjudicate_alias(
+        time, flux, period_days=3.0, transit_time=2.0, duration_hours=3.0
+    )
+    ratios = {round(float(row["ratio"]), 3) for row in verdict["candidates"]}
+    assert 1.0 in ratios, "the reported ephemeris must appear at ratio 1.0"
+    for row in verdict["candidates"]:
+        assert row["period_days"] == pytest.approx(3.0 * float(row["ratio"]))
+    assert verdict["changed"] is False
+
+
 def test_alias_adjudication_declines_when_nothing_is_testable() -> None:
     time = np.arange(0.0, 3.0, 10.0 / (24 * 60))
     flux = 1.0 + RNG.normal(0.0, 400e-6, time.size)

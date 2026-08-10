@@ -341,20 +341,55 @@ def adjudicate_alias(
         )
         if not primary["sampled"]:
             continue
-        offset = evaluate_ephemeris(
-            t,
-            flux,
-            period_days=candidate,
-            transit_time=transit_time + candidate / 2,
-            duration_hours=duration_hours,
-        )
         primary_depth = float(primary["depth_ppm"])
-        offset_depth = float(offset["depth_ppm"]) if offset["sampled"] else 0.0
-        half_phase_ratio = (
-            max(0.0, min(1.0, offset_depth / primary_depth))
-            if primary_depth > 0
-            else 1.0
-        )
+
+        # A candidate longer than the truth skips real transits, and they land
+        # at the sub-phases it steps over. Testing only phase 0.5 catches the
+        # 2x alias and is *structurally blind to 3x*: at three times the true
+        # period, phase 0.5 sits at 1.5 P, between transits, so no dip appears
+        # and the candidate escapes unpunished.
+        #
+        # Measured cost of that blind spot on the 341-star known-planet cohort:
+        # enabling the ladder with the phase-0.5 test alone converted 8 exact
+        # periods into triple-period aliases while fixing 3, taking exact
+        # recoveries 288 -> 283. The headline `recovered` count did not move
+        # (272 both ways) because a harmonic alias still scores as recovered --
+        # the damage was invisible in the summary and only the relation
+        # breakdown showed it.
+        #
+        # So probe every sub-phase an integer multiple would skip and keep the
+        # worst offender. Thirds catch 3x and 6x, quarters catch 4x; halves
+        # remain reported separately so the existing 2x contract is unchanged.
+        sub_phases = (1.0 / 3.0, 0.5, 2.0 / 3.0, 0.25, 0.75)
+        sub_ratios: list[float] = []
+        half_phase_ratio = 1.0
+        for fraction in sub_phases:
+            offset = evaluate_ephemeris(
+                t,
+                flux,
+                period_days=candidate,
+                transit_time=transit_time + candidate * fraction,
+                duration_hours=duration_hours,
+            )
+            offset_depth = (
+                float(offset["depth_ppm"]) if offset["sampled"] else 0.0
+            )
+            # Deliberately not named `ratio`: that is the alias ratio from the
+            # enclosing loop, and shadowing it silently rewrote every row's
+            # `ratio` field with a depth fraction, which broke the lookup of
+            # the reported ephemeris and made `changed` true for periods the
+            # ladder had left alone.
+            depth_fraction = (
+                max(0.0, min(1.0, offset_depth / primary_depth))
+                if primary_depth > 0
+                else 1.0
+            )
+            sub_ratios.append(depth_fraction)
+            if abs(fraction - 0.5) < 1e-9:
+                half_phase_ratio = depth_fraction
+        # The worst sub-phase decides: one convincing skipped-transit signal is
+        # enough to disqualify a candidate, however clean the others look.
+        max_sub_phase_ratio = max(sub_ratios) if sub_ratios else 0.0
         event_fraction = _significant_event_fraction(
             t,
             flux,
@@ -366,7 +401,7 @@ def adjudicate_alias(
         score = (
             max(0.0, float(primary["depth_snr"]))
             * event_fraction
-            * (1.0 - half_phase_ratio)
+            * (1.0 - max_sub_phase_ratio)
         )
         rows.append(
             {
@@ -376,6 +411,7 @@ def adjudicate_alias(
                 "depth_ppm": round(primary_depth, 1),
                 "significant_event_fraction": round(event_fraction, 3),
                 "half_phase_depth_ratio": round(half_phase_ratio, 3),
+                "max_sub_phase_depth_ratio": round(max_sub_phase_ratio, 3),
                 "score": round(score, 3),
             }
         )
