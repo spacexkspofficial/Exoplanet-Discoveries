@@ -21,7 +21,12 @@ jobs:
           cache: pip
 
       - name: Install Python package
-        run: python -m pip install -e ".[dev]"
+        # `fits` (emcee, batman, corner) is not optional for the test suite:
+        # tests/test_transitfit.py exercises the T8 fitter, and without emcee
+        # `fit_transit` short-circuits to "emcee is not installed" so four
+        # tests assert against the wrong branch. Installing only `[dev]` made
+        # CI red on every push from 2026-08-09.
+        run: python -m pip install -e ".[dev,fits]"
 
       - name: Check Python dependencies
         run: python -m pip check
