@@ -1708,6 +1708,8 @@ def _hunt_from_light_curve(
         min_period_days=search_grid_plan.period.min_period_days,
         max_period_days=search_grid_plan.period.max_search_days,
         durations_hours=search_grid_plan.duration_hours,
+        adjudicate_aliases=CURRENT_CONFIG.search.adjudicate_alias_ladder,
+        alias_snap_tolerance=CURRENT_CONFIG.search.alias_snap_tolerance,
     )
     searched_duration_grid = arrays.get(
         "duration_grid_hours",

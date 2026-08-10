@@ -33,7 +33,7 @@ class SearchConfig:
 
     # Bump when search semantics change without changing a numeric threshold;
     # checkpoint reuse compares this complete config.
-    policy_version: str = "bls-screen-tls-red-noise-decider-v4-neartie"
+    policy_version: str = "bls-screen-tls-red-noise-decider-v5-alias-ladder"
     # Periodic claims need three transits in multi-sector data; two-transit
     # single-sector signals route to `needs_additional_sector` instead of
     # surviving. Two-transit "periods" are the alias factory (TOI-700 c was
@@ -111,6 +111,16 @@ class SearchConfig:
     # in `screening._screening_flags`; their grid constants are stale. Turn
     # this off to measure a completeness surface without the veto.
     veto_spacecraft_harmonic: bool = True
+    # Walk the alias ladder on every reported ephemeris. `adjudicate_alias`
+    # was implemented and tested at P2 and never called from any production
+    # path, which left 31 of 341 known planets recovered at exactly one third
+    # of their true period and none of them scored as recovered -- 45% of all
+    # recovery failures, against machinery that already existed.
+    adjudicate_alias_ladder: bool = True
+    # An adjudicated period is adopted only if an evaluated grid point sits
+    # this close to it. Outside that, there is no measured BLS solution to
+    # adopt and the disagreement is recorded instead of guessed at.
+    alias_snap_tolerance: float = 0.01
 
 
 @dataclass(frozen=True, slots=True)

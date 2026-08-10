@@ -27,16 +27,21 @@ from exohunt.config import (
 # moving this pin, which is what proved the layer was added *beside* the
 # detection identity rather than inside it.
 #
-# MOVED DELIBERATELY, 2026-08-09, owner decisions 1 and 2b (the kernel may be
-# modified). The P3-certified value was:
+# MOVED DELIBERATELY, 2026-08-09, owner decisions 1 and 2b plus the alias-ladder
+# wiring that followed from measuring them. The P3-certified value was:
 #   dcdb2bf009a1667246d69b87af533af590befbcece8648623592990d18cd1594
+# and the intermediate v4-neartie value was:
+#   2697cd21849202e9eafb8f12a42ecbf633be28dc1cbf8920ef7d805214e83124
 # `SearchConfig` gained the near-tie peak-selection parameters (decision 1),
-# `veto_spacecraft_harmonic` (decision 2b), and its `policy_version` went
-# v3 -> v4-neartie, so the detection identity genuinely changed and the digest
-# must follow. This is the one case the pin is *not* guarding against: an
-# intended, owner-approved change to the search itself. Both changes are
-# batched into a single re-calibration on purpose -- each one separately would
-# cost another ~16.5 h per 1,000-star cohort.
+# `veto_spacecraft_harmonic` (decision 2b), and `adjudicate_alias_ladder` /
+# `alias_snap_tolerance`; `policy_version` went v3 -> v4-neartie ->
+# v5-alias-ladder. The detection identity genuinely changed each time and the
+# digest must follow. This is the one case the pin is *not* guarding against:
+# an intended, owner-approved change to the search itself.
+#
+# The v4-neartie calibration (results/p5/calibration_ncvz_1000_v2_neartie) is
+# therefore for a superseded signature. It certified nothing -- 4 of its 6
+# gates failed -- so nothing is lost, but do not read it as covering this code.
 #
 # Consequence, and it is not cosmetic: **there is currently no passing release
 # report for this signature**, so `--trusted-first-pass` is unsatisfiable until
@@ -45,7 +50,7 @@ from exohunt.config import (
 # start -- that would re-point a stored certification at code it never
 # measured.
 P3_CERTIFIED_CONFIG_HASH = (
-    "2697cd21849202e9eafb8f12a42ecbf633be28dc1cbf8920ef7d805214e83124"
+    "fc1e508ad3797f750e47b62642252216400be1a2088d3ca86b3b36099ba9755a"
 )
 
 

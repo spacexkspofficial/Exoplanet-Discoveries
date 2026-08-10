@@ -544,6 +544,8 @@ def search_transits(
     near_tie_relative_power: float = 1e-3,
     near_tie_max_candidates: int = 5,
     near_tie_separation_fraction: float = 0.02,
+    adjudicate_aliases: bool = True,
+    alias_snap_tolerance: float = 0.01,
 ) -> tuple[DetectionResult, dict[str, np.ndarray]]:
     """Return the strongest BLS signal and arrays useful for plotting.
 
@@ -662,6 +664,68 @@ def search_transits(
     depth_error = float(power.depth_err[best])
     depth_snr = depth / depth_error if depth_error > 0 else float("nan")
 
+    # `search.adjudicate_alias` was written, tested, and never called from any
+    # production path -- `cli` imports only `build_search_grid` and
+    # `grid_rail_flags` from that module. Measured consequence on the 341-star
+    # known-planet cohort: 31 planets recovered at exactly one third of their
+    # true period and 4 at one third again, none of them recovered, together
+    # 45% of all failures. The ladder that fixes them existed the whole time.
+    #
+    # This is correction 57's shape once more: machinery that cannot run does
+    # not report as failing, it reports as nothing happening.
+    #
+    # A P/3 fold is not a near tie -- it stacks three times the transits and
+    # wins BLS power outright, so the peak-selection tie-break above can never
+    # see it. What separates them is that two thirds of the P/3 epochs are
+    # empty, which is exactly what `significant_event_fraction` measures.
+    alias_decision: dict[str, Any] | None = None
+    if adjudicate_aliases and np.isfinite(period) and period > 0:
+        from .search import adjudicate_alias  # lazy: search imports this module
+
+        verdict = adjudicate_alias(
+            t,
+            y,
+            period_days=period,
+            transit_time=transit_time,
+            duration_hours=duration * 24.0,
+        )
+        alias_decision = {
+            "adjudicated": bool(verdict.get("adjudicated")),
+            "reported_period_days": period,
+            "chosen_period_days": verdict.get("chosen_period_days"),
+            "changed": bool(verdict.get("changed")),
+            "candidates": verdict.get("candidates", []),
+            "applied": False,
+        }
+        if verdict.get("changed"):
+            chosen = float(verdict["chosen_period_days"])
+            # Snap to an evaluated grid point so depth, duration and epoch stay
+            # a measured BLS solution rather than a mix of measured and
+            # assumed. If the ladder points outside the searched grid there is
+            # no solution to adopt, so record the disagreement and keep the
+            # original -- silently reporting an unevaluated period would be
+            # worse than reporting the alias.
+            index = int(np.nanargmin(np.abs(periods_all - chosen)))
+            snapped = float(periods_all[index])
+            within_grid = abs(snapped - chosen) / chosen <= alias_snap_tolerance
+            alias_decision["snapped_period_days"] = snapped
+            alias_decision["snap_error_fraction"] = abs(snapped - chosen) / chosen
+            if within_grid:
+                best = index
+                period = float(power.period[best])
+                duration = float(power.duration[best])
+                transit_time = float(power.transit_time[best])
+                depth = float(power.depth[best])
+                depth_error = float(power.depth_err[best])
+                depth_snr = (
+                    depth / depth_error if depth_error > 0 else float("nan")
+                )
+                alias_decision["applied"] = True
+            else:
+                alias_decision["not_applied_reason"] = (
+                    "the adjudicated period is not on the searched grid"
+                )
+
     numbers, event_depths = _event_depths(t, y, period, transit_time, duration)
     secondary_depth, secondary_snr = _secondary_screen(
         t, y, period, transit_time, duration
@@ -697,6 +761,10 @@ def search_transits(
         # Present only when peaks were actually tied, so its absence means
         # "the strongest peak won outright" rather than "nothing was checked".
         "near_tie": tie_break,
+        # Always present when adjudication ran, whether or not it changed
+        # anything -- "the ladder was walked and the report survived it" and
+        # "the ladder never ran" must never look alike.
+        "alias_decision": alias_decision,
     }
     return result, arrays
 
