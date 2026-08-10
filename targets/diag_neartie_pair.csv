@@ -1,0 +1,3 @@
+﻿target,tic_id,planet,expected_period_days,expected_depth_ppm,tmag,source_rowupdate,purpose,sector,sectors,author,cadence_seconds,observed_baseline_days,expected_transits
+TIC 261136679,261136679,pi Men c,6.2678399,267.59,5.105,catalog_pl_trandep,survey-wide known-planet recovery rate,94,94,SPOC,120,22.06,3.52
+TIC 386259537,386259537,WASP-169 b,5.6114118,4460,11.33,catalog_pl_trandep,survey-wide known-planet recovery rate,99,99,SPOC,120,21.35,3.80
