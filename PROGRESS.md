@@ -2771,6 +2771,55 @@ the current stack can settle.
     prerequisites are untouched: the Seager–Mallén-Ornelas duration→period
     posterior, the mandatory pixel-vet, and the subscription re-check.
 
+76. **Decision 2b reverted on the measurement it was approved to obtain — and
+    reverting a search change does not give back the calibration that preceded
+    it.** `4991367` promoted the TESS-orbit harmonic flag into the kernel and
+    said so explicitly: "it is configurable … and decision 5B's re-calibration
+    measures the completeness loss directly. That measurement, not this commit,
+    is what should settle whether the trade is worth it." Correction 74 is that
+    measurement. The owner called it on 2026-08-10.
+    `veto_spacecraft_harmonic` goes **True → False**.
+
+    The price, from the paired row-level diff: sole rejection reason for **4
+    injected planets** against **1 inverted and 1 scrambled** false alarm — 4
+    recoveries spent to buy 2 — with **none of the four failing release gates
+    moved**.
+
+    **Reverted at the default, not by deletion.** The flag, its tests, and
+    correction 72's 1.60× enrichment stay: they are the record of why it was
+    tried, `spacecraft_harmonic` still computes, and the common-mode screen
+    still records the flag per target. Only the kernel veto is off. The trade
+    may read differently on a cohort that is not 1,000 NCVZ M dwarfs.
+
+    **The part worth recording is what the revert costs.** The detection
+    identity moved a fourth time — config hash
+    `fc1e508a…` → **`d68bccde…`**, kernel `kernel1:753fd6ef…`. It did **not**
+    return to any earlier value. Decision 1's near-tie parameters and the
+    alias-ladder wiring are still in place, and the boolean field itself still
+    exists in `SearchConfig`, so switching it off yields a *fourth* identity
+    rather than restoring the P3-certified first one. **There is no path back to
+    a previous calibration, only forward through another one.** Anyone reaching
+    for a revert to recover a trusted release should read that twice: the
+    revert is cheap, the certification is not.
+
+    **This does not unblock `--trusted-first-pass`, and should not be expected
+    to.** Predicted from the row diff, the revert restores 4 promotions and
+    re-admits 2 false alarms: inverted 3/953 → 4/953, scrambled 1/953 → 2/953,
+    promotion completeness 0.07865 → 0.08090. All four gates that failed still
+    fail, by the same wide margins. The false-alarm problem correction 68 found
+    was never 2b's doing and is not 2b's to fix.
+
+    A related precision, since correction 74 could be read the other way: the
+    `calibration_ncvz_1000_v2_neartie` run was **already superseded before this
+    revert**. It ran 2026-08-09 02:49→19:26, and the alias-ladder commits
+    (`ffb9f69`, `edc10aa`) landed at 20:58 and 21:39 the same evening, moving
+    the kernel again. `tests/test_config.py` already records this. The
+    calibration certified nothing — 4 of 6 gates failed — so nothing was lost,
+    but it describes neither the code that preceded this revert nor the code
+    that follows it.
+
+    526 passed.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was

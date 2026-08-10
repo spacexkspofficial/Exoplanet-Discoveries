@@ -366,10 +366,14 @@ def _screening_flags(result) -> dict[str, bool]:
         # those two flags are deliberately NOT promoted into the kernel here.
         # The campaign path already rejects rails against the live grid.
         #
-        # This veto has a known cost: planets do exist at 6.85 d. The
-        # re-calibration measures that cost directly as a completeness drop at
-        # the harmonic periods, which is what decision 5B is for. Set
-        # `veto_spacecraft_harmonic=False` to measure the surface without it.
+        # This veto has a known cost: planets do exist at 6.85 d. Decision 5B's
+        # re-calibration priced it, and it is now OFF by default because the
+        # price was bad -- sole rejection reason for 4 injected planets against
+        # 1 inverted and 1 scrambled false alarm, with no failing gate moved
+        # (correction 74). `spacecraft_harmonic` still computes, and the
+        # common-mode screen still records the flag; only the kernel veto is
+        # disabled. Set `veto_spacecraft_harmonic=True` to re-enable, and
+        # re-calibrate before trusting the result.
         "period_on_spacecraft_harmonic": (
             CURRENT_CONFIG.search.veto_spacecraft_harmonic
             and spacecraft_harmonic(result.period_days) is not None

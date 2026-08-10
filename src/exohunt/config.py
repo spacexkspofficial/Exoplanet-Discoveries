@@ -106,11 +106,20 @@ class SearchConfig:
     # Peaks closer than this in fractional period are the same peak sampled
     # twice, not competing hypotheses.
     near_tie_separation_fraction: float = 0.02
-    # Owner decision 2b: reject fits sitting on a TESS-orbit harmonic. The
-    # other two flags from correction 72 are not promoted here -- see the note
-    # in `screening._screening_flags`; their grid constants are stale. Turn
-    # this off to measure a completeness surface without the veto.
-    veto_spacecraft_harmonic: bool = True
+    # Owner decision 2b, REVERTED 2026-08-10 on the measurement it asked for.
+    # The veto was switched on so decision 5B's re-calibration could price it,
+    # and the price came back bad: in the paired row-level diff of
+    # results/p5/calibration_ncvz_1000{,_v2_neartie} it was the sole rejection
+    # reason for 4 injected planets and for only 1 inverted and 1 scrambled
+    # false alarm -- it cost 4 recoveries to buy 2. Promotion completeness fell
+    # 0.08090 -> 0.07865, exactly the 4/1780 those planets represent, and none
+    # of the four failing release gates moved. Correction 74.
+    #
+    # Left in place rather than deleted: the flag, its tests, and correction
+    # 72's 1.60x enrichment are the record of why it was tried, and the trade
+    # may read differently on a cohort that is not 1,000 NCVZ M dwarfs. Set
+    # True to re-enable, and re-calibrate before trusting the result.
+    veto_spacecraft_harmonic: bool = False
     # Walk the alias ladder on every reported ephemeris. `adjudicate_alias`
     # was implemented and tested at P2 and never called from any production
     # path, which left 31 of 341 known planets recovered at exactly one third

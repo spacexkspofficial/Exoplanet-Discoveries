@@ -37,14 +37,35 @@ class _Result:
         self.depth_ppm = 5000.0
 
 
-def test_a_period_on_the_tess_orbit_is_flagged() -> None:
-    flags = _screening_flags(_Result(TESS_ORBIT_DAYS))
-    assert flags["period_on_spacecraft_harmonic"] is True
+def test_the_tess_orbit_is_still_recognised_as_a_harmonic() -> None:
+    """The physics is unchanged by the revert; only the kernel veto is off.
+
+    `spacecraft_harmonic` still computes, and the common-mode screen still
+    records the flag per target. Decision 2b was reverted at the veto, not at
+    the measurement.
+    """
+
+    assert spacecraft_harmonic(TESS_ORBIT_DAYS) is not None
+    assert spacecraft_harmonic(TESS_ORBIT_DAYS / 2) is not None
 
 
-def test_the_half_harmonic_is_flagged() -> None:
-    flags = _screening_flags(_Result(TESS_ORBIT_DAYS / 2))
-    assert flags["period_on_spacecraft_harmonic"] is True
+def test_the_kernel_veto_is_off_by_default() -> None:
+    """Decision 2b, reverted 2026-08-10 on the price it asked to be measured.
+
+    The paired row-level diff of the two calibrations found it was the sole
+    rejection reason for 4 injected planets and for 1 inverted and 1 scrambled
+    false alarm: 4 recoveries spent to buy 2. Correction 74.
+    """
+
+    assert CURRENT_CONFIG.search.veto_spacecraft_harmonic is False
+    assert (
+        _screening_flags(_Result(TESS_ORBIT_DAYS))["period_on_spacecraft_harmonic"]
+        is False
+    )
+    assert (
+        _screening_flags(_Result(TESS_ORBIT_DAYS / 2))["period_on_spacecraft_harmonic"]
+        is False
+    )
 
 
 def test_an_ordinary_period_is_not_flagged() -> None:
@@ -74,24 +95,25 @@ def test_the_veto_costs_a_measurable_slice_of_the_search_range() -> None:
     assert 0.10 < fraction < 0.30
 
 
-def test_the_veto_can_be_switched_off_to_measure_its_cost() -> None:
-    """Decision 5B has to be able to price this veto's completeness loss.
+def test_the_veto_can_still_be_switched_back_on() -> None:
+    """The revert is a default, not a deletion.
 
-    Planets do exist at 6.85 d; the veto's own module says so. A calibration
-    run with the flag off measures the surface without it.
+    The trade may read differently on a cohort that is not 1,000 NCVZ M
+    dwarfs, so re-enabling has to remain one flag away -- followed by a
+    re-calibration, because this moves the detection identity.
     """
 
     import exohunt.config as config_module
 
     original = CURRENT_CONFIG
-    without = dataclasses.replace(
+    restored = dataclasses.replace(
         original,
-        search=dataclasses.replace(original.search, veto_spacecraft_harmonic=False),
+        search=dataclasses.replace(original.search, veto_spacecraft_harmonic=True),
     )
-    config_module.CURRENT_CONFIG = without
+    config_module.CURRENT_CONFIG = restored
     try:
         flags = _screening_flags(_Result(TESS_ORBIT_DAYS))
-        assert flags["period_on_spacecraft_harmonic"] is False
+        assert flags["period_on_spacecraft_harmonic"] is True
     finally:
         config_module.CURRENT_CONFIG = original
 

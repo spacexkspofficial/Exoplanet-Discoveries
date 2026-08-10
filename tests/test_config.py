@@ -49,8 +49,19 @@ from exohunt.config import (
 # diagnostic in the meantime. Do not restore the old value to make a campaign
 # start -- that would re-point a stored certification at code it never
 # measured.
+# MOVED AGAIN, 2026-08-10, reverting decision 2b's kernel veto on the
+# measurement decision 5B was run to obtain. `veto_spacecraft_harmonic` goes
+# True -> False; the previous value was:
+#   fc1e508ad3797f750e47b62642252216400be1a2088d3ca86b3b36099ba9755a
+#
+# Note what this does NOT do: it does not return to any earlier hash. Decision
+# 1's near-tie parameters and the alias-ladder wiring are still in place, and
+# the field itself still exists in `SearchConfig`, so switching it off yields a
+# fourth identity rather than restoring the P3-certified first one. Reverting a
+# search change does not recover the calibration that preceded it -- there is
+# no path back, only forward through another re-calibration.
 P3_CERTIFIED_CONFIG_HASH = (
-    "fc1e508ad3797f750e47b62642252216400be1a2088d3ca86b3b36099ba9755a"
+    "d68bccde0a82f108b746297dd7c3535db919e16b198e0e366737d815a8baa2db"
 )
 
 
