@@ -2634,6 +2634,62 @@ the current stack can settle.
     transition matrix — the same instrument correction 71 prescribes — shows
     there is none.
 
+74. **The re-calibration finished and answered its question: the kernel change
+    traded four injected planets for two false alarms, and left every failing
+    gate failing.** `results/p5/calibration_ncvz_1000_v2_neartie` completed
+    2026-08-09 19:26 and was never written down; this is that entry.
+
+    `release_gate_passes: false`. The same four gates fail before and after, so
+    this is not a regression the change introduced — it is a pre-existing
+    false-alarm problem the change did not touch.
+
+    | gate | pre | post | bound | passes |
+    |---|---:|---:|---:|---|
+    | `inverted_survivor_rate` | 0.004211 (4/950) | 0.003148 (3/953) | ≤ 0.001 | no |
+    | `scrambled_survivor_rate` | 0.002105 (2/950) | 0.001049 (1/953) | ≤ 0.001 | no |
+    | `t3_pass_rate` | 0.001053 | 0.001049 | 0.002–0.02 | no |
+    | `epoch_enrichment` | 4.98873 | 5.02656 | ≤ 2.0 | no |
+    | `median_recovered_depth_bias` | 0.037130 | 0.037130 | ≤ 0.05 | yes |
+    | `edge_recovery_gap` | 0.0 | 0.0 | ≤ 0.03 | yes |
+
+    **The headline rates hide the finding; the row-level diff carries it.** Both
+    runs used the same 89 injection stars and the same 3,560 injections, so they
+    diff row for row. Decision 2b's spacecraft-harmonic veto added its reason to
+    **283** of those 3,560 — and was the *sole* rejection reason in **4**. Every
+    other one of the 283 was already rejected for unrelated reasons, so the veto
+    was redundant there. On the false-alarm side the veto was the sole reason for
+    exactly **1 inverted** and **1 scrambled** row, which is precisely the 4→3
+    and 2→1 movements above.
+
+    **So the veto cost 4 injected planets and bought 2 false alarms.** The
+    arithmetic closes exactly: promotion completeness fell 0.08090 → 0.07865, and
+    4/1,780 = 0.002247 against a measured drop of 0.00225. The question decision
+    2b was approved to answer — whether removing 15.1% of the 0.5–20 d range buys
+    more in false-alarm suppression than it costs in completeness — is answered
+    **no**, on this cohort, by measurement rather than intuition. The counts are
+    small enough (4 against 2) that the ratio is not well determined, but the
+    sign is.
+
+    Decision 1's near-tie peak selection cost one further recovery, and it is
+    legible: **TIC 219878686 injection 32**, P = 3.16228 d, recovered exactly at
+    3.16214 d before and returning **0.79210 d** after — the 1/4 alias.
+    `period_status` went `exact` → `miss`. Raw random-phase completeness is
+    otherwise untouched: 328/1,780 in both runs.
+
+    **`--trusted-first-pass` therefore remains unsatisfiable.** The new signature
+    `sig1:2e448325…` / `kernel1:54e6cb1f…` has no passing release report, and the
+    old hash must not be restored to make a campaign start.
+
+    Two things left honest rather than tidied. The run is
+    `execution_complete: false` at **953/1,000** with **47 errors, every one a
+    `download: RuntimeError`** — MAST failures, not science failures. Re-running
+    the driver on the same output directory retries only those 47. And
+    `edge_recovery_gap` reporting exactly `0.000000` twice looks like a dead
+    gate; it is not. 59 of 1,604 matched random/segment-edge injection pairs
+    disagree on recovery, and the two directions cancel — matched pairs net −1,
+    unmatched rows net +1. A real measurement that lands on zero, checked rather
+    than assumed.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
