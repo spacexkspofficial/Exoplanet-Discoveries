@@ -2682,8 +2682,21 @@ the current stack can settle.
 
     Two things left honest rather than tidied. The run is
     `execution_complete: false` at **953/1,000** with **47 errors, every one a
-    `download: RuntimeError`** — MAST failures, not science failures. Re-running
-    the driver on the same output directory retries only those 47. And
+    `download: RuntimeError`** — and **it will never be true for this cohort.**
+    Every error reads `No processed TESS light curve (tried SPOC, TESS-SPOC,
+    QLP) is available`, one per distinct TIC, and **the same 47 TICs failed in
+    the pre-change run too** (which failed 50; the other 3 succeeded here). This
+    is not a transient MAST fault that a retry clears — those 47 stars have no
+    processed light curve to download, so **953 is the achievable denominator**
+    and re-running the driver would only re-fail them.
+
+    That has a consequence for decision 5B, which commits to calibrating every
+    cohort before searching it: `build_p5_primary_lane.py` selects 1,000 stars
+    without checking light-curve availability, so **4.7% of this cohort was dead
+    weight** and every future cohort will lose a similar slice. Either the
+    builder should filter on availability, or cohort sizes should be quoted as
+    achievable rather than requested. Not fixed here — it changes cohort
+    composition, which is a calibration-affecting change. And
     `edge_recovery_gap` reporting exactly `0.000000` twice looks like a dead
     gate; it is not. 59 of 1,604 matched random/segment-edge injection pairs
     disagree on recovery, and the two directions cancel — matched pairs net −1,
