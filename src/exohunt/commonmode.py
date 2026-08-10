@@ -388,6 +388,58 @@ def _load_target_metadata(path: Path) -> dict[int, dict[str, Any]]:
     return metadata
 
 
+def _backfill_ephemeris_fields(
+    rows: list[dict[str, Any]], summary_path: Path, root: Path
+) -> int:
+    """Fill missing epochs from the per-target reports beside the summary.
+
+    `_collect` needs a period *and* an epoch; a row with only a period is
+    dropped. Older campaign summaries never wrote `transit_time`, so those
+    campaigns were skipped in full and the screen reported "no campaign carried
+    a fitted ephemeris" -- indistinguishable from "nothing to screen". Measured
+    on this workspace: **8 of 25** campaigns with a summary carry no epoch in
+    any row, which is the likeliest mechanism behind correction 71's finding
+    that 85% of the survey was never common-mode screened.
+
+    The epoch was never actually missing. It is in each per-target residual
+    report, which the summary row already points at. Returns the number of rows
+    repaired so callers can report it rather than silently benefiting.
+    """
+
+    repaired = 0
+    for row in rows:
+        if _finite(row.get("transit_time")) is not None:
+            continue
+        report = row.get("report")
+        if not report:
+            continue
+        candidates = [Path(str(report))]
+        if not candidates[0].is_absolute():
+            candidates.append(root / str(report))
+        # A campaign directory that has been moved or copied still has its
+        # reports beside the summary, so try there before giving up.
+        candidates.append(summary_path.parent / Path(str(report)).name)
+        for candidate in candidates:
+            try:
+                payload = json.loads(candidate.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            signal = payload.get("strongest_residual_signal")
+            if not isinstance(signal, dict):
+                continue
+            epoch = _finite(signal.get("transit_time"))
+            if epoch is None:
+                continue
+            row["transit_time"] = epoch
+            if _finite(row.get("duration_hours")) is None:
+                duration = _finite(signal.get("duration_hours"))
+                if duration is not None:
+                    row["duration_hours"] = duration
+            repaired += 1
+            break
+    return repaired
+
+
 def screen_campaign_root(
     campaign_root: str | Path, workspace: str | Path = "."
 ) -> dict[str, Any]:
@@ -417,6 +469,7 @@ def screen_campaign_root(
         if target_list and not metadata_path.is_absolute():
             metadata_path = root / metadata_path
         metadata = _load_target_metadata(metadata_path)
+        repaired = _backfill_ephemeris_fields(rows, summary_path, root)
 
         screened = screen_campaign(rows, metadata=metadata)
         if not screened:
