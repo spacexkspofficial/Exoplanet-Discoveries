@@ -2703,6 +2703,74 @@ the current stack can settle.
     unmatched rows net +1. A real measurement that lands on zero, checked rather
     than assumed.
 
+75. **The monotransit threshold was measured for the first time: section 3.4's
+    written 8 sigma gives 1.25 false events per star, 4.2x its own budget, and
+    the false events are long-duration — which is where the lane's science
+    lives.** Decision 6 built the detector (`8f8845a`) with
+    `DEFAULT_SIGNIFICANCE_THRESHOLD = 8.0`, section 3.4's *written* value, and
+    the module said in its own docstring that nobody had measured it. Section
+    3.4 asks for "calibrate on inverted data, target <= 0.3 false events/star at
+    first pass". This is that calibration:
+    `scripts/calibrate_monotransit_threshold.py`, over the 953 achievable stars
+    of the P5 NCVZ cohort (the other 47 have no processed light curve at all —
+    correction 74).
+
+    | threshold | false events | per star | stars affected | direct events/star |
+    |---:|---:|---:|---:|---:|
+    | 8 sigma (written) | 1,194 | **1.2529** | 299 of 953 (31.4%) | 2.591 |
+    | 15 sigma (measured) | 285 | **0.2991** | 119 of 953 (12.5%) | 1.519 |
+
+    So the written threshold is not slightly optimistic, it is **4.2x over
+    budget**, and the budget is not met until **15 sigma** — nearly double.
+    Inverting the prepared flux uses `calibration.invert_prepared_flux`, the
+    same `2 * median - flux` the periodic search's inverted gate uses, so the
+    two false-alarm budgets stay comparable.
+
+    **The distribution is the part that matters, not the threshold.** The >=8
+    sigma false events have a **median duration of 14.5 h** against a template
+    bank spanning 1.5–24 h, and the strongest reaches **60.6 sigma**. A 60 sigma
+    event in inverted data is not noise; it is residual low-frequency systematic
+    surviving the 3 d long-window detrend. Because they pile up at long
+    durations, and because a long-period planet is exactly the one with a long
+    transit, **raising the threshold is not a free fix** — it spends sensitivity
+    precisely where the lane was supposed to gain it. The detector's existing
+    vetoes barely touch this: of 7,579 inverted events above the 4 sigma search
+    floor, **6,643 (87.7%) pass every veto**.
+
+    **Why the test suite was green throughout.**
+    `test_inverted_flux_produces_no_survivor` asserts exactly the right thing
+    and passes, but its light curve is `1.0 + rng.normal(0, 3e-4)` — pure white
+    Gaussian noise. Correct for the arithmetic, and silent about red noise,
+    which is the only thing that actually produces these events. The module
+    docstring never claimed the threshold was calibrated, so nothing
+    misrepresented itself; the green test simply was not the calibration, and it
+    would have been easy to read it as one.
+
+    **A harness fault found and fixed, recorded because it nearly became a
+    finding.** The first pass ran 12 workers and reported 72 unavailable stars
+    against correction 74's 47. The extra 25 were not unavailable — their FITS
+    were in the cache. Resolving `--author auto` can still reach MAST, parallel
+    queries get throttled, and an empty result surfaces as `No processed TESS
+    light curve (tried SPOC, TESS-SPOC, QLP) is available`: **a throttled query
+    and an absent light curve are the same string.** The tell was the timing —
+    failures clustered at the end of the run, which is what slow network calls
+    look like beside fast cache hits. Re-running those 25 alone at two workers
+    recovered **25 of 25**. The script now journals each star to `stars.jsonl`
+    and resumes, treating an error as *not* done, and defaults to fewer workers
+    than the machine has cores. Whatever fails twice, alone, is really missing.
+    Merging the recovered 25 moves the headline from 1.2705 to 1.2529 per star
+    and leaves the calibrated threshold at 15 sigma unchanged.
+
+    **This does not stand the lane up, and 15 sigma is not yet an operating
+    point.** A false-event rate is half of one: it measures what the threshold
+    costs in noise, never what it buys in real single transits. Section 3.4 also
+    requires single-transit injection-recovery, which has not been run, and the
+    inverted rate is a *floor* on the false-alarm rate rather than the whole of
+    it — a systematic that is not symmetric about the median does not invert
+    into a dip and is therefore invisible to this test. Section 6.2's remaining
+    prerequisites are untouched: the Seager–Mallén-Ornelas duration→period
+    posterior, the mandatory pixel-vet, and the subscription re-check.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
