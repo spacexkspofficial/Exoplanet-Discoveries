@@ -2041,6 +2041,13 @@ def _hunt_from_light_curve(
         "top_period_peaks": independent_period_peaks(
             arrays["period_grid"], arrays["power"]
         ),
+        # Both decisions the search made about *which* peak to report. They
+        # were computed and thrown away, which made the two mechanisms
+        # unfalsifiable from output alone: a run could not be asked whether a
+        # tie was seen or a ladder walked. `near_tie` is null when no peaks
+        # tied; `alias_decision` is null only when adjudication was disabled.
+        "near_tie": arrays.get("near_tie"),
+        "alias_decision": arrays.get("alias_decision"),
         "harmonic_checks": alias_checks,
         "relations_to_known_periods": known_relations,
         "catalog_epoch_agreement": [
