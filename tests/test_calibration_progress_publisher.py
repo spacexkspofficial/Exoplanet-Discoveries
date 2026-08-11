@@ -35,6 +35,40 @@ def test_the_latest_progress_line_wins(tmp_path: Path) -> None:
     }
 
 
+def test_elapsed_runs_from_the_first_log_not_the_restarted_one(
+    tmp_path: Path,
+) -> None:
+    """A resume must not divide cumulative work by the new process's clock.
+
+    The driver skips stars it already has, so a resumed run's first progress
+    line already reads 1333/6760 searches. Measuring elapsed from the restart
+    reported 953,657 searches/hour -- the cold-start trap wearing a different
+    hat.
+    """
+
+    directory = tmp_path / "calib"
+    directory.mkdir()
+    first = directory / "calibration_v3-20260810-175946.stdout.log"
+    first.write_text("P3 1/6760 searches; 0/1000 stars; 1/hr; ETA 1 h; errors 0\n", encoding="utf-8")
+    second = directory / "calibration_v3-20260810-222514.stdout.log"
+    second.write_text(
+        "P3 1333/6760 searches; 31/1000 stars; 953657/hr; ETA 0.006 h; errors 0\n",
+        encoding="utf-8",
+    )
+    import os
+
+    # Make the restart log unambiguously newer than the original.
+    os.utime(first, (1, 1))
+
+    started = publisher._started_at(directory)
+
+    assert started is not None
+    # 17:59:46, the original launch -- not 22:25:14.
+    assert started.hour == 17 and started.minute == 59
+    # And the progress still comes from the newest log.
+    assert publisher.read_progress(directory)["searches"] == 1333
+
+
 def test_a_log_without_a_progress_line_is_not_an_error(tmp_path: Path) -> None:
     """Startup writes a signature and a catalog warm before any search."""
 

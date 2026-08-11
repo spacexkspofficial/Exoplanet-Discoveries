@@ -107,10 +107,25 @@ def count_star_files(calibration_dir: Path) -> int:
     return sum(1 for path in stars.iterdir() if path.is_file())
 
 
-def _started_at(calibration_dir: Path) -> datetime | None:
-    """Launch time from the log filename stamp, else its creation time."""
+def _earliest_log(calibration_dir: Path) -> Path | None:
+    logs = sorted(
+        calibration_dir.glob("*.stdout.log"),
+        key=lambda path: path.stat().st_mtime,
+    )
+    return logs[0] if logs else None
 
-    log = _latest_log(calibration_dir)
+
+def _started_at(calibration_dir: Path) -> datetime | None:
+    """When the *calibration* started, not when the current process did.
+
+    A resumed run reports cumulative counts -- the driver skips stars whose
+    `stars/TIC_*.json` exists, so its first progress line already reads
+    1333/6760 searches. Dividing that by the new process's elapsed time reports
+    953,657 searches/hour, which is the cold-start trap wearing a different hat.
+    The elapsed clock therefore runs from the *earliest* log in the directory.
+    """
+
+    log = _earliest_log(calibration_dir)
     if log is None:
         return None
     stamp = re.search(r"(\d{8})-(\d{6})", log.name)
