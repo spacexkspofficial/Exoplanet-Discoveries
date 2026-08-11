@@ -2889,6 +2889,44 @@ the current stack can settle.
     `--trusted-first-pass` remains unsatisfiable: this signature now has a
     calibration, and it fails four gates.
 
+78. **Alias ladder disabled pending its own calibration, and v4 is set up to be
+    the clean A/B that v3 could not be.** Owner call, 2026-08-11, on correction
+    77. `adjudicate_alias_ladder` goes **True → False**. Config hash
+    `d68bccde…` → **`b41c1367…`**, kernel `kernel1:093e815b…` — a fifth
+    identity, with no calibration at all until v4 runs.
+
+    **Disabled, not deleted, and not judged wrong.** The ladder exists for a
+    real failure: 31 of 341 known planets were recovered at exactly one third of
+    their true period and none scored as recovered — 45% of all recovery
+    failures, against machinery that already existed and was never called. In v3
+    it also *gained* 8 `period_recovered` against 3 lost. The verdict here is
+    narrower and only about evidence: **it has never been priced, and it was
+    switched on inside a change that was measuring something else.**
+
+    **What v4 buys that v3 could not.** v3 differed from v2 by three kernel
+    changes at once — the ladder being called (`ffb9f69`), its 3× fix
+    (`edc10aa`), and the 2b revert (`f0e180f`) — so nothing in that pair
+    attributes cleanly. v4 differs from v3 by **exactly one flag**. Whatever
+    moves between them is the alias ladder and nothing else. That is the
+    experiment correction 77 asked for, and it costs one calibration rather than
+    an argument.
+
+    **The prediction, recorded before the fact.** If correction 77's reading is
+    right, v4 should recover the 8 exact recoveries the ladder destroyed:
+    `recovered` 648 → **656**, raw completeness 0.18034 → **0.18427**, and the
+    933-row period churn should vanish, since with the ladder off the reported
+    period is whatever the BLS grid found. The false-alarm gates should barely
+    move — the ladder adjudicates periods, it does not gate survivors — so
+    inverted should stay near 4 events and scrambled near 2, and **all four
+    failing gates should still fail**. If completeness does *not* recover, the
+    ladder was not the cause and correction 77 overread an association.
+
+    Standing caution, now demonstrated twice: **do not batch kernel changes**.
+    Decisions 1 and 2b were batched deliberately to share one re-calibration,
+    and the ladder landed on top before that calibration had even been read.
+    The saving was one 20-hour run; the cost was that two of the three changes
+    can no longer be attributed at all.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was

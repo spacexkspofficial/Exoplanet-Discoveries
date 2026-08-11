@@ -125,7 +125,21 @@ class SearchConfig:
     # path, which left 31 of 341 known planets recovered at exactly one third
     # of their true period and none of them scored as recovered -- 45% of all
     # recovery failures, against machinery that already existed.
-    adjudicate_alias_ladder: bool = True
+    #
+    # DISABLED 2026-08-11 pending its own calibration. v3 was the first
+    # calibration to contain it and it moved 933 of 3,560 injection rows, 792
+    # of them (84.9%) by an exact 3x period ratio. Eight injections went
+    # `recovered` True -> False and every one had been `period_status: exact`
+    # before, landing on x1.5, x2, x3 or /2 of the injected period: the search
+    # had the right answer and the ladder moved it off. `recovered` went
+    # 656 -> 648 with no row moving the other way. Correction 77.
+    #
+    # This is not a verdict that the ladder is wrong -- `period_recovered`
+    # improved elsewhere, 8 gained against 3 lost, and the 31 known planets it
+    # was written for are a real failure. It is a verdict that it has never
+    # been priced, and it was switched on inside a change that measured
+    # something else. Turn it back on with a calibration that isolates it.
+    adjudicate_alias_ladder: bool = False
     # An adjudicated period is adopted only if an evaluated grid point sits
     # this close to it. Outside that, there is no measured BLS solution to
     # adopt and the disagreement is recorded instead of guessed at.

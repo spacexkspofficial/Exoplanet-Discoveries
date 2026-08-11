@@ -49,19 +49,26 @@ from exohunt.config import (
 # diagnostic in the meantime. Do not restore the old value to make a campaign
 # start -- that would re-point a stored certification at code it never
 # measured.
-# MOVED AGAIN, 2026-08-10, reverting decision 2b's kernel veto on the
-# measurement decision 5B was run to obtain. `veto_spacecraft_harmonic` goes
-# True -> False; the previous value was:
-#   fc1e508ad3797f750e47b62642252216400be1a2088d3ca86b3b36099ba9755a
+# MOVED AGAIN, 2026-08-11, disabling the alias ladder pending its own
+# calibration (correction 77). `adjudicate_alias_ladder` goes True -> False.
+# The identity trail, none of which is recoverable by reverting:
+#   dcdb2bf0...  P3-certified, the only one that ever passed
+#   2697cd21...  + decision 1 (near-tie)
+#   fc1e508a...  + decision 2b + alias ladder wiring
+#   d68bccde...  - decision 2b (reverted on its measurement)
+#   b41c1367...  - alias ladder (this one)
 #
-# Note what this does NOT do: it does not return to any earlier hash. Decision
-# 1's near-tie parameters and the alias-ladder wiring are still in place, and
-# the field itself still exists in `SearchConfig`, so switching it off yields a
-# fourth identity rather than restoring the P3-certified first one. Reverting a
-# search change does not recover the calibration that preceded it -- there is
-# no path back, only forward through another re-calibration.
+# Note what a revert does NOT do: it does not return to any earlier hash.
+# Decision 1's near-tie parameters remain, and each disabled feature leaves its
+# boolean field in `SearchConfig`, so switching one off mints a new identity
+# rather than restoring an old one. There is no path back to a previous
+# calibration, only forward through another one.
+#
+# v3 (results/p5/calibration_ncvz_1000_v3_no_harmonic_veto) certified the
+# d68bccde identity and failed four gates. This hash has no calibration at all
+# until v4 runs.
 P3_CERTIFIED_CONFIG_HASH = (
-    "d68bccde0a82f108b746297dd7c3535db919e16b198e0e366737d815a8baa2db"
+    "b41c1367d558450eb8262ce7012b4011a66e9c9ddbd7cddfc70110efc0d39987"
 )
 
 

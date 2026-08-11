@@ -101,9 +101,15 @@ def test_an_adopted_period_is_a_measured_grid_solution() -> None:
 
 
 def test_the_config_knob_is_wired_not_decorative() -> None:
-    """A flag that does not reach the call site is the bug being fixed here."""
+    """A flag that does not reach the call site is the bug being fixed here.
 
-    assert CURRENT_CONFIG.search.adjudicate_alias_ladder is True
+    The default is now False -- the ladder is disabled pending a calibration
+    that isolates it (correction 77) -- but "wired" is about the flag reaching
+    `search_transits`, not about which way it points. That is the regression
+    this test was written for and it still holds.
+    """
+
+    assert CURRENT_CONFIG.search.adjudicate_alias_ladder is False
     assert CURRENT_CONFIG.search.alias_snap_tolerance == 0.01
     import inspect
 
