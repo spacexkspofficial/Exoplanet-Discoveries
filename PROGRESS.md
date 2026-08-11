@@ -2820,6 +2820,75 @@ the current stack can settle.
 
     526 passed.
 
+77. **v3 landed. Its false-alarm prediction was exact, its completeness
+    prediction was wrong, and the reason is that v3 vs v2 never isolated the 2b
+    revert — the alias ladder is in between them and is destroying exact
+    recoveries.** Run: `results/p5/calibration_ncvz_1000_v3_no_harmonic_veto`,
+    finished 2026-08-11, certifying `sig1:ee80aa82…` / `kernel1:753fd6ef…`.
+    `release_gate_passes: false`, 945 stars, 55 errors.
+
+    | gate | v2 | v3 | predicted | passes |
+    |---|---:|---:|---:|---|
+    | `inverted_survivor_rate` | 0.003148 (3) | **0.004233 (4)** | 4 events | no |
+    | `scrambled_survivor_rate` | 0.001049 (1) | **0.002116 (2)** | 2 events | no |
+    | `t3_pass_rate` | 0.001049 | 0.001058 | — | no |
+    | `epoch_enrichment` | 5.026564 | 4.911608 | — | no |
+    | `median_recovered_depth_bias` | 0.037130 | 0.037118 | — | yes |
+    | `edge_recovery_gap` | 0.000000 | −0.003371 | — | yes |
+
+    The recorded prediction — 4 inverted and 2 scrambled events, all four gates
+    still failing — **is exactly what happened**. The completeness half was
+    wrong: predicted promotion 0.07865 → 0.08090, actual **0.07978**; predicted
+    raw unchanged, actual 0.18427 → **0.18034**.
+
+    **Why the completeness prediction failed: the baseline was confounded and
+    correction 76 said so without carrying it forward.** Three kernel changes
+    separate v2 from v3, not one — `ffb9f69` (the alias ladder called for the
+    first time, having been written at P2 and never run), `edc10aa` (its 3×
+    blind spot closed), and `f0e180f` (the 2b revert). v2 ran 08-09 02:49→19:26;
+    the two ladder commits landed at 20:58 and 21:39 that evening. **No
+    conclusion about the 2b revert's completeness cost can be drawn from this
+    pair**, and the row-level arithmetic in correction 74 remains the only clean
+    measurement of it.
+
+    **The ladder dominates the diff, and the signature is unmistakable.** Of
+    3,560 shared injection rows, 933 changed their recovered period. **792 of
+    those 933 (84.9%) are an exact 3× ratio**, v2's period over v3's, with a
+    further 47 at 2×. That is `edc10aa`'s 3× fix acting, not a veto that only
+    ever wrote a rejection reason. Rows whose recovered period sits on a
+    spacecraft harmonic barely moved at all: 44 in v2, 43 in v3.
+
+    **The finding that matters, and it is not a good one. The alias ladder is
+    converting exact recoveries into harmonic misses.** Eight injections went
+    `recovered` True → False, and **all eight were `period_status: exact` in v2**:
+
+    | injected P | v2 recovered | v3 recovered | v3 status |
+    |---:|---:|---:|---|
+    | 7.95271 | 7.9500 | 11.9230 (×1.5) | `miss` |
+    | 5.88798 | 5.8865 | 8.8357 (×1.5) | `miss` |
+    | 1.25743 | 1.2575 | 3.7723 (×3) | `harmonic_alias` |
+    | 1.25743 | 1.2576 | 3.7725 (×3) | `harmonic_alias` |
+    | 1.25743 | 1.2575 | 0.6288 (÷2) | `harmonic_alias` |
+    | 1.25743 | 1.2573 | 0.6287 (÷2) | `harmonic_alias` |
+    | 0.50000 | 0.5000 | 1.0001 (×2) | `harmonic_alias` |
+    | 0.50000 | 0.5000 | 0.7500 (×1.5) | `miss` |
+
+    A search that had the right answer was moved off it. `period_recovered` did
+    improve elsewhere (8 gained against 3 lost), so the ladder is not simply
+    broken — but `recovered`, which requires the correct alias *and* the depth,
+    went 656 → 648 with **no row moving the other way**. **The alias ladder has
+    never been calibrated**: it was called for the first time after v2 ran, and
+    v3 is the first calibration that contains it. It should be priced on its own
+    before it is trusted, exactly as decision 2b was.
+
+    **Two mechanical notes.** 55 errors against v2's 47: the 47 permanently
+    unavailable are all present, and the 8 extra are the throttling signature —
+    they succeeded in v2, and this run used 12 workers and 4 download workers
+    after the run was restarted for speed. **None of the 8 is an injection
+    star**, so they cost denominator (945 vs 953) but not completeness. And
+    `--trusted-first-pass` remains unsatisfiable: this signature now has a
+    calibration, and it fails four gates.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
