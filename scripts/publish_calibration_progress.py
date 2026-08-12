@@ -155,8 +155,14 @@ def _rolling_rate(
     if len(within) < 2:
         within = samples[-2:]
     oldest = within[0]
+    # A missing counter must not read as a confident zero. Defaulting it to 0.0
+    # published `rolling_stars_per_hour: 0.0` for a run doing 16.9 stars/hour,
+    # because the sampler was only recording `searches`. An absent measurement
+    # is "measuring", not "stopped".
+    if key not in newest or key not in oldest:
+        return None, len(within)
     elapsed = newest["at"] - oldest["at"]
-    done = newest.get(key, 0.0) - oldest.get(key, 0.0)
+    done = newest[key] - oldest[key]
     if elapsed <= 0 or done < 0:
         return None, len(within)
     return done / elapsed * 3600.0, len(within)
@@ -280,6 +286,37 @@ def build_checkpoint(
     }
 
 
+def load_samples(
+    samples_path: Path, calibration_dir: Path
+) -> list[dict[str, float]]:
+    """Previous samples, but only if they describe *this* calibration.
+
+    The publish directory is reused across runs so the dashboard keeps one
+    stable entry. The rate history must not be: v4's samples file opened
+    holding v3's counters, and differencing across that boundary would invent a
+    rate from a step change between two unrelated runs.
+    """
+
+    if not samples_path.exists():
+        return []
+    try:
+        loaded = json.loads(samples_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if not isinstance(loaded, dict):
+        # Legacy bare-list format carried no provenance, so it cannot be
+        # trusted to belong to this run.
+        return []
+    # Compare as paths, not strings: this is launched from PowerShell with
+    # backslashes and from a shell with forward slashes, and `results/p5/x` and
+    # `results\p5\x` are the same directory.
+    stored = loaded.get("calibration_dir")
+    if not isinstance(stored, str) or Path(stored) != Path(calibration_dir):
+        return []
+    rows = loaded.get("samples")
+    return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+
+
 def _write_atomic(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + ".tmp")
@@ -307,26 +344,32 @@ def main(argv: list[str] | None = None) -> int:
     checkpoint_path = publish_dir / "batch_progress.json"
     samples_path = publish_dir / "rate_samples.json"
 
-    samples: list[dict[str, float]] = []
-    if samples_path.exists():
-        try:
-            loaded = json.loads(samples_path.read_text(encoding="utf-8"))
-            samples = [row for row in loaded if isinstance(row, dict)]
-        except (OSError, json.JSONDecodeError):
-            samples = []
+    samples = load_samples(samples_path, calibration_dir)
 
     while True:
         progress = read_progress(calibration_dir)
         if progress is not None:
             samples.append(
-                {"at": time.time(), "searches": float(progress["searches"])}
+                {
+                    "at": time.time(),
+                    "searches": float(progress["searches"]),
+                    # Both counters, because the rolling rate is reported in
+                    # stars and the ETA is derived from searches. Sampling only
+                    # searches published a structural `rolling_stars_per_hour`
+                    # of 0.0 -- the panel's live rate read zero on a run that
+                    # was working fine.
+                    "stars": float(progress["stars"]),
+                }
             )
             # One sample a minute over a day is 1,440 rows; keep it bounded.
             samples = samples[-2000:]
             checkpoint = build_checkpoint(calibration_dir, samples)
             if checkpoint is not None:
                 _write_atomic(checkpoint_path, checkpoint)
-                _write_atomic(samples_path, samples)  # type: ignore[arg-type]
+                _write_atomic(
+                    samples_path,
+                    {"calibration_dir": str(calibration_dir), "samples": samples},
+                )
                 performance = checkpoint["runtime"]["performance"]  # type: ignore[index]
                 rolling = performance["rolling_stars_per_hour"]  # type: ignore[index]
                 print(

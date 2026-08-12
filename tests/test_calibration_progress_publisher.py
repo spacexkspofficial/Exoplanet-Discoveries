@@ -100,6 +100,60 @@ def test_the_rolling_rate_differences_samples_rather_than_dividing_elapsed() -> 
     assert over_everything == 50.0
 
 
+def test_a_missing_counter_reports_no_rate_rather_than_a_confident_zero() -> None:
+    """An absent measurement is "measuring", not "stopped".
+
+    The sampler recorded only `searches`, so differencing `stars` defaulted both
+    ends to 0.0 and published rolling_stars_per_hour: 0.0 for a run doing 16.9
+    stars/hour. The panel's live rate read zero on a healthy run.
+    """
+
+    samples = [
+        {"at": 0.0, "searches": 0.0},
+        {"at": 3600.0, "searches": 600.0},
+    ]
+
+    stars_rate, _ = publisher._rolling_rate(samples, 60.0, "stars")
+    searches_rate, _ = publisher._rolling_rate(samples, 60.0, "searches")
+
+    assert stars_rate is None
+    assert searches_rate == 600.0
+
+
+def test_samples_from_a_different_calibration_are_discarded(tmp_path: Path) -> None:
+    """The publish directory is reused across runs; the rate history must not be.
+
+    v4's samples file opened holding v3's counters. Differencing across that
+    boundary invents a rate out of a step change between unrelated runs.
+    """
+
+    samples_path = tmp_path / "rate_samples.json"
+    samples_path.write_text(
+        json.dumps(
+            {
+                "calibration_dir": "results/p5/calibration_v3",
+                "samples": [{"at": 1.0, "searches": 774.0, "stars": 35.0}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert publisher.load_samples(samples_path, Path("results/p5/calibration_v4")) == []
+    kept = publisher.load_samples(samples_path, Path("results/p5/calibration_v3"))
+    assert len(kept) == 1
+
+
+def test_a_legacy_bare_list_of_samples_is_discarded(tmp_path: Path) -> None:
+    """It carries no provenance, so it cannot be shown to belong to this run."""
+
+    samples_path = tmp_path / "rate_samples.json"
+    samples_path.write_text(
+        json.dumps([{"at": 1.0, "searches": 774.0}]), encoding="utf-8"
+    )
+
+    assert publisher.load_samples(samples_path, Path("anything")) == []
+
+
 def test_a_single_sample_reports_no_rate_rather_than_zero() -> None:
     rate, count = publisher._rolling_rate([{"at": 0.0, "searches": 5.0}], 30.0, "searches")
 
