@@ -2981,6 +2981,70 @@ the current stack can settle.
     download workers 4 → 3 recovered 7 of the 8 stars throttling had cost —
     supporting correction 77's diagnosis of that too.
 
+80. **`epoch_enrichment` diagnosed: it is real, it is not a look-elsewhere
+    artifact, and it is BLS fitting the data gaps at a 17.82 d period pinned to
+    the duration grid's floor.** This gate fails by the widest margin of the
+    four — 5.027 against a ceiling of 2.0 — and is essentially unmoved across v2
+    (4.989), v3 (4.912) and v4 (5.027). No decision has touched it. It is the
+    largest open scientific problem in the survey and had never been opened.
+
+    **First, the hypothesis that was wrong.** The gate takes the *maximum*
+    enrichment over 3,738 thirty-minute bins with no look-elsewhere correction,
+    which looks exactly like a multiple-comparisons trap. It is not one. Across
+    all bins the totals are **181,419 observed against 181,950.7 expected — a
+    global enrichment of 0.9971**, with median bin enrichment 0.908 and mean
+    0.996. The fitted ephemerides are phase-uniform on average, precisely as the
+    null demands. The peak bin is 251 observed against 49.9 expected, roughly
+    28σ. There is nothing statistical about it.
+
+    **Only 12 of 3,738 bins exceed the ceiling, and they form six sharp
+    clusters**, each 30–60 minutes wide, spread over a 77.9 d baseline. Four of
+    the six share a signature that names the mechanism outright:
+
+    | epoch (BTJD) | stars | median period | median duration | median depth |
+    |---:|---:|---:|---:|---:|
+    | 1697.812 | 128 | 17.827 d | **0.50 h** | 109,227 ppm |
+    | 1715.646 | 215 | 17.821 d | **0.50 h** | 120,605 ppm |
+    | 1733.479 | 259 | 17.818 d | **0.50 h** | 118,205 ppm |
+    | 1751.292 | 189 | 17.817 d | **0.50 h** | 116,552 ppm |
+
+    They are spaced **17.83, 17.83 and 17.81 days apart** — their own period. So
+    this is one recurring artifact, caught four times, in a window that fits
+    exactly four of them. The duration is **0.50 h in every case, which is
+    `duration_min_hours` exactly**: the grid's floor, not a fitted value. The
+    depths are 11–12%, physically impossible for a transit.
+
+    **The exemplar settles what it is.** TIC 165501611: P = 17.8409 d,
+    duration 0.50 h, depth 215,028 ppm (21.5%), depth S/N 113.6, and
+    **`observed_transits: 0`**. A signal of zero transits with a signal-to-noise
+    of 113. BLS is folding the light curve onto a period whose transits land in
+    the data gaps and measuring a depth against nothing. That is what pins 100+
+    unrelated stars to one instant: they share the gap structure, not a star.
+
+    **What stops it being dismissible.** Of the 384 signals aligned with the four
+    events, **209 (54.4%) are already caught** by an existing check — 202 have
+    fewer than two observed transits, 202 exceed the 5% depth veto, 208 sit on
+    the 0.5 h rail. But **175 (45.6%) are caught by none of them.** So the gate
+    is neither measuring pure garbage nor measuring shippable candidates. Half
+    of what drives the worst-failing release gate would survive triage.
+
+    Note also that 44.2% of *all* 952 baseline signals sit exactly on the 0.5 h
+    duration rail. Correction 72 flagged `duration_at_grid_rail` and decision 2b
+    deliberately did **not** promote it, because `commonmode.DURATION_GRID_HOURS`
+    names the retired 0.25 h grid whose floor is unreachable. That reasoning was
+    right about the stale constant and wrong about the phenomenon: the **live**
+    grid's floor is 0.5 h, and it is where nearly half the null population lands.
+
+    **Not acted on, because two defensible fixes point in different directions
+    and the choice is not a detail.** Either the detection kernel should refuse a
+    fit with fewer than two observed transits — it is already a triage veto, so
+    the search is reporting as its strongest signal something the next stage
+    always discards — or `epoch_enrichment` should be computed over
+    triage-surviving signals rather than `strongest_residual_signal`, since the
+    gate currently prices the raw detector rather than the delivered product.
+    The first changes the kernel and costs a re-calibration. The second changes
+    what a release gate means, which is not a change to make quietly.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
