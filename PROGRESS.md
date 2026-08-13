@@ -2927,6 +2927,60 @@ the current stack can settle.
     The saving was one 20-hour run; the cost was that two of the three changes
     can no longer be attributed at all.
 
+79. **v4 landed and the A/B is clean: the alias ladder caused the entire
+    completeness loss, and correction 74's arithmetic is confirmed to the row.**
+    `results/p5/calibration_ncvz_1000_v4_no_alias_ladder`, finished 2026-08-11
+    23:09 in 8.75 h, certifying `sig1:121fbb9a…` / `kernel1:093e815b…`. 952
+    stars, 48 errors, `release_gate_passes: false`.
+
+    **Both predictions, recorded before either run, were exact.**
+
+    | quantity | v3 (ladder on) | v4 (ladder off) | predicted |
+    |---|---:|---:|---:|
+    | `recovered` | 648 | **656** | 656 |
+    | `random_phase_completeness` | 0.18034 | **0.18427** | 0.18427 |
+    | promotion completeness | 0.07978 | 0.08090 | — |
+    | `inverted_survivor_rate` | 0.004233 (4) | 0.004202 (4) | ~4 events |
+    | `scrambled_survivor_rate` | 0.002116 (2) | 0.002101 (2) | ~2 events |
+    | gates passing | 2 of 6 | 2 of 6 | all four still fail |
+
+    **The mechanism claim is settled by the churn count, not by the totals.**
+    Recovered-period changes across 3,560 shared injection rows:
+
+    | pair | changed | of which exactly 3× |
+    |---|---:|---:|
+    | v2 → v3 (ladder switched on) | 933 | 792 |
+    | v3 → v4 (ladder switched off) | 933 | 59 |
+    | **v2 → v4 (ladder never ran)** | **0** | **0** |
+
+    Zero. With the ladder off, v4 reproduces v2's recovered period on **every one
+    of 3,560 injections**. The ladder was solely responsible for the churn, and
+    the search is otherwise **fully deterministic** — which also retires the
+    possibility, entertained while diagnosing correction 77, that the run-to-run
+    differences were non-determinism.
+
+    **And correction 74's arithmetic is confirmed exactly.** v2 and v4 differ by
+    one kernel change, the 2b veto, and across 3,560 rows the only column that
+    differs is `promotion_recovered`: **4 rows, all False → True**. Not 3, not 5.
+    The row-level diff that said 2b cost 4 injected planets predicted this run's
+    promotion completeness a day before it existed (0.07865 → 0.08090).
+
+    **What this does and does not license.** It licenses the ladder staying off
+    until it is fixed: it is measurably destroying exact recoveries and its cost
+    is now priced at 8 recoveries on this cohort. It does **not** license
+    deleting it — the failure it was written for is real and unaddressed (31 of
+    341 known planets recovered at exactly one third of their true period, 45% of
+    all recovery failures), and it did gain 8 `period_recovered` elsewhere. The
+    honest position is that the ladder solves a real problem badly, and both
+    halves of that sentence are now measured.
+
+    **`--trusted-first-pass` remains unsatisfiable.** Four gates still fail, by
+    margins untouched by any of this: `epoch_enrichment` at **5.027 against a
+    ceiling of 2.0** is the worst and is now the largest open scientific problem
+    in the survey. Errors fell 55 → 48 against a floor of 47, so dropping
+    download workers 4 → 3 recovered 7 of the 8 stars throttling had cost —
+    supporting correction 77's diagnosis of that too.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
