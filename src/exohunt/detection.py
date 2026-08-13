@@ -332,6 +332,39 @@ def _near_tied_candidates(
     return selected
 
 
+def _ranked_distinct_peaks(
+    periods: np.ndarray,
+    powers: np.ndarray,
+    *,
+    separation_fraction: float,
+    limit: int,
+) -> list[int]:
+    """Independent peaks in descending power order.
+
+    Unlike :func:`_near_tied_candidates` this is not restricted to peaks close
+    to the strongest -- it is the ranked list to walk when the strongest fit has
+    to be rejected outright and a replacement is needed.
+    """
+
+    finite = np.flatnonzero(np.isfinite(powers))
+    if finite.size == 0:
+        return []
+    order = finite[np.argsort(powers[finite])[::-1]]
+    selected: list[int] = []
+    for index in order:
+        period = float(periods[index])
+        if any(
+            abs(period - float(periods[other])) / min(period, float(periods[other]))
+            < separation_fraction
+            for other in selected
+        ):
+            continue
+        selected.append(int(index))
+        if len(selected) >= limit:
+            break
+    return selected
+
+
 def _odd_even_sigma(numbers: np.ndarray, depths: np.ndarray) -> float | None:
     odd = depths[numbers % 2 != 0]
     even = depths[numbers % 2 == 0]
@@ -544,6 +577,8 @@ def search_transits(
     near_tie_relative_power: float = 1e-3,
     near_tie_max_candidates: int = 5,
     near_tie_separation_fraction: float = 0.02,
+    minimum_observed_transits: int = 2,
+    transit_floor_max_candidates: int = 64,
     adjudicate_aliases: bool = True,
     alias_snap_tolerance: float = 0.01,
 ) -> tuple[DetectionResult, dict[str, np.ndarray]]:
@@ -726,7 +761,76 @@ def search_transits(
                     "the adjudicated period is not on the searched grid"
                 )
 
+    # Correction 80: the strongest BLS peak is routinely a fold whose transits
+    # land in the data gaps. TIC 165501611's baseline reported depth 215,028 ppm
+    # at S/N 113.6 with `observed_transits: 0` -- a signal of zero transits at
+    # S/N 113, measured against nothing. Because stars share a gap structure
+    # rather than a star, those fits pile onto the same instants: 12 of 3,738
+    # epoch bins over the enrichment ceiling, four of them one 17.82 d artifact
+    # pinned to the 0.5 h duration floor, driving `epoch_enrichment` to 5.03
+    # against a ceiling of 2.0.
+    #
+    # `fewer_than_two_observed_transits` was already a triage veto, so the
+    # search was reporting as its strongest signal something the next stage
+    # always discarded. This refuses it at the source and walks down the ranked
+    # peaks for the strongest fit that is actually witnessed by the data.
     numbers, event_depths = _event_depths(t, y, period, transit_time, duration)
+    transit_floor: dict[str, Any] = {
+        "minimum_observed_transits": int(minimum_observed_transits),
+        "initial_observed_transits": int(numbers.size),
+        "applied": False,
+        # None, not True, when the floor is switched off. "Not checked" must not
+        # read as "passed" -- with the floor at 0 a zero-transit fold would
+        # otherwise report `satisfied: true`, which is how this class of defect
+        # hides in the first place.
+        "satisfied": (
+            bool(numbers.size >= minimum_observed_transits)
+            if minimum_observed_transits > 0
+            else None
+        ),
+    }
+    if minimum_observed_transits > 0 and numbers.size < minimum_observed_transits:
+        ranked = _ranked_distinct_peaks(
+            periods_all,
+            powers_all,
+            separation_fraction=near_tie_separation_fraction,
+            limit=max(int(transit_floor_max_candidates), 1),
+        )
+        transit_floor["candidates_examined"] = 0
+        for index in ranked:
+            if index == best:
+                continue
+            transit_floor["candidates_examined"] += 1
+            trial_period = float(power.period[index])
+            trial_duration = float(power.duration[index])
+            trial_epoch = float(power.transit_time[index])
+            trial_numbers, trial_depths = _event_depths(
+                t, y, trial_period, trial_epoch, trial_duration
+            )
+            if trial_numbers.size < minimum_observed_transits:
+                continue
+            best = index
+            period, duration, transit_time = trial_period, trial_duration, trial_epoch
+            depth = float(power.depth[best])
+            depth_error = float(power.depth_err[best])
+            depth_snr = depth / depth_error if depth_error > 0 else float("nan")
+            numbers, event_depths = trial_numbers, trial_depths
+            transit_floor.update(
+                {
+                    "applied": True,
+                    "satisfied": True,
+                    "replacement_period_days": period,
+                    "replacement_observed_transits": int(numbers.size),
+                }
+            )
+            break
+        else:
+            # No peak in the bank is witnessed by two events. Report the fit and
+            # say so: a search that cannot meet the floor must not look like one
+            # that did. Triage's own veto still rejects it downstream.
+            transit_floor["not_applied_reason"] = (
+                "no examined peak had the minimum observed transits"
+            )
     secondary_depth, secondary_snr = _secondary_screen(
         t, y, period, transit_time, duration
     )
@@ -765,6 +869,10 @@ def search_transits(
         # anything -- "the ladder was walked and the report survived it" and
         # "the ladder never ran" must never look alike.
         "alias_decision": alias_decision,
+        # Always present, for the same reason: "the floor was met outright",
+        # "a replacement was found" and "no peak could meet it" are three
+        # different states and must read as three different states.
+        "transit_floor": transit_floor,
     }
     return result, arrays
 

@@ -140,6 +140,19 @@ class SearchConfig:
     # been priced, and it was switched on inside a change that measured
     # something else. Turn it back on with a calibration that isolates it.
     adjudicate_alias_ladder: bool = False
+    # Correction 80: refuse a reported fit whose transits land in the data gaps.
+    # The strongest BLS peak was routinely a zero-transit fold measured against
+    # nothing -- one exemplar reported 215,028 ppm at S/N 113.6 with
+    # `observed_transits: 0` -- and because stars share a gap structure rather
+    # than a star, those fits piled onto shared instants and drove
+    # `epoch_enrichment` to 5.03 against a ceiling of 2.0. Two events is already
+    # the triage veto `fewer_than_two_observed_transits`, so before this the
+    # search reported as its strongest signal something the next stage always
+    # discarded. Set to 0 to disable the floor, and re-calibrate either way.
+    minimum_observed_transits: int = 2
+    # How far down the ranked peak list to walk for a replacement. Each trial is
+    # one fold, negligible beside the ~71,000-sample BLS that produced the bank.
+    transit_floor_max_candidates: int = 64
     # An adjudicated period is adopted only if an evaluated grid point sits
     # this close to it. Outside that, there is no measured BLS solution to
     # adopt and the disagreement is recorded instead of guessed at.

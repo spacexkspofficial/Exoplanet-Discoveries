@@ -49,14 +49,16 @@ from exohunt.config import (
 # diagnostic in the meantime. Do not restore the old value to make a campaign
 # start -- that would re-point a stored certification at code it never
 # measured.
-# MOVED AGAIN, 2026-08-11, disabling the alias ladder pending its own
-# calibration (correction 77). `adjudicate_alias_ladder` goes True -> False.
+# MOVED AGAIN, 2026-08-13, adding the observed-transit floor (correction 80).
+# `minimum_observed_transits` 0 -> 2, so the search refuses to report a fit whose
+# transits land in the data gaps.
 # The identity trail, none of which is recoverable by reverting:
 #   dcdb2bf0...  P3-certified, the only one that ever passed
 #   2697cd21...  + decision 1 (near-tie)
 #   fc1e508a...  + decision 2b + alias ladder wiring
 #   d68bccde...  - decision 2b (reverted on its measurement)
-#   b41c1367...  - alias ladder (this one)
+#   b41c1367...  - alias ladder (priced by v4, then disabled)
+#   f20799a4...  + observed-transit floor (this one)
 #
 # Note what a revert does NOT do: it does not return to any earlier hash.
 # Decision 1's near-tie parameters remain, and each disabled feature leaves its
@@ -64,11 +66,11 @@ from exohunt.config import (
 # rather than restoring an old one. There is no path back to a previous
 # calibration, only forward through another one.
 #
-# v3 (results/p5/calibration_ncvz_1000_v3_no_harmonic_veto) certified the
-# d68bccde identity and failed four gates. This hash has no calibration at all
-# until v4 runs.
+# v4 (results/p5/calibration_ncvz_1000_v4_no_alias_ladder) certified the
+# b41c1367 identity and failed four gates. This hash has no calibration at all
+# until v5 runs.
 P3_CERTIFIED_CONFIG_HASH = (
-    "b41c1367d558450eb8262ce7012b4011a66e9c9ddbd7cddfc70110efc0d39987"
+    "f20799a40f73c43429e77bf947f562f94a68e4ef9318ad6bae354fe6a136c2ba"
 )
 
 

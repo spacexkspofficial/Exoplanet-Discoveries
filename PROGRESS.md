@@ -3045,6 +3045,57 @@ the current stack can settle.
     The first changes the kernel and costs a re-calibration. The second changes
     what a release gate means, which is not a change to make quietly.
 
+81. **The observed-transit floor is in the kernel, and measured in advance it
+    will not by itself pass the gate it was built for.** Owner call on
+    correction 80: refuse a fit with fewer than two observed transits.
+    `minimum_observed_transits` 0 → 2. Config hash `b41c1367…` →
+    **`f20799a4…`**, kernel `kernel1:3029a0c4…` — a sixth identity, uncalibrated
+    until v5.
+
+    The search now walks the ranked distinct peaks for the strongest fit
+    witnessed by two events, and records a `transit_floor` block distinguishing
+    three states: **met outright**, **replaced**, and **no peak could meet it**.
+    The third is the load-bearing one — a search that cannot meet the floor must
+    not look like one that did.
+
+    **Measured before committing to a calibration, on 14 of the stars that drive
+    the enrichment:**
+
+    | outcome | stars |
+    |---|---:|
+    | already met the floor | 5 |
+    | replaced with a witnessed fit | **1** |
+    | no peak in 64 could meet it | **8** |
+
+    Of the nine that began with zero observed transits, **one** found a
+    qualifying replacement. So the floor mostly **labels** the pathology rather
+    than removing it: those eight still report the same ephemeris, still pile
+    onto the same shared instants, and `epoch_enrichment` should therefore move
+    only slightly — nowhere near 2.0 from 5.03.
+
+    **This is worth saying plainly: the change the owner asked for is correct and
+    insufficient.** Correct, because the search was reporting as its strongest
+    signal something the next stage always discarded, and that is indefensible
+    on its own terms. Insufficient, because the gate reads
+    `strongest_residual_signal`, and for a star whose every peak is unwitnessed
+    there is nothing better to report. The remaining half of correction 80's
+    finding — computing `epoch_enrichment` over triage-surviving signals rather
+    than the raw strongest — is now the load-bearing one, and it is still an
+    owner decision because it changes what a release gate means.
+
+    **Prediction for v5, recorded before it runs.** `epoch_enrichment` falls
+    from 5.027 but stays far above 2.0, plausibly 4.3–4.9; the other three
+    failing gates barely move; and the number to watch is **completeness**,
+    because a floor that replaces a fit can replace a *correct* one. If
+    `recovered` drops from 656, the floor has a price and correction 81 will
+    have to name it. If completeness holds and enrichment barely moves, the
+    floor is honest bookkeeping and the gate needs the second fix.
+
+    A defect found in this change before it shipped, recorded because it is the
+    same shape as everything else here: with the floor disabled, `satisfied`
+    reported `True`. A disabled check reporting "passed" is how a zero-transit
+    fold looked acceptable for as long as it did. It reports `None` now.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was

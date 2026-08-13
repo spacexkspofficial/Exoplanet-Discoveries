@@ -1727,6 +1727,10 @@ def _hunt_from_light_curve(
         durations_hours=search_grid_plan.duration_hours,
         adjudicate_aliases=CURRENT_CONFIG.search.adjudicate_alias_ladder,
         alias_snap_tolerance=CURRENT_CONFIG.search.alias_snap_tolerance,
+        minimum_observed_transits=CURRENT_CONFIG.search.minimum_observed_transits,
+        transit_floor_max_candidates=(
+            CURRENT_CONFIG.search.transit_floor_max_candidates
+        ),
     )
     searched_duration_grid = arrays.get(
         "duration_grid_hours",
@@ -2065,6 +2069,9 @@ def _hunt_from_light_curve(
         # tied; `alias_decision` is null only when adjudication was disabled.
         "near_tie": arrays.get("near_tie"),
         "alias_decision": arrays.get("alias_decision"),
+        # Correction 80. Always present: "met outright", "replaced" and "no peak
+        # could meet it" are three states and must not read alike.
+        "transit_floor": arrays.get("transit_floor"),
         "harmonic_checks": alias_checks,
         "relations_to_known_periods": known_relations,
         "catalog_epoch_agreement": [
