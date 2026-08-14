@@ -3314,6 +3314,65 @@ the current stack can settle.
     shared-instant check, distinct from the shared-ephemeris screen — and not
     the threshold tweak correction 84 implied.
 
+86. **The shared-instant screen is built. It catches what the ephemeris screen
+    structurally cannot, it destroys nothing real, and it does not make the gate
+    pass.** Owner call on correction 85. `commonmode.screen_shared_instants` and
+    `instrumental_instants`, plus `_poisson_upper_tail`.
+
+    **What it asks.** Not "who shares a whole ephemeris" — that is the existing
+    screen, and it is right to require period *and* phase agreement, because
+    sharing merely some instant is common by chance. This asks **who dims at the
+    same absolute time, at any period**. A single instrumental event is fitted by
+    different stars at different periods, each placing one transit on it, so
+    every one of them shares an instant with the others and an ephemeris with
+    none. The null is phase-uniform (a period-P target occupies a bin of width
+    `step` with probability `step/P`), bins are scored by their Poisson upper
+    tail, and only bins surviving a Bonferroni correction count — correction 82's
+    lesson, that a raw ratio stops meaning the same thing when the population
+    changes size.
+
+    **Measured on v5's triage-surviving population:**
+
+    | | flagged | gate | significant bins |
+    |---|---:|---:|---:|
+    | ephemeris screen alone | 58 of 183 | 9.651 | 13 |
+    | + shared-instant screen | 69 of 183 | **6.410** | **3** |
+
+    It catches **11 the ephemeris screen missed**, and on v4 — whose surviving
+    population was already clean — it flags **0**, so it is not simply an
+    aggressive filter.
+
+    **The safety result is the one that matters.** Run against the 67 stars with
+    a *recovered injected planet*, where the truth is known: **0 flagged, a 0.00%
+    false-positive rate.** A real planet with ten transits that puts one on a
+    momentum dump scores 0.1 shared and is left alone; the threshold is a
+    *fraction* of a target's events, not a coincidence count, precisely so that
+    one collision is not a verdict.
+
+    **It does not make the gate pass, and the threshold was not tuned to make it.**
+    Sweeping the fraction from 0.5 down to 0.1 moves the gate 6.41 → 4.44 and
+    never reaches 2.0, while flagging 89 of 183 — half the population — on the
+    way. Lowering it further would be fitting the test to the result, which
+    correction 84's own retraction warns against. **0.5 is kept because it is the
+    defensible value, not the flattering one.**
+
+    A defect found and fixed inside this work, recorded because the first
+    verification missed it: `_poisson_upper_tail` computed `1 - lower_sum`, which
+    cancels catastrophically once the tail drops under machine epsilon — 4.4e-16
+    for a true 7.2e-21 at 32 observed, and 6.7e-16 for 1.1e-90 at 90. The
+    *decisions* were unaffected, since everything floors far below any Bonferroni
+    threshold, but the reported probability is a number people quote. It now sums
+    the upper tail directly and agrees with scipy to ~1e-13 relative. My first
+    check declared it OK because I compared absolute differences between two tiny
+    numbers.
+
+    **Not wired into the campaign path.** The functions exist and are tested;
+    nothing calls them in production. Turning this into a verdict reclassifies
+    stars survey-wide, and correction 71 is the standing record of what that can
+    do silently. `kernel_version` moves to `kernel1:d49f04a4…` because
+    `commonmode` is on the kernel module list, so adopting it costs a
+    re-calibration whether or not it is wired in.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was

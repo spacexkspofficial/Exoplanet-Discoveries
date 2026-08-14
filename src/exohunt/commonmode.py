@@ -56,6 +56,18 @@ MIN_SHARED_TARGETS = 10
 # Above this angular spread the sharers cannot be one contaminating source.
 OBSERVATORY_SPREAD_DEG = 1.0
 
+# The shared-*instant* screen (correction 85). Separate constants because it is
+# a separate test: the screen above asks who shares a whole ephemeris, this one
+# asks who dims at the same absolute time regardless of period. A single
+# instrumental event is fitted by different stars at different periods, so it is
+# invisible to the first test and obvious to the second.
+SHARED_INSTANT_BIN_MINUTES = 30.0
+SHARED_INSTANT_ALPHA = 0.05
+# One coincidence is not a verdict -- a real planet with five transits will
+# occasionally place one on a momentum dump. A fit whose events are mostly
+# shared is a signal assembled from the observatory's timeline.
+MIN_INSTRUMENTAL_EVENT_FRACTION = 0.5
+
 # TESS occupies a 13.7-day lunar-resonant orbit. Perigee downlink gaps and the
 # scattered-light ramps around them recur on that period, so instrumental power
 # concentrates there and at its simple ratios. A candidate sitting on one of
@@ -269,6 +281,205 @@ def _detector_evidence(
             else None
         ),
     }
+
+
+def _poisson_upper_tail(observed: int, expected: float) -> float:
+    """P(X >= observed) for a Poisson mean, in stdlib arithmetic.
+
+    `commonmode` is deliberately free of numpy and scipy -- it is imported by
+    `screening`, which is on the detection-kernel module list, and a screen that
+    drags a numeric stack into the kernel is a bigger change than the one being
+    made here. Summed in log space because the counts reach ~90 against means
+    near 3, where the direct terms underflow.
+    """
+
+    if observed <= 0:
+        return 1.0
+    if expected <= 0:
+        return 0.0
+
+    def _term(index: int) -> float:
+        return math.exp(
+            index * math.log(expected) - expected - math.lgamma(index + 1)
+        )
+
+    if observed <= expected:
+        # The tail is not small here, so one minus the lower sum is accurate and
+        # terminates immediately.
+        return max(0.0, 1.0 - sum(_term(index) for index in range(observed)))
+
+    # Summing the upper tail directly. `1 - lower` cancels catastrophically once
+    # the tail drops below machine epsilon: at 32 observed against 3.32 expected
+    # it returned 4.4e-16 for a true 7.2e-21, and at 90 against 3.57 it returned
+    # 6.7e-16 for 1.1e-90. The flagging decision survived that -- everything
+    # floors well under any Bonferroni threshold -- but the reported probability
+    # is a number people quote, and it was wrong by seventy orders of magnitude.
+    total = 0.0
+    index = observed
+    while True:
+        term = _term(index)
+        total += term
+        index += 1
+        if term <= total * 1e-17 or index > observed + 10_000:
+            break
+    return total
+
+
+def instrumental_instants(
+    ephemerides: Sequence[_Ephemeris],
+    *,
+    window: tuple[float, float] | None = None,
+    bin_minutes: float = SHARED_INSTANT_BIN_MINUTES,
+    alpha: float = SHARED_INSTANT_ALPHA,
+) -> dict[str, Any]:
+    """Absolute times at which far more targets dim than chance allows.
+
+    This is the check the shared-ephemeris screen cannot make. That screen
+    requires period agreement *and* phase agreement, deliberately, because
+    sharing merely some instant is common by chance. But a single instrumental
+    event -- a momentum dump, a scattered-light ramp -- is fitted by different
+    stars at *different* periods, each placing one transit on the event. Every
+    such target then shares an instant with the others and a full ephemeris with
+    none of them, so the screen sees nothing while the population is visibly
+    clustered in absolute time.
+
+    Measured on the v5 calibration: 32 targets with a transit inside one
+    30-minute bin against an expectation of 3.3, p = 7e-21, sharing no common
+    period (correction 85).
+
+    The null is phase-uniform: a target of period P places a transit in a bin of
+    width `step` with probability step/P, so the expectation is the summed
+    occupancy over the targets that could contribute. Bins are then scored by
+    their Poisson upper tail and kept only if they survive a Bonferroni
+    correction for the number of bins searched -- correction 82's lesson, that a
+    raw ratio stops meaning the same thing when the population changes size.
+    """
+
+    step = bin_minutes / (24.0 * 60.0)
+    usable = [item for item in ephemerides if item.period > 0]
+    if not usable or step <= 0:
+        return {"instants": [], "bins_searched": 0, "bin_days": step}
+
+    if window is None:
+        # Every reported epoch lies inside the data that produced it, so their
+        # span is a floor on the observed window. Stated rather than assumed:
+        # a caller with the real window should pass it, because a short span
+        # counts fewer transits per target and weakens the test.
+        low = min(item.epoch for item in usable)
+        high = max(item.epoch for item in usable)
+    else:
+        low, high = float(window[0]), float(window[1])
+    if not (high > low):
+        return {"instants": [], "bins_searched": 0, "bin_days": step}
+
+    # Bin the transit centres themselves rather than walking a grid of epochs
+    # and re-testing every target at each one: the grid walk is bins x targets,
+    # which does not survive a 64,000-target campaign, while this is linear in
+    # the number of transits.
+    occupancy: dict[int, set[int]] = {}
+    transits_by_tic: dict[int, list[float]] = {}
+    expected_per_bin = 0.0
+    for item in usable:
+        expected_per_bin += min(1.0, step / item.period)
+        first = math.ceil((low - item.epoch) / item.period)
+        last = math.floor((high - item.epoch) / item.period)
+        if last < first:
+            continue
+        times: list[float] = []
+        for number in range(first, last + 1):
+            moment = item.epoch + number * item.period
+            times.append(moment)
+            occupancy.setdefault(int((moment - low) // step), set()).add(item.tic_id)
+        transits_by_tic[item.tic_id] = times
+
+    bins_searched = max(1, int((high - low) // step) + 1)
+    threshold = alpha / bins_searched
+    instants: list[dict[str, Any]] = []
+    for index, holders in occupancy.items():
+        observed = len(holders)
+        probability = _poisson_upper_tail(observed, expected_per_bin)
+        if probability >= threshold:
+            continue
+        instants.append(
+            {
+                "bin_index": index,
+                "start_btjd": round(low + index * step, 6),
+                "end_btjd": round(low + (index + 1) * step, 6),
+                "targets": observed,
+                "expected_targets": round(expected_per_bin, 6),
+                "enrichment": round(observed / expected_per_bin, 6)
+                if expected_per_bin > 0
+                else None,
+                "probability": probability,
+                "tic_ids": sorted(holders),
+            }
+        )
+    instants.sort(key=lambda entry: -int(entry["targets"]))
+    return {
+        "instants": instants,
+        "bins_searched": bins_searched,
+        "bin_days": step,
+        "expected_targets_per_bin": round(expected_per_bin, 6),
+        "trials_correction": f"Bonferroni, alpha={alpha} over {bins_searched} bins",
+        "window_btjd": [round(low, 6), round(high, 6)],
+        "window_source": "supplied" if window is not None else "epoch span (floor)",
+        "_transits_by_tic": transits_by_tic,
+    }
+
+
+def screen_shared_instants(
+    rows: Iterable[dict[str, Any]],
+    *,
+    metadata: dict[int, dict[str, Any]] | None = None,
+    window: tuple[float, float] | None = None,
+    bin_minutes: float = SHARED_INSTANT_BIN_MINUTES,
+    alpha: float = SHARED_INSTANT_ALPHA,
+    minimum_event_fraction: float = MIN_INSTRUMENTAL_EVENT_FRACTION,
+) -> dict[int, dict[str, Any]]:
+    """Flag targets whose events are mostly instrumental instants.
+
+    A verdict per target, never a claim about the star. Coinciding with one
+    instrumental instant is not disqualifying -- a real planet with five
+    transits will occasionally put one on a momentum dump. What is disqualifying
+    is a fit whose events are *mostly* shared: that is a signal assembled from
+    the observatory's timeline rather than the star's.
+    """
+
+    collected = _collect(rows, metadata)
+    report = instrumental_instants(
+        collected, window=window, bin_minutes=bin_minutes, alpha=alpha
+    )
+    flagged_bins = {int(entry["bin_index"]): entry for entry in report["instants"]}
+    transits_by_tic: dict[int, list[float]] = report["_transits_by_tic"]
+    low = report.get("window_btjd", [0.0, 0.0])[0]
+    step = report["bin_days"]
+
+    verdicts: dict[int, dict[str, Any]] = {}
+    for item in collected:
+        times = transits_by_tic.get(item.tic_id, [])
+        if not times:
+            continue
+        on_instant = [
+            moment
+            for moment in times
+            if int((moment - low) // step) in flagged_bins
+        ]
+        fraction = len(on_instant) / len(times)
+        flagged = bool(on_instant) and fraction >= minimum_event_fraction
+        verdicts[item.tic_id] = {
+            "verdict": (
+                "shared_instant_systematic" if flagged else "independent_instants"
+            ),
+            "observed_events": len(times),
+            "events_on_shared_instants": len(on_instant),
+            "shared_event_fraction": round(fraction, 6),
+            "strongest_instant_targets": max(
+                (int(flagged_bins[int((m - low) // step)]["targets"]) for m in on_instant),
+                default=0,
+            ),
+            "instants_searched": report["bins_searched"],
+        }
+    return verdicts
 
 
 def screen_campaign(
