@@ -3223,6 +3223,53 @@ the current stack can settle.
     and scrambled 0.003148 (3, up from 2). `--trusted-first-pass` remains
     unsatisfiable.
 
+84. **The post-screen gate was computed and it still fails — because the
+    common-mode screen flags at enrichment ≥ 10 while the epoch gate fails above
+    2, and the band between them is where the systematics now live.** Correction
+    83 proposed moving the gate one stage further, after the common-mode screen,
+    on the argument that a 9.208 d ephemeris shared by 90 stars is exactly what
+    the screen exists to catch. Measured, that argument is **half right**, and
+    the half that is wrong is the useful part.
+
+    | stage | v4 (no floor) | v5 (floor) |
+    |---|---|---|
+    | raw, all signals | 952 signals, 5.027, 81 sig bins | 953, 4.527, **280** sig bins |
+    | + triage | 72, **1.000**, 0 sig bins → passes | 183, **25.225**, 26 sig bins |
+    | + common-mode screen | 72, 1.000, 0 → passes | 125, **9.651**, 13 sig bins → **fails** |
+
+    The screen does real work: it removes **58 of 183** as
+    `common_mode_systematic` and takes the gate from 25.2 to 9.65. It removes
+    the 9.208 d family almost entirely — only 1% of the 125 survivors remain in
+    the 9.1–9.3 d band. **It does not finish the job.**
+
+    **What is left is a 13.02 d family sitting just under the screen's
+    threshold.** The residual significant bins are at BTJD 1692.417, 1705.438,
+    1744.521, 1757.542 and 1757.563 — **spaced 13.021 d apart, matching the
+    survivors' median period of 13.028 d** — with enrichments of **6.4 to 9.65**
+    and probabilities down to **p = 7×10⁻²¹**. Every one of the 125 survivors is
+    stamped `independent_timing`.
+
+    **The numbers name the defect.** `commonmode.MIN_ENRICHMENT` is **10.0**. The
+    epoch gate's ceiling is **2.0**. A signal whose ephemeris is shared by 32
+    unrelated stars against an expectation of 3.3 is a 21-sigma-equivalent
+    coincidence, and the screen declines to flag it because 9.65 < 10.0.
+    **Everything between 2 and 10 is a systematic the screen will not call and
+    the gate will not accept** — a factor-of-five inconsistency between two
+    layers that were each defensible alone and were never compared.
+
+    So the honest status of correction 83's proposal: moving the gate after the
+    screen is *correct in principle* — it is the population the survey delivers —
+    but it does not make the gate pass, and adopting it on the expectation that
+    it would would have been adopting it for the wrong reason. The real question
+    it exposes is which of the two thresholds is wrong, and that is a scientific
+    judgement about how much shared timing is tolerable in a delivered
+    candidate, not an arithmetic one.
+
+    Recorded and not acted on. Lowering `MIN_ENRICHMENT` is a kernel change that
+    reclassifies stars across the whole survey — correction 71 is the standing
+    record of what a screen change can silently do — and raising the gate ceiling
+    would be fitting the test to the result.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
