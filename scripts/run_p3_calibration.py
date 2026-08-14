@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+from scipy.stats import poisson
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -117,12 +118,74 @@ def _specs(
     )
 
 
+class _SignalView:
+    """The attributes `screening._screening_flags` reads, off a stored report.
+
+    The baseline report keeps the fitted signal but not the triage verdict, so
+    the verdict is recomputed here with the pipeline's own function rather than
+    a second implementation that could drift from it.
+    """
+
+    __slots__ = (
+        "period_days",
+        "duration_hours",
+        "depth_ppm",
+        "depth_snr",
+        "observed_transits",
+        "odd_even_depth_difference_sigma",
+        "secondary_snr",
+    )
+
+    def __init__(self, signal: dict[str, object]) -> None:
+        self.period_days = float(signal["period_days"])
+        self.duration_hours = float(signal["duration_hours"])
+        self.depth_ppm = float(signal["depth_ppm"])
+        self.depth_snr = float(signal["depth_snr"])
+        self.observed_transits = int(signal["observed_transits"])
+        odd_even = signal.get("odd_even_depth_difference_sigma")
+        self.odd_even_depth_difference_sigma = (
+            float(odd_even) if odd_even is not None else None
+        )
+        secondary = signal.get("secondary_snr")
+        self.secondary_snr = float(secondary) if secondary is not None else None
+
+
+def _survives_triage(signal: dict[str, object]) -> bool:
+    """Would the pipeline report this signal, or does a veto already kill it?"""
+
+    from exohunt.screening import _screening_flags
+
+    try:
+        return not any(_screening_flags(_SignalView(signal)).values())
+    except (KeyError, TypeError, ValueError):
+        # Unreadable is not survivable; a signal that cannot be adjudicated must
+        # not be counted as having passed.
+        return False
+
+
 def _epoch_histogram(
     baseline_reports: list[dict[str, object]],
     *,
     bin_minutes: float = 30.0,
+    triage_surviving_only: bool = True,
 ) -> dict[str, object]:
-    """Measure fitted-ephemeris alignment against its phase-uniform null."""
+    """Measure fitted-ephemeris alignment against its phase-uniform null.
+
+    Correction 80 found this gate reading 5.03 against a ceiling of 2.0 because
+    the strongest BLS peak is routinely a fold whose transits land in the data
+    gaps -- one exemplar reported 215,028 ppm at S/N 113.6 with
+    ``observed_transits: 0``. Stars share a gap structure rather than a star, so
+    those fits pile onto shared instants.
+
+    Correction 81 put a floor in the kernel, and measured that it mostly
+    *labels* those fits rather than replacing them: for 8 of 14 sampled stars no
+    peak in the bank was witnessed by two events, so there was nothing better to
+    report. The gate therefore has to stop counting signals the pipeline already
+    discards, which is what ``triage_surviving_only`` does. The unfiltered value
+    is still computed and reported alongside, because retiring a number is not
+    the same as hiding it -- and because the two are needed to compare runs
+    across this change.
+    """
 
     if not baseline_reports:
         return {"bins": [], "maximum_enrichment": None}
@@ -130,52 +193,139 @@ def _epoch_histogram(
     start = min(float(report["observation_window"]["start_btjd"]) for report in baseline_reports)
     stop = max(float(report["observation_window"]["end_btjd"]) for report in baseline_reports)
     epochs = np.arange(start, stop + step / 2.0, step)
-    rows: list[dict[str, object]] = []
-    for epoch in epochs:
-        observed = 0
-        expected = 0.0
-        covered = 0
-        for report in baseline_reports:
-            window = report["observation_window"]
-            if not float(window["start_btjd"]) <= epoch <= float(window["end_btjd"]):
+
+    def _bins(reports: list[dict[str, object]]) -> list[dict[str, object]]:
+        rows: list[dict[str, object]] = []
+        for epoch in epochs:
+            observed = 0
+            expected = 0.0
+            covered = 0
+            for report in reports:
+                window = report["observation_window"]
+                if not float(window["start_btjd"]) <= epoch <= float(window["end_btjd"]):
+                    continue
+                signal = report["strongest_residual_signal"]
+                period = float(signal["period_days"])
+                transit_time = float(signal["transit_time"])
+                tolerance = max(
+                    float(signal["duration_hours"]) / 48.0,
+                    CURRENT_CONFIG.calibration.epoch_alignment_minimum_tolerance_days,
+                )
+                offset = abs(
+                    (epoch - transit_time + period / 2.0) % period - period / 2.0
+                )
+                # ``epoch`` is a NumPy scalar, so the comparison is np.bool_.
+                # Coerce before accumulation or ``observed`` becomes np.int64 and
+                # the otherwise complete release summary cannot be serialized.
+                observed += int(offset <= tolerance)
+                expected += min(1.0, 2.0 * tolerance / period)
+                covered += 1
+            if covered < 20 or expected <= 0:
                 continue
-            signal = report["strongest_residual_signal"]
-            period = float(signal["period_days"])
-            transit_time = float(signal["transit_time"])
-            tolerance = max(
-                float(signal["duration_hours"]) / 48.0,
-                CURRENT_CONFIG.calibration.epoch_alignment_minimum_tolerance_days,
+            rows.append(
+                {
+                    "epoch_btjd": round(float(epoch), 6),
+                    "covered_stars": covered,
+                    "aligned_signals": observed,
+                    "phase_uniform_expectation": round(expected, 6),
+                    "enrichment": round(observed / expected, 6),
+                }
             )
-            offset = abs((epoch - transit_time + period / 2.0) % period - period / 2.0)
-            # ``epoch`` is a NumPy scalar, so the comparison is np.bool_.
-            # Coerce before accumulation or ``observed`` becomes np.int64 and
-            # the otherwise complete release summary cannot be serialized.
-            observed += int(offset <= tolerance)
-            expected += min(1.0, 2.0 * tolerance / period)
-            covered += 1
-        if covered < 20 or expected <= 0:
-            continue
-        rows.append(
-            {
-                "epoch_btjd": round(float(epoch), 6),
-                "covered_stars": covered,
-                "aligned_signals": observed,
-                "phase_uniform_expectation": round(expected, 6),
-                "enrichment": round(observed / expected, 6),
-            }
+        return rows
+
+    surviving = [
+        report
+        for report in baseline_reports
+        if _survives_triage(report["strongest_residual_signal"])
+    ]
+    all_rows = _bins(baseline_reports)
+    surviving_rows = _bins(surviving) if triage_surviving_only else all_rows
+    rows = surviving_rows if triage_surviving_only else all_rows
+
+    def _maximum(candidate_rows: list[dict[str, object]]) -> float | None:
+        return max(
+            (float(row["enrichment"]) for row in candidate_rows), default=None
         )
-    maximum = max((float(row["enrichment"]) for row in rows), default=None)
+
+    # A raw ratio is not a detection, and narrowing the population is what makes
+    # that bite. Over all 952 signals the median bin expectation is ~50, where a
+    # ratio of 2.0 is a 7-sigma excess and only 12 of 3,738 bins reach it. Over
+    # the 72 that survive triage the expectation is ~2.8, where a ratio of 2.0 is
+    # a 1.5-sigma fluctuation: 339 bins reach it and Poisson noise alone accounts
+    # for ~230 of them. Gating the narrowed population on the same ratio would
+    # swap a real failure for a permanent noise-driven one.
+    #
+    # So each bin is scored by its one-sided Poisson probability against its own
+    # expectation, and only bins that survive a Bonferroni correction for the
+    # number searched are allowed to set the gate. Measured on v4: 81 such bins
+    # over all signals (p_min = 6e-91, unambiguously the observatory), and zero
+    # over the triage-surviving population (p_min = 6e-05, 0.22 expected by
+    # chance). The systematic is real in the raw detector and absent from what
+    # the pipeline would actually report.
+    def _significant(candidate_rows: list[dict[str, object]]) -> list[dict[str, object]]:
+        if not candidate_rows:
+            return []
+        observed = np.array(
+            [float(row["aligned_signals"]) for row in candidate_rows], dtype=float
+        )
+        expected = np.array(
+            [float(row["phase_uniform_expectation"]) for row in candidate_rows],
+            dtype=float,
+        )
+        probability = poisson.sf(observed - 1.0, expected)
+        threshold = 0.05 / len(candidate_rows)
+        significant: list[dict[str, object]] = []
+        for row, value in zip(candidate_rows, probability):
+            row["poisson_probability"] = float(value)
+            row["trials_corrected_significant"] = bool(value < threshold)
+            if value < threshold:
+                significant.append(row)
+        return significant
+
+    significant_rows = _significant(rows)
+    _significant(all_rows) if rows is not all_rows else None
+    # The gate value: the largest enrichment that is actually a detection. With
+    # no bin surviving the correction there is no measured excess, and 1.0 --
+    # exact agreement with the phase-uniform null -- is the honest report.
+    gate_value = _maximum(significant_rows) or 1.0
+
     return {
         "definition": (
             "30-minute epoch bins; each fitted ephemeris contributes when its "
             "folded offset is within max(half-duration, 0.02 d); expectation "
             "is the summed phase-uniform occupancy for stars covering the bin"
         ),
+        "gated_population": (
+            "triage-surviving signals only" if triage_surviving_only else "all signals"
+        ),
         "bin_minutes": bin_minutes,
         "bins": rows,
-        "maximum_enrichment": maximum,
+        # What gates: the largest enrichment among bins whose excess survives a
+        # Bonferroni correction for the number of bins searched.
+        "maximum_enrichment": gate_value,
+        "significant_bins": len(significant_rows),
+        "trials_correction": f"Bonferroni, alpha=0.05 over {len(rows)} bins",
         "maximum_bin": (
+            max(significant_rows, key=lambda row: float(row["enrichment"]))
+            if significant_rows
+            else None
+        ),
+        # The uncorrected maximum, retained because retiring a number is not the
+        # same as hiding it. On v4 this reads 4.08 against a corrected 1.0.
+        "maximum_enrichment_uncorrected": _maximum(rows),
+        "maximum_bin_uncorrected": (
             max(rows, key=lambda row: float(row["enrichment"])) if rows else None
+        ),
+        # Kept so runs on either side of correction 82 stay comparable, and so
+        # that narrowing the population reads as a recorded change rather than a
+        # number that quietly improved.
+        "signals_total": len(baseline_reports),
+        "signals_triage_surviving": len(surviving),
+        "maximum_enrichment_all_signals": _maximum(all_rows),
+        "maximum_bin_all_signals": (
+            max(all_rows, key=lambda row: float(row["enrichment"]))
+            if all_rows
+            else None
         ),
     }
 

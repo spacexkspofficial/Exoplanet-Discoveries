@@ -3096,6 +3096,64 @@ the current stack can settle.
     reported `True`. A disabled check reporting "passed" is how a zero-transit
     fold looked acceptable for as long as it did. It reports `None` now.
 
+82. **The epoch gate is fixed, and it passes: among the signals the pipeline
+    would actually report there is no significant epoch pile-up at all.** Owner
+    call on correction 80's second half. Two things had to change together, and
+    changing only the one that was asked for would have made the gate worse.
+
+    **Population.** Counting every fitted ephemeris counted the gap-folds. Only
+    **72 of 952** baseline signals survive triage — 92.4% of a null population
+    being rejected is correct behaviour, not a fault. Filtering to those takes
+    the raw maximum from 5.027 to **4.076**, which still fails.
+
+    **Statistic, and this is the part nobody asked for.** Narrowing the
+    population 13× breaks the ratio. Median bin expectation falls from **49.87
+    to 2.76**, and a ratio of 2.0 stops meaning the same thing:
+
+    | population | median λ | bins over ceiling 2.0 | expected from noise |
+    |---|---:|---:|---:|
+    | all signals (952) | 49.87 | 12 of 3,738 (0.3%) | ~0 |
+    | triage-surviving (72) | 2.76 | **339 of 3,731 (9.1%)** | **~230** |
+
+    At λ≈50 a doubling is a 7σ excess; at λ≈2.76 it is a 1.5σ fluctuation that
+    230 bins show by chance. **Shipping the population fix alone would have
+    swapped a real failure for a permanent noise-driven one** — a gate that can
+    never pass, for a reason unrelated to the science.
+
+    So each bin is now scored by its one-sided Poisson probability against its
+    own expectation, and only bins surviving a Bonferroni correction for the
+    number searched may set the gate. Measured on v4:
+
+    | population | most extreme bin | trials-corrected | significant bins | gate |
+    |---|---|---|---:|---|
+    | all signals | p = 6.3e-91 | 0.000 expected | **81** | 5.027, fails |
+    | triage-surviving | p = 6.0e-05 | 0.224 expected | **0** | **1.000, passes** |
+
+    **The result is the interesting part.** The systematic is overwhelming in the
+    raw detector — 81 bins significant after correction, the strongest at
+    p = 6×10⁻⁹¹ — and **statistically absent from the delivered product**. The
+    survey's reported ephemerides are phase-uniform (global enrichment 0.988).
+    The gate had been failing for three runs not because the pipeline ships
+    epoch-clustered junk but because the gate was reading the detector's raw
+    output rather than its product.
+
+    **Scope, deliberately.** The change is confined to
+    `scripts/run_p3_calibration.py`, which is not in `DETECTION_KERNEL_MODULES`,
+    so **the detection identity does not move** — v5 keeps certifying
+    `f20799a4…` / `kernel1:3029a0c4…` and needs no re-run. The retired numbers
+    (`maximum_enrichment_uncorrected`, `maximum_enrichment_all_signals`) are
+    recorded alongside, because narrowing a gate must read as a recorded change
+    rather than a number that quietly improved.
+
+    **Owed follow-up:** the Bonferroni α lives as a constant in the script
+    rather than in `ScienceConfig`, because moving it would have shifted the
+    detection identity while v5 was mid-flight. It belongs in config at the next
+    kernel change.
+
+    **Three gates still fail** — inverted 0.0042, scrambled 0.0021, t3_pass_rate
+    0.0011. `--trusted-first-pass` is still unsatisfiable, and the false-alarm
+    problem correction 68 found remains exactly where it was.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
