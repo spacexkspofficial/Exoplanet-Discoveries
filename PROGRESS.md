@@ -3270,6 +3270,50 @@ the current stack can settle.
     record of what a screen change can silently do — and raising the gate ceiling
     would be fitting the test to the result.
 
+85. **Correction 84 was wrong, and the error is instructive: I compared two
+    different quantities that share a name.** 84 concluded that the screen
+    "declines to flag it because 9.65 < 10.0", pointing at
+    `commonmode.MIN_ENRICHMENT`. That is false. Measured directly, setting
+    `MIN_ENRICHMENT` to 5.0, 3.0 or **2.0 changes nothing at all** — 58 of 183
+    flagged in every case, gate 9.6506, 13 significant bins, identical. The
+    owner's instruction to lower it to 2 and re-calibrate would have bought a
+    new detection identity and a nine-hour run for a byte-identical result.
+
+    **The two "enrichments" are not the same statistic.** The epoch histogram's
+    is *aligned signals ÷ phase-uniform expectation in a 30-minute bin*. The
+    screen's is *shared targets ÷ expected sharers for one target's ephemeris*.
+    I read 9.65 off the first and compared it to a threshold on the second. The
+    project has a standing entry for exactly this shape — correction 55, a wall
+    clock divided by a count — and this is the same error in a new costume.
+
+    **The real binding constraint, measured.** Of the 125 stars the screen does
+    not flag, **125 (100%) fail `shared_targets >= 10`**, with a median of **0**
+    sharers and a maximum of 8. Only 91 of 125 fail the enrichment test at all.
+    Lowering `MIN_SHARED_TARGETS` would not rescue it either: a median of zero
+    means most of these stars share a full ephemeris with *nobody*.
+
+    **Why that is not a defect in the screen.** `commonmode`'s own docstring
+    says it: "in a five-thousand-target campaign a target's transits will
+    overlap *some* other target's by chance almost always, so 'shares an
+    instant' is nearly uninformative", which is why it requires period agreement
+    *and* phase agreement. The epoch gate measures instant-sharing alone. So the
+    two layers are not miscalibrated against each other — **they measure
+    different things on purpose**, and no threshold change reconciles them.
+
+    **What the gate is actually seeing.** 32 stars with a transit inside one
+    30-minute bin against an expectation of 3.3 (p = 7×10⁻²¹) while sharing no
+    common period is the signature of a **single instrumental instant that
+    different stars fit at different periods** — each period placing one transit
+    on the event. That is real, it is instrumental, and it is structurally
+    invisible to a whole-ephemeris screen. The gate is not wrong and the screen
+    is not wrong; there is no check between them that catches a one-off event
+    fitted at incoherent periods.
+
+    Recorded before acting, because the cheap measurement falsified the
+    expensive plan. The open question is now a real one — whether to build a
+    shared-instant check, distinct from the shared-ephemeris screen — and not
+    the threshold tweak correction 84 implied.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
