@@ -7,10 +7,24 @@ on:
 permissions:
   contents: read
 
+# A push that supersedes an earlier one should not leave the old run occupying a
+# Windows runner. Queued time counts against nothing useful and made slow runs
+# slower.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  python:
     runs-on: windows-latest
-    timeout-minutes: 30
+    # Was 30 for both halves of the build combined. Measured on a fast local
+    # machine the Python half alone is ~4 min of pytest plus install, and a
+    # Windows runner is several times slower at both; the suite has also grown
+    # from ~490 tests to 550. Splitting the dashboard into its own job and
+    # raising the cap removes a limit the build had grown into. If a run ever
+    # approaches this number again the answer is to make the suite faster, not
+    # to raise it further.
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
@@ -28,17 +42,41 @@ jobs:
         # CI red on every push from 2026-08-09.
         run: python -m pip install -e ".[dev,fits]"
 
+      - name: Record the resolved dependency set
+        # Nothing here is pinned above a floor, so the runner resolves whatever
+        # is newest that day. When CI fails and the working tree does not, this
+        # is the first thing worth comparing -- and without it the comparison
+        # needs a local clean-venv install to reconstruct.
+        run: python -m pip freeze
+
       - name: Check Python dependencies
         run: python -m pip check
 
       - name: Run Python tests
-        run: python -m pytest -q
+        # Durations make a slow suite visible before it becomes a timeout.
+        run: python -m pytest -q --durations=15
+
+  dashboard:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: dashboard/package-lock.json
+
+      - name: Record the resolved toolchain
+        # npm 11 blocks lifecycle scripts by default, which stops esbuild's
+        # postinstall from placing its platform binary. Node 22 ships npm 10, so
+        # this build is fine today; record the version so the day that changes
+        # is a visible line in the log rather than a mystery.
+        run: |
+          node --version
+          npm --version
 
       - name: Install dashboard dependencies
         working-directory: dashboard

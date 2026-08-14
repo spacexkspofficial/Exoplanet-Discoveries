@@ -30,6 +30,11 @@ dependencies = [
   "psutil>=5.9",
   "reportlab>=4.2,<5",
   "requests>=2.31,<3",
+  # Arrives transitively through lightkurve and wotan, but correction 82 imports
+  # `scipy.stats.poisson` directly to score epoch bins against their own
+  # expectation. A direct import resting on someone else's dependency is the
+  # kind of thing that turns green locally and red on a clean install.
+  "scipy>=1.11",
   # transitleastsquares imports batman, whose openmp probe imports distutils;
   # on Python 3.12 distutils only exists through setuptools' shim.
   "setuptools>=69",
