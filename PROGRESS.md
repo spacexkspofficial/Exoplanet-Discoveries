@@ -3154,6 +3154,75 @@ the current stack can settle.
     0.0011. `--trusted-first-pass` is still unsatisfiable, and the false-alarm
     problem correction 68 found remains exactly where it was.
 
+83. **v5: the transit floor is a large completeness win, and it converts an
+    unwitnessed artifact into a witnessed one that passes triage.** Finished
+    2026-08-14 01:07, 953 stars, **47 errors — exactly the permanently
+    unavailable set**, certifying `sig1:50127d31…` / `kernel1:3029a0c4…`.
+    v5 differs from v4 by one flag, so everything below is the floor.
+
+    **The prediction was wrong, in the good direction.** I predicted completeness
+    might fall, because a floor that replaces a fit can replace a correct one:
+
+    | quantity | v4 | v5 | predicted |
+    |---|---:|---:|---|
+    | `recovered` | 656 | **713** | might drop |
+    | raw completeness | 0.18427 | **0.20112** | might drop |
+    | promotion completeness | 0.08090 | 0.08371 | — |
+    | `t3_pass_rate` | 0.001050 | **0.002099** | barely move |
+    | `epoch_enrichment` (old defn) | 5.0268 | 4.5268 | 4.3–4.9 ✓ |
+
+    Row for row across 3,560 shared injections: **`recovered` gained 57 and lost
+    zero**, `promotion_recovered` gained 11 and lost zero, and **50 injections
+    moved `miss` → `exact`** against 9 moving the other way. The mechanism is
+    now obvious in hindsight: a gap-fold was *outranking the real signal*, and
+    refusing it let the true period surface. **`t3_pass_rate` crosses into its
+    band and passes for the first time.** Three of six gates now pass.
+
+    **My pre-check under-read this badly and the reason is worth keeping.** I
+    sampled 14 stars *that drove the enrichment* and found 8 of 14 unmeetable,
+    concluding the floor would mostly relabel rather than fix. It does relabel —
+    for those stars. But they are the pathological tail, and I generalised from
+    a sample selected for being pathological. The population-wide effect is 57
+    recoveries. **Sampling the worst cases measures the worst case, not the
+    change.**
+
+    **And now the finding that matters, which runs the other way.** Under
+    correction 82's gate the surviving population went from clean to badly
+    contaminated:
+
+    | run | triage survivors | significant bins | gate |
+    |---|---:|---:|---:|
+    | v4 (no floor) | 72 of 952 | **0** | 1.000, passes |
+    | v5 (floor) | **183** of 953 | **26** | **25.225, fails** |
+
+    The floor more than doubled the surviving population, and among the arrivals
+    is a **9.208 d systematic witnessed by real events**: 90 of 183 signals
+    aligned in a single 30-minute bin at BTJD 1692.417 (expected 3.57,
+    p = 1×10⁻⁹⁰), with further bins at 1701.625, 1710.833, 1720.042 and 1729.250
+    — **spaced 9.208 d apart, matching the surviving population's median period
+    of 9.207 d**. It is not the old artifact: **0% of survivors sit in the
+    17.7–17.9 d band** and 1% on the 0.5 h duration rail. Median duration 0.95 h,
+    median depth 25,205 ppm, median 3 observed transits.
+
+    So before the floor these stars reported zero-transit gap-folds that triage
+    discarded; after it they report a witnessed instrumental signal that triage
+    accepts. **The floor did not create the systematic — it made it legible, and
+    moved it from a population nobody counted into one that gates a release.**
+
+    **This is not an argument for reverting the floor.** It recovers 57 real
+    injected planets and loses none. It is an argument that the epoch gate is
+    still measuring the wrong stage: a 9.208 d ephemeris shared by 90 unrelated
+    stars is precisely what `screen_campaign` exists to catch, and the screen
+    runs *downstream* of triage. Correction 82 moved the gate from the raw
+    detector to the triage-surviving population; the same logic taken one step
+    further puts it after the common-mode screen, which is what the survey
+    actually delivers. That is the next owner decision, and it should be made on
+    a measurement rather than on this paragraph.
+
+    **Two gates still fail on their own terms** — inverted 0.004197 (4 events)
+    and scrambled 0.003148 (3, up from 2). `--trusted-first-pass` remains
+    unsatisfiable.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
