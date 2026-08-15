@@ -1,6 +1,6 @@
 """Direct measurement of trend-model bias at segment edges.
 
-`P2_EDGE_DIAGNOSTIC.md` closed two edge-recovery mechanisms and named what the
+`docs/p2/P2_EDGE_DIAGNOSTIC.md` closed two edge-recovery mechanisms and named what the
 next one must do: *measure or avoid trend-model bias itself*. Both rejected arms
 assumed the edge problem was a **support** problem -- too few samples -- and
 tried to price it with a sample count (a support floor, an uncertainty inflation
@@ -42,7 +42,7 @@ mechanisms priced the edge with an uncertainty inflation ``1/f**alpha``, and an
 uncertainty is a *variance*. The white null is exactly the variance term: same
 noise amplitude, no structure for a truncated window to mis-extrapolate. Excess
 of observed over it is therefore precisely the part of the edge error that no
-uncertainty inflation can price, which is the claim `P2_EDGE_DIAGNOSTIC.md`
+uncertainty inflation can price, which is the claim `docs/p2/P2_EDGE_DIAGNOSTIC.md`
 made from downstream survivor counts and never measured directly.
 
 The detrended null is reported alongside it as a deliberately conservative

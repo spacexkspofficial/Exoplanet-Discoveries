@@ -4,6 +4,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from uuid import uuid4
 
 import numpy as np
 import pytest
@@ -11,6 +12,7 @@ from filelock import FileLock
 
 import exohunt.campaign as campaign_module
 import exohunt.cli as cli_module
+from exohunt.lease import acquire_machine_lock
 from exohunt.cli import (
     LEGACY_COMMON_MODE_REASON,
     LEGACY_COMMON_MODE_REASONS,
@@ -446,9 +448,24 @@ def test_partial_checkpoint_maps_rows_by_identity_and_requires_storage_headroom(
     )
 
 
-def test_batch_hunt_refuses_a_duplicate_campaign_worker(tmp_path: Path) -> None:
+def test_batch_hunt_refuses_a_duplicate_campaign_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     output_dir = tmp_path / "campaign"
     output_dir.mkdir()
+
+    # `_batch_hunt` takes the machine-wide coordinator lease *before* it looks
+    # at the per-directory lock, and a second coordinator returns 0 by design so
+    # restart automations do nothing. Without a private lease this test asserts
+    # on that branch instead: on a machine with a campaign genuinely running it
+    # fails with "DID NOT RAISE", having never reached the lock it is about.
+    # That made the suite's result depend on whether the server was busy.
+    lease = acquire_machine_lock(
+        f"exohunt-test-{uuid4().hex}", directory=tmp_path, force_file_lock=True
+    )
+    assert lease is not None
+    monkeypatch.setattr(campaign_module, "acquire_machine_lock", lambda: lease)
+
     lock = FileLock(str(output_dir / ".batch-hunt.lock"))
     lock.acquire(timeout=0)
     try:
@@ -456,6 +473,9 @@ def test_batch_hunt_refuses_a_duplicate_campaign_worker(tmp_path: Path) -> None:
             _batch_hunt(argparse.Namespace(output_dir=str(output_dir)))
     finally:
         lock.release()
+        # Idempotent; `_batch_hunt` releases the lease it was handed on its way
+        # out of the error path.
+        lease.release()
 
 
 def test_target_csv_validation_rejects_duplicate_rows(tmp_path: Path) -> None:

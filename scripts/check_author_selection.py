@@ -100,7 +100,8 @@ def main() -> int:
             "\nFAIL: too much of this campaign ran on a local TESScut "
             "extraction. If --author auto was used, the archive queries are "
             "probably failing; if TESScut was requested explicitly, this run "
-            "reproduces the spacecraft systematics documented in HANDOFF.md. "
+            "reproduces the spacecraft systematics documented in "
+            "docs/archive/HANDOFF-2026-08-02.md. "
             "Stop the campaign and investigate before letting it continue.",
             file=sys.stderr,
         )

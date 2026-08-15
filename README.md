@@ -13,7 +13,7 @@ full-frame images for this first stage.
 
 For a plain-English explanation of the planets this workflow favors, the ones
 it routinely misses, and why a null result is not a planet-free star, see
-[`DETECTION_LIMITS.md`](DETECTION_LIMITS.md).
+[`DETECTION_LIMITS.md`](docs/science/DETECTION_LIMITS.md).
 
 ## Download or migrate
 
@@ -26,7 +26,7 @@ cd Exoplanet-Discoveries
 
 Source code, tests, target lists, dashboard assets, and research notes are kept
 in Git. Large generated survey evidence is distributed separately through a
-GitHub release so a normal clone stays small. See [MIGRATION.md](MIGRATION.md)
+GitHub release so a normal clone stays small. See [MIGRATION.md](docs/archive/MIGRATION.md)
 for the exact restore procedure and the list of intentionally excluded caches.
 
 ## Setup
@@ -134,7 +134,7 @@ Run the complete known-planet benchmark (about five ordinary light-curve files):
 It tests a deep hot Jupiter, a small ultra-short-period planet, a shallow
 sub-Neptune, a recent dual-cadence sector, and an intentional single-sector
 harmonic-alias case. Reports and plots are saved under `results/validation/`.
-The latest interpreted results are summarized in [`VALIDATION.md`](VALIDATION.md).
+The latest interpreted results are summarized in [`VALIDATION.md`](docs/science/VALIDATION.md).
 
 ## Multi-sector and residual searches
 
@@ -262,7 +262,7 @@ Each result is also assigned a scoped follow-up class:
   pixel localization, catalog/TCE checks, and independent-sector analysis.
 
 The queue is the handoff to a separate, storage-bounded workflow rather than a
-claim of discovery. See [`SURVIVOR_VETTING.md`](SURVIVOR_VETTING.md) for the
+claim of discovery. See [`SURVIVOR_VETTING.md`](docs/science/SURVIVOR_VETTING.md) for the
 catalog, pixel-localization, alternate-reduction, cross-survey, and promotion
 gates.
 
@@ -459,7 +459,7 @@ final classification:
 
 The dashboard reads these reports directly, so a completed science pass replaces
 the earlier metadata disposition for every measured star. See
-[`SURVIVOR_VETTING.md`](SURVIVOR_VETTING.md) for the full lane definitions.
+[`SURVIVOR_VETTING.md`](docs/science/SURVIVOR_VETTING.md) for the full lane definitions.
 
 ### Rejecting the observatory instead of the star
 
@@ -524,7 +524,7 @@ The append-only event log is `metrics/events.jsonl`; the current aggregate is
 `metrics/current_stats.json`. Campaign reruns and outcome replays are counted
 idempotently. The report generator stays available, but should be invoked only
 after a signal has been promoted to a genuinely vetted candidate. See
-[`REPORTING_GUIDE.md`](REPORTING_GUIDE.md) for that later workflow.
+[`REPORTING_GUIDE.md`](docs/science/REPORTING_GUIDE.md) for that later workflow.
 
 ## Measure sensitivity with injected planets
 
@@ -539,7 +539,7 @@ The command masks catalogued transits, injects deterministic box-shaped events,
 runs the normal BLS search, and saves JSON, CSV, and a recovery heatmap under
 `results/completeness/`. The first GJ 341 calibration recovered all tested
 300- and 1000-ppm signals, plus the 1-day 100-ppm signal; it missed the 5- and
-12-day 100-ppm cases. See [`MILESTONE4.md`](MILESTONE4.md).
+12-day 100-ppm cases. See [`MILESTONE4.md`](docs/archive/MILESTONE4.md).
 
 This small grid uses one phase per period. It measures the behavior of this
 pipeline on this light curve, but it is not a publishable completeness result.

@@ -1,13 +1,94 @@
 version: 2
+
+# Why this file is more than four lines now.
+#
+# The previous config asked for weekly updates with a limit of five PRs per
+# ecosystem and said nothing else. By 2026-08-15 that had produced nine open
+# branches -- five npm, three pip, plus a dead research branch -- that
+# overlapped each other (two separately bumped the react family), sat at the
+# npm limit so nothing newer could be raised, and included three that must
+# never be merged on this repository. Nobody had merged one in two weeks.
+#
+# Two changes fix that: group the routine bumps into a single PR per ecosystem
+# so they stop competing for the limit, and say out loud which upgrades are
+# refused, so dependabot stops re-raising them every week.
+#
+# Every ignore below is scoped to `semver-major` on purpose. Patch and minor
+# updates -- which is what security fixes for these packages have been -- still
+# come through normally. Nothing here silences a security advisory.
+
 updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      python-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # The detection kernel's identity is a digest of module *source text*
+      # (src/exohunt/config.py, DETECTION_KERNEL_MODULES). It deliberately does
+      # not cover installed library versions, so a major bump in a numerical
+      # dependency can change what a search returns while `kernel_version()`
+      # reports the calibration is still valid. CI resolves the newest
+      # permitted version on every run, so widening a ceiling here is not a
+      # no-op -- it changes what CI tests against on the day the new major
+      # ships.
+      #
+      # Raising either ceiling is therefore a deliberate re-calibration
+      # decision (~16-21 h of compute), not a dependency chore. Do it by
+      # editing pyproject.toml with a plan for re-earning the signature.
+      - dependency-name: "astropy"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "numpy"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "scipy"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "lightkurve"
+        update-types: ["version-update:semver-major"]
+
+      # reportlab renders the candidate packets. The packet contract in §4.7
+      # pins what a packet must contain; a major renderer bump changes output
+      # that downstream review treats as a fixed format.
+      - dependency-name: "reportlab"
+        update-types: ["version-update:semver-major"]
+
+      # tess-point is pinned exactly (`geometry` extra) because it converts
+      # sky coordinates to pixels and an unreviewed change there moves every
+      # geometric veto. It is also not installed in the working venv, so a
+      # bumped pin is untested by construction. Bump it deliberately or not at
+      # all.
+      - dependency-name: "tess-point"
 
   - package-ecosystem: "npm"
     directory: "/dashboard"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      dashboard-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # TypeScript majors are a migration, not an upgrade: the build runs
+      # `tsc --noEmit` as a gate, so a major lands as a wall of type errors in
+      # CI rather than as a dependency bump. Schedule it as its own piece of
+      # work.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+
+      # @vitejs/plugin-react majors track vite majors and have their own
+      # config migration. Same reasoning.
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major"]
+
+      # @types/node must match the Node the project actually builds on --
+      # `engines.node` is >=22.13.0 and CI pins setup-node to 22. Accepting
+      # @types/node 26 would type the build against APIs the runtime does not
+      # have. Bump this only together with the engine and the CI matrix.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
