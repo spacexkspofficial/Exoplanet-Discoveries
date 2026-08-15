@@ -3418,6 +3418,63 @@ the current stack can settle.
     ephemeris raised `KeyError` instead of screening nothing. Both returns now
     carry the full shape and the reader is defensive.
 
+88. **v7 landed. The wiring changed nothing in detection, the staged gate ends
+    at 6.44, and my prediction was mis-framed rather than falsified by the
+    code.** `results/p5/calibration_ncvz_1000_v7_instant_wired`, 944 stars, 56
+    errors, `sig1:606dae2b…` / `kernel1:fe853e49…`.
+
+    **The prediction said "v7 identical to v5" and the comparison says NO. Both
+    reasons were knowable in advance and neither is about the instant screen.**
+
+    *First, denominators.* The rate gates all moved — inverted 0.004197 →
+    0.004237, scrambled 0.003148 → 0.003178, t3 0.002099 → 0.002119 — and the
+    **event counts behind them are identical: 4, 3 and 2.** Only the divisor
+    changed, 953 → 944, because 9 more stars were lost to the MAST throttling
+    signature after the crash and resume. `recovered` is 713 in both.
+    `random_phase_completeness` is 0.20112 in both. Depth bias and edge gap are
+    identical to six decimals. **The wiring did not touch a single detection.**
+
+    *Second, and this one is my error.* `epoch_enrichment` reads 4.527 in v5 and
+    25.070 in v7 — because **I changed the gate's definition between the two
+    runs** (correction 82: triage-surviving population, trials-corrected
+    statistic). v5 computed its summary with the old in-memory definition, which
+    I noted at the time as the thing keeping v4/v5 comparable, and then wrote a
+    v7 prediction that ignored it. The right prediction was "identical event
+    counts and identical completeness", which held exactly. **A prediction that
+    does not name which definition it is stated under is not a prediction.**
+
+    **The staged gate, with the instant screen live for the first time:**
+
+    | stage | targets | gate | significant bins |
+    |---|---:|---:|---:|
+    | raw, all signals | 944 | 4.466 | 220 |
+    | + triage | 181 | 25.070 | 26 |
+    | + ephemeris screen | 124 | 9.690 | 13 |
+    | + **instant screen** | 113 | **6.437** | **3** |
+
+    v5's offline figures were 25.225 / 9.651 / 6.410 on 953 stars, so v7
+    reproduces them to within the nine-star difference — which also confirms the
+    offline method used to price this before the run existed. The instant screen
+    flags 65, of which **11 the ephemeris screen misses**.
+
+    **It still fails.** The full stack — triage, then shared ephemerides, then
+    shared instants — takes the epoch gate from 25.07 to 6.44 and stops there.
+    Three bins remain significant. Getting to 2.0 is not a thresholding problem;
+    it needs whatever produces the residual 13.02 d family (correction 84) to be
+    identified, and that is not yet known.
+
+    **And the epoch gate was never the binding constraint anyway.** Inverted at
+    4 events and scrambled at 3 fail on their own terms, untouched by every
+    change in corrections 80–87. `--trusted-first-pass` remains unsatisfiable,
+    and the false-alarm problem correction 68 found is still exactly where it
+    was.
+
+    Operational note: v7 died 33 minutes into its first attempt, along with the
+    publisher and a dashboard that had been up four days — no reboot, no sleep
+    event, no crash record, resources fine. Unattributed. The resumed run
+    completed normally from its 19 durable star files. If it recurs, a nine-hour
+    run on this machine needs something sturdier than `Start-Process`.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
