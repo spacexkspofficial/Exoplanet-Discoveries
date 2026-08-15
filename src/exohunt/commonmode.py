@@ -358,7 +358,13 @@ def instrumental_instants(
     step = bin_minutes / (24.0 * 60.0)
     usable = [item for item in ephemerides if item.period > 0]
     if not usable or step <= 0:
-        return {"instants": [], "bins_searched": 0, "bin_days": step}
+        return {
+            "instants": [],
+            "bins_searched": 0,
+            "bin_days": step,
+            "window_btjd": [0.0, 0.0],
+            "_transits_by_tic": {},
+        }
 
     if window is None:
         # Every reported epoch lies inside the data that produced it, so their
@@ -370,7 +376,13 @@ def instrumental_instants(
     else:
         low, high = float(window[0]), float(window[1])
     if not (high > low):
-        return {"instants": [], "bins_searched": 0, "bin_days": step}
+        return {
+            "instants": [],
+            "bins_searched": 0,
+            "bin_days": step,
+            "window_btjd": [0.0, 0.0],
+            "_transits_by_tic": {},
+        }
 
     # Bin the transit centres themselves rather than walking a grid of epochs
     # and re-testing every target at each one: the grid walk is bins x targets,
@@ -450,9 +462,9 @@ def screen_shared_instants(
         collected, window=window, bin_minutes=bin_minutes, alpha=alpha
     )
     flagged_bins = {int(entry["bin_index"]): entry for entry in report["instants"]}
-    transits_by_tic: dict[int, list[float]] = report["_transits_by_tic"]
-    low = report.get("window_btjd", [0.0, 0.0])[0]
-    step = report["bin_days"]
+    transits_by_tic: dict[int, list[float]] = report.get("_transits_by_tic") or {}
+    low = (report.get("window_btjd") or [0.0, 0.0])[0]
+    step = report["bin_days"] or 1.0
 
     verdicts: dict[int, dict[str, Any]] = {}
     for item in collected:
@@ -748,6 +760,41 @@ def screen_campaign_root(
             )
             continue
         name = summary_path.parent.name
+
+        # Correction 86: the ephemeris screen above requires period *and* phase
+        # agreement, so a single instrumental event fitted by different stars at
+        # different periods is invisible to it -- each such target shares an
+        # instant with the others and an ephemeris with none. Measured on the v5
+        # calibration: 32 targets in one 30-minute bin against an expectation of
+        # 3.3, p = 7e-21, every one called `independent_timing`.
+        #
+        # Folded into `common_mode_systematic` rather than given a status of its
+        # own: both verdicts mean the observatory produced the dimming, and a new
+        # status would need registry and dashboard changes to say the same thing.
+        # `flagged_by` keeps the two distinguishable, and the reclassification is
+        # counted below rather than applied silently -- correction 71 is the
+        # record of what a quiet screen change can destroy.
+        instants = screen_shared_instants(rows, metadata=metadata)
+        reclassified = 0
+        for tic_id, verdict in screened.items():
+            instant = instants.get(tic_id)
+            already = verdict["verdict"] == "common_mode_systematic"
+            hit = bool(
+                instant and instant["verdict"] == "shared_instant_systematic"
+            )
+            verdict["shared_instant"] = instant
+            if already and hit:
+                verdict["flagged_by"] = "ephemeris_and_instant"
+            elif already:
+                verdict["flagged_by"] = "ephemeris"
+            elif hit:
+                verdict["flagged_by"] = "instant"
+                verdict["verdict_before_instant_screen"] = verdict["verdict"]
+                verdict["verdict"] = "common_mode_systematic"
+                reclassified += 1
+            else:
+                verdict["flagged_by"] = None
+
         counts: dict[str, int] = {}
         for tic_id, verdict in screened.items():
             verdict["campaign"] = name
@@ -764,6 +811,10 @@ def screen_campaign_root(
                 "screened_targets": len(screened),
                 "detector_metadata_available": bool(metadata),
                 "counts": counts,
+                # The transition, stated per campaign. Correction 71's method
+                # note: check what moved between the old screen and the new one,
+                # not the headline totals, which improve either way.
+                "reclassified_by_instant_screen": reclassified,
             }
         )
 

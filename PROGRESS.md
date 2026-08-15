@@ -3373,6 +3373,51 @@ the current stack can settle.
     `commonmode` is on the kernel module list, so adopting it costs a
     re-calibration whether or not it is wired in.
 
+87. **The shared-instant screen is wired into `screen_campaign_root`, and it is
+    very nearly a superset of the ephemeris screen.** Owner call on correction
+    86. Kernel moves to `kernel1:fe853e49…`; v6 was stopped at 11/1000 stars
+    rather than spend nine hours certifying an identity this change was about to
+    supersede — correction 76's lesson applied on purpose instead of by accident.
+
+    **Folded into `common_mode_systematic` rather than given its own status.**
+    Both verdicts mean the observatory produced the dimming, and a new status
+    would need registry and dashboard changes to say the same thing. `flagged_by`
+    keeps them distinguishable per target, and each campaign now reports
+    `reclassified_by_instant_screen` so the change is counted rather than
+    applied silently.
+
+    **Measured survey-wide over 84,449 screened targets. Nothing imported.**
+
+    | flagged by | targets |
+    |---|---:|
+    | both screens | 3,779 |
+    | ephemeris only | **171** |
+    | instant only | **1,351** |
+
+    The instant screen finds **3,779 of the 3,950** the ephemeris screen finds
+    and adds **1,351 it missed entirely** — 1.6% of the survey. Only 171 targets
+    are visible to the ephemeris test alone, so the two are not complementary
+    halves; the instant test is close to strictly stronger on this data, which is
+    consistent with a survey whose systematics are single events rather than
+    repeating ones.
+
+    **The comparison that is *not* available, stated so nobody reaches for it.**
+    These counts come from `--campaign-root results/campaign`, the pooled
+    invocation correction 71 established under-reports against the established
+    ledger — 3,950 against 5,615 before this change, 5,301 after. **5,301 must
+    not be read as a drop from 5,615**, because the two numbers were not produced
+    the same way. Judging the survey impact honestly needs per-campaign runs and
+    an old→new transition matrix per campaign, which is the work owed before any
+    import.
+
+    Largest movers: `sector105_overnight_5000` (821 of 4,971),
+    `p5_primary_ncvz_1000_v2` (248 of 953), `p5_primary_ncvz_1000` (232 of 953).
+
+    A defect caught by the existing tests: `instrumental_instants` omitted
+    `_transits_by_tic` from its early-return paths, so a campaign with no usable
+    ephemeris raised `KeyError` instead of screening nothing. Both returns now
+    carry the full shape and the reader is defensive.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
