@@ -98,6 +98,30 @@ def read_progress(calibration_dir: Path) -> dict[str, int] | None:
     return None
 
 
+def read_manifest_totals(calibration_dir: Path) -> dict[str, int] | None:
+    """Star and search totals, available before the first search completes.
+
+    The driver writes `run_manifest.json` at startup, well before its first
+    progress line. Without this the panel shows nothing at all during the
+    cold-start window -- which on a resumed cohort is minutes and on a cold one
+    can be an hour -- and "nothing on the dashboard" is indistinguishable from
+    "the run died". That is the exact complaint this publisher exists to answer.
+    """
+
+    path = calibration_dir / "run_manifest.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    try:
+        return {
+            "stars_total": int(payload["cohort_rows"]),
+            "searches_total": int(payload["expected_searches"]),
+        }
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def count_star_files(calibration_dir: Path) -> int:
     """A directory listing takes no handle on the checkpoint. That is the point."""
 
@@ -173,8 +197,21 @@ def build_checkpoint(
     samples: list[dict[str, float]],
 ) -> dict[str, object] | None:
     progress = read_progress(calibration_dir)
-    if progress is None:
-        return None
+    starting = progress is None
+    if starting:
+        # No search has finished yet. Publish the run's shape from the startup
+        # manifest so the panel says "starting, 0 of 1000" rather than showing
+        # nothing, which reads as a dead run.
+        totals = read_manifest_totals(calibration_dir)
+        if totals is None:
+            return None
+        progress = {
+            "searches": 0,
+            "searches_total": totals["searches_total"],
+            "stars": count_star_files(calibration_dir),
+            "stars_total": totals["stars_total"],
+            "errors": 0,
+        }
 
     now = datetime.now(timezone.utc).replace(microsecond=0)
     started = _started_at(calibration_dir)
@@ -226,7 +263,7 @@ def build_checkpoint(
         "schema_version": 1,
         # Deliberately not "running": see the module docstring. This keeps the
         # entry on the live panel and out of the file-derived exporter.
-        "state": "calibrating",
+        "state": "starting" if starting else "calibrating",
         # Empty so `_sector_coverage` cannot fold 1,000 unanalysed targets into
         # exported coverage from a monitoring artifact.
         "target_list": "",
@@ -348,7 +385,20 @@ def main(argv: list[str] | None = None) -> int:
 
     while True:
         progress = read_progress(calibration_dir)
-        if progress is not None:
+        if progress is None:
+            # Still starting: publish the run's shape so the panel is not blank,
+            # but do not sample a rate from a run that has completed nothing.
+            checkpoint = build_checkpoint(calibration_dir, samples)
+            if checkpoint is not None:
+                _write_atomic(checkpoint_path, checkpoint)
+                print(
+                    f"starting: 0/{checkpoint['total_targets']} stars, no search "
+                    "has finished yet",
+                    flush=True,
+                )
+            else:
+                print("no run manifest yet; nothing to publish", flush=True)
+        else:
             samples.append(
                 {
                     "at": time.time(),
@@ -379,8 +429,6 @@ def main(argv: list[str] | None = None) -> int:
                     + (f"{rolling:.0f}/h" if rolling else "measuring"),
                     flush=True,
                 )
-        else:
-            print("no progress line in the calibration log yet", flush=True)
         if args.once:
             return 0
         time.sleep(args.interval)
