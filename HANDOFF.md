@@ -59,6 +59,29 @@ what is missing. Relaunching while a coordinator is already alive is safe — th
 lease is a named kernel mutex and the second process exits without starting a
 second run.
 
+### Closing it out — the errored targets
+
+A long run collects a few targets that error on transient MAST faults. The
+coordinator already retries those three times inside the run, so anything still
+reporting `error` at the end had the archive unreachable for longer than the
+retry budget. They are simply **missing from the survey** until something
+re-runs them, and the supervisor does not handle this — it restarts dead
+processes, not failed targets.
+
+When the campaign finishes, build the retry list and re-run it into the *same*
+output directory:
+
+```powershell
+.venv\Scripts\python.exe scripts\build_retry_targets.py `
+  --campaign results\campaign\full_pool_v7_instant_wired `
+  --targets targets\full_remaining_pool.csv `
+  --output targets\full_pool_v7_retry.csv
+```
+
+Then re-run with `--output-dir results\campaign\full_pool_v7_instant_wired`
+**and `--force`** — those TICs already have error reports there, and without
+`--force` the resume counts them as done.
+
 The dashboard is separate and starts on its own:
 
 ```powershell
