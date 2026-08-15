@@ -28,7 +28,7 @@ dependencies = [
   "numba>=0.59",
   "numpy>=1.26,<3",
   "psutil>=5.9",
-  "reportlab>=4.2,<5",
+  "reportlab>=4.2,<6",
   "requests>=2.31,<3",
   # Arrives transitively through lightkurve and wotan, but correction 82 imports
   # `scipy.stats.poisson` directly to score epoch bins against their own
