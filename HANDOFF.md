@@ -59,6 +59,34 @@ what is missing. Relaunching while a coordinator is already alive is safe — th
 lease is a named kernel mutex and the second process exits without starting a
 second run.
 
+### If throughput halves mid-run, look at memory before the network
+
+This bit once, on 2026-08-16, and the symptom pointed the wrong way. Rolling
+throughput fell from 3,488 to 1,808 stars/hour and the download median rose
+from 3.09 s to 5.29 s, which reads exactly like the archive getting slower. It
+was not. The **analysis** median had also doubled, 4.55 s to 10.51 s, and
+analysis never touches the network.
+
+The machine was paging: 1.4 GB physical free of 31.9 GB, **41.7 GB committed**,
+and the coordinator process alone holding **8.2 GB**.
+
+The cause was the dashboard exporter, which the coordinator runs on a thread
+every 120 s. It parsed *every* campaign's `batch_progress.json` under
+`results/` — the finished full-pool run's file is 116 MB — and retained the
+whole parse per campaign in `coverage_artifacts`, when `_sector_coverage` reads
+four fields per campaign and a handful per row.
+
+Fixed in `src/exohunt/dashboard.py` (not a kernel module, so no re-calibration):
+the artifact is projected down to the fields actually read, and the projection
+is cached on `(mtime, size)` because a finished campaign's checkpoint never
+changes again. Measured on the real 116 MB file: **32× smaller retained, all
+64,614 rows preserved**, and the 1.9 s parse happens once instead of every two
+minutes.
+
+**The diagnostic worth reusing:** compare the *analysis* median against the
+download median. If both moved, it is the machine. If only the download median
+moved, it is MAST.
+
 ### Before you raise `--download-workers`
 
 This campaign is **archive-bound, not CPU-bound**, and the obvious optimisation

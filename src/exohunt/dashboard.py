@@ -238,6 +238,66 @@ def _cartesian(ra_deg: float, dec_deg: float, distance_pc: float) -> dict[str, f
     }
 
 
+# Retaining every campaign's full checkpoint parse was the largest memory
+# consumer in a live coordinator, which runs this exporter on a thread every
+# 120 s. A finished 64,614-target run's `batch_progress.json` is 116 MB of JSON
+# that expands to several GB of Python objects, and `coverage_artifacts` held
+# one of those per campaign simultaneously. Measured 2026-08-16, mid-run: the
+# coordinator's working set was 8.2 GB with 1.4 GB of physical memory free and
+# 41.7 GB committed against 31.9 GB of RAM, and *both* the download and the
+# analysis median had roughly doubled -- the machine was paging, and throughput
+# had halved from 3,488 to 1,808 stars/hour.
+#
+# `_sector_coverage` reads four fields per artifact and a handful per result
+# row; everything else was retained for nothing. Projecting to what is actually
+# read, and caching that projection on (mtime, size) because a finished
+# campaign's checkpoint never changes again, removes the re-parse and the
+# retention together. Active campaigns are deliberately never cached: their file
+# changes every few seconds, so a hit would serve stale coverage.
+_COVERAGE_FIELDS = ("state", "target_list", "updated_at_utc", "total_targets")
+# `_tic_id` accepts three spellings and `_sectors` two, so all of them survive
+# the projection or coverage would silently lose rows.
+_COVERAGE_ROW_FIELDS = ("tic_id", "TICID", "ID", "sectors", "sector", "status")
+_ACTIVE_STATES = frozenset({"running", "finalizing", "retry_pending"})
+_coverage_cache: dict[Path, tuple[int, int, dict[str, object]]] = {}
+
+
+def _coverage_projection(progress: dict[str, object]) -> dict[str, object]:
+    """Reduce a campaign checkpoint to the fields `_sector_coverage` reads."""
+
+    projected: dict[str, object] = {
+        key: progress.get(key) for key in _COVERAGE_FIELDS
+    }
+    rows: list[dict[str, object]] = []
+    for row in progress.get("results", []):
+        if not isinstance(row, dict):
+            continue
+        rows.append({key: row[key] for key in _COVERAGE_ROW_FIELDS if key in row})
+    projected["results"] = rows
+    return projected
+
+
+def _cached_coverage(path: Path) -> dict[str, object] | None:
+    """Return a previously projected artifact when the file has not changed."""
+
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    cached = _coverage_cache.get(path)
+    if cached is not None and cached[0] == stat.st_mtime_ns and cached[1] == stat.st_size:
+        return cached[2]
+    return None
+
+
+def _store_coverage(path: Path, projection: dict[str, object]) -> None:
+    try:
+        stat = path.stat()
+    except OSError:
+        return
+    _coverage_cache[path] = (stat.st_mtime_ns, stat.st_size, projection)
+
+
 def _sector_coverage(
     root: Path,
     artifacts: dict[Path, dict[str, object]],
@@ -735,16 +795,23 @@ def export_dashboard_data(
     results_root = root / "results"
     if results_root.exists():
         for progress_path in sorted(results_root.rglob("batch_progress.json")):
+            # A finished campaign contributes coverage and nothing else, so once
+            # its projection is cached the 116 MB parse never happens again.
+            reused = _cached_coverage(progress_path)
+            if reused is not None:
+                coverage_artifacts[progress_path.parent] = reused
+                continue
             try:
                 progress = json.loads(progress_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
-            coverage_artifacts[progress_path.parent] = progress
-            if progress.get("state") not in {
-                "running",
-                "finalizing",
-                "retry_pending",
-            }:
+            projection = _coverage_projection(progress)
+            coverage_artifacts[progress_path.parent] = projection
+            if progress.get("state") not in _ACTIVE_STATES:
+                _store_coverage(progress_path, projection)
+                # Drop the full parse before the next file is read, so peak
+                # memory is one checkpoint rather than all of them at once.
+                del progress
                 continue
             progress_results = list(progress.get("results", []))
             active_results.extend(progress_results)
@@ -883,7 +950,11 @@ def export_dashboard_data(
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        coverage_artifacts.setdefault(summary_path.parent, summary)
+        # Projected for the same reason as the checkpoints above: coverage reads
+        # a few fields and this retains one dict per campaign for the whole
+        # export. The full `summary` is still used below, but only in this loop.
+        if summary_path.parent not in coverage_artifacts:
+            coverage_artifacts[summary_path.parent] = _coverage_projection(summary)
         for result in summary.get("results", []):
             tic_id = _tic_id(result)
             if tic_id is None:
