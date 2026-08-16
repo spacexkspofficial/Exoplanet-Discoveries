@@ -59,6 +59,26 @@ what is missing. Relaunching while a coordinator is already alive is safe — th
 lease is a named kernel mutex and the second process exits without starting a
 second run.
 
+### Before you raise `--download-workers`
+
+This campaign is **archive-bound, not CPU-bound**, and the obvious optimisation
+is a trap. Measured at 15% of the full pool: download capacity 3,495/h against
+analysis capacity 12,659/h, with `downloaded_waiting` at zero — analysis sits
+idle waiting on MAST and never backs up. The rolling rate tracks download
+capacity exactly.
+
+So raising `--analysis-processes` does nothing, and raising
+`--download-workers` above 3 is a bet that MAST will absorb it. On 2026-08-15
+it would have lost that bet: three targets errored on `RemoteDisconnected`
+inside one minute having already exhausted their three in-run retries, and
+correction 88 recorded nine stars lost to the same throttling signature. Each
+extra worker buys throughput in stars/hour and pays in targets that have to be
+re-run.
+
+The measured baseline over this pool is ~3,270 stars/hour at 3 download
+workers. If you change it, change it as an experiment with the error count as
+the primary metric, not the rate.
+
 ### Closing it out — the errored targets
 
 A long run collects a few targets that error on transient MAST faults. The
