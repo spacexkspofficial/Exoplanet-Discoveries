@@ -110,14 +110,22 @@ the primary metric, not the rate.
 ### Closing it out — the errored targets
 
 A long run collects a few targets that error on transient MAST faults. The
-coordinator already retries those three times inside the run, so anything still
+coordinator retries those three times inside the run, so anything still
 reporting `error` at the end had the archive unreachable for longer than the
-retry budget. They are simply **missing from the survey** until something
-re-runs them, and the supervisor does not handle this — it restarts dead
-processes, not failed targets.
+retry budget.
 
-When the campaign finishes, build the retry list and re-run it into the *same*
-output directory:
+**The supervisor already retries them, and this was not designed — it falls out
+of the pieces.** A campaign with errors publishes `retry_pending` rather than
+`completed` and exits non-zero, so `Test-CampaignComplete` is false, so the
+supervisor relaunches, and the resume re-runs exactly the errored targets. The
+2026-08-15 full-pool run went from 20 errors to 1 on its second launch without
+anyone asking it to.
+
+So the first thing to do at the end of a run is **nothing**: let the supervisor
+cycle. Only reach for the manual list below when a target survives several of
+those cycles, which means it is failing for a reason that is not transient.
+
+Build the retry list and re-run it into the *same* output directory:
 
 ```powershell
 .venv\Scripts\python.exe scripts\build_retry_targets.py `

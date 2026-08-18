@@ -157,9 +157,16 @@ while ($true) {
   Write-Log "coordinator pid=$($proc.Id) stdout=$outLog"
 
   $proc.WaitForExit()
+  # Refresh before reading ExitCode: a process object obtained from
+  # Start-Process -PassThru caches its state, and the first run logged an empty
+  # exit code for a coordinator that had definitely exited non-zero.
+  try { $proc.Refresh() } catch { }
+  $code = if ($null -ne $proc.ExitCode) { $proc.ExitCode } else { 'unknown' }
   $elapsed = (Get-Date) - $started
-  $code    = $proc.ExitCode
-  Write-Log ("coordinator pid={0} exited code={1} after {2:hh\:mm\:ss}" -f $proc.Id, $code, $elapsed)
+  # `hh` silently drops whole days -- a 52-hour run logged as "04:27:15" -- so
+  # total hours are formatted explicitly.
+  Write-Log ("coordinator pid={0} exited code={1} after {2:N0}h{3:mm\:ss}" -f `
+    $proc.Id, $code, [Math]::Floor($elapsed.TotalHours), $elapsed)
 
   $status = Get-CampaignStatus
   if (Test-CampaignComplete $status) {
