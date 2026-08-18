@@ -3475,6 +3475,76 @@ the current stack can settle.
     completed normally from its 19 durable star files. If it recurs, a nine-hour
     run on this machine needs something sturdier than `Start-Process`.
 
+89. **The full pool re-ran under v7. It removed 91.8% of the survivor
+    population without changing a single detection, and gained nothing.**
+    `results/campaign/full_pool_v7_instant_wired`, all 64,614 targets, sectors
+    94–104, **0 errors**, 100% vetting coverage,
+    `kernel1:fe853e49…`. This is the per-campaign re-run and old→new transition
+    matrix correction 88 named as owed before any import, and it is now
+    mechanical: `scripts/compare_campaign_kernels.py`.
+
+    | old → v7 | targets |
+    |---|---:|
+    | rejected → rejected | 64,197 |
+    | survivor → rejected | **383** |
+    | survivor → survivor | 34 |
+    | rejected → survivor | **0** |
+
+    **417 survivors became 34, and the counts alone would have misled me.** A
+    91.8% drop invites the reading that the search got weaker. It did not. For
+    **381 of the 383** losses, `period_days`, `depth_ppm` and
+    `red_noise_adjusted_snr` are equal *to the last bit* between the two runs.
+    The old run recorded an empty `rejection_reasons` for them; v7 records a
+    veto on identical numbers. What moved is the veto set, not the detection.
+
+    Vetoes now firing on unchanged detections (a target may carry several):
+
+    | veto | targets |
+    |---|---:|
+    | red-noise-adjusted depth S/N below 7.1 | 259 |
+    | BLS SDE-like statistic below the TLS trigger of 6 | 208 |
+    | fewer than 60% of predicted events sampled | 152 |
+    | TLS SDE below the calibrated threshold of 11.5 | 46 |
+    | event-to-event depth scatter exceeds median depth | 25 |
+    | TLS does not recover the BLS period or a harmonic | 5 |
+    | fewer than 75% of sampled events have positive depth | 4 |
+
+    Read plainly: **the old survivor list was ~92% signals that fail basic S/N
+    and event-coverage criteria**, and v7 says so. That is the false-alarm
+    problem of correction 68 measured on the survey rather than on a calibration
+    cohort — and it is a reliability result, not a completeness one, because
+    **nothing was promoted in the other direction.** A veto set that only ever
+    subtracts cannot be shown to be *correct* by this matrix; it can only be
+    shown to be *consistent*. Whether the 383 were truly false is a separate
+    question this run does not answer.
+
+    Only **2** targets had detection move at all, and both moved by a harmonic:
+    TIC 62631837 6.706 → 10.059 d (×1.453) and TIC 397192017 1.076 → 0.670 d
+    (÷1.606). Consistent with the alias ladder being disabled in correction 86,
+    and small enough to say the ladder's removal touched almost nothing here.
+
+    **Two operational findings, both recorded in `HANDOFF.md` rather than here.**
+    The supervisor built for correction 88's unattributed death never saw one —
+    zero crash restarts in 53.3 hours — but it did something unplanned and more
+    useful: a campaign with errors publishes `retry_pending`, not `completed`,
+    so the supervisor relaunched and the resume re-ran the failures, taking 20
+    errors to 0 across three cycles. The last one needed help: a **0-byte cached
+    FITS**, which lightkurve serves as a cache hit forever, so it failed
+    identically on every retry. That is the one error retrying can never clear.
+
+    And the run cost 53.3 h against a 15.7 h projection, at 1,212 stars/hour
+    average against a 4,100/h start. The cause was not the archive. The
+    coordinator runs the dashboard exporter on a thread every 120 s, and that
+    exporter parsed *every* campaign's `batch_progress.json` under `results/` —
+    the previous full-pool run's is 116 MB — and retained each full parse in
+    `coverage_artifacts`, for ~27 campaigns at once. The machine reached 1.25 GB
+    free of 31.9 GB with the coordinator at 12.17 GB, and *both* medians
+    doubled. **The tell is the analysis median: it never touches the network, so
+    when it moves with the download median the problem is the machine.** Fixed
+    in `dashboard.py` (not a kernel module, so no re-calibration): project each
+    artifact to the fields `_sector_coverage` actually reads and cache it on
+    `(mtime, size)`. Measured 32× smaller retained on the real 116 MB file.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
