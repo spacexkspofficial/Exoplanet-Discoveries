@@ -125,7 +125,35 @@ So the first thing to do at the end of a run is **nothing**: let the supervisor
 cycle. Only reach for the manual list below when a target survives several of
 those cycles, which means it is failing for a reason that is not transient.
 
-Build the retry list and re-run it into the *same* output directory:
+#### The one error that retrying can never fix
+
+`Not recognized as a supported data product: ...\mastDownload\TESS\...\*_lc.fits`
+
+This is a **0-byte cached FITS**: a download truncated at zero length, which
+lightkurve then treats as a cache hit forever. It is the one failure that looks
+transient and is not — every retry re-reads the same empty file and fails
+identically, so the supervisor's retry cycle cannot clear it and will spin until
+the stalled-start guard stops it. One target in 64,614 hit this on the
+2026-08-15 run.
+
+Find them (a healthy sector-104 light curve is ~1.9 MB, so zero is unambiguous):
+
+```bash
+find exohunt-cache/lightkurve -name '*_lc.fits' -size 0 -printf '%p\n'
+```
+
+Fix by removing **only that target's cache namespace** — never the whole cache,
+which is 140+ GB of re-downloadable but slow-to-refetch data:
+
+```bash
+rm -rf exohunt-cache/lightkurve/batch_targets/TIC_<id>_s<sector>
+```
+
+The next supervisor cycle re-fetches it.
+
+#### The manual retry list
+
+Build it and re-run into the *same* output directory:
 
 ```powershell
 .venv\Scripts\python.exe scripts\build_retry_targets.py `
