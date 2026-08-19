@@ -3545,6 +3545,23 @@ the current stack can settle.
     artifact to the fields `_sector_coverage` actually reads and cache it on
     `(mtime, size)`. Measured 32× smaller retained on the real 116 MB file.
 
+    **Confirmed in production by re-running the same pool
+    (`results/campaign/full_pool_v7_rerun`).** At the identical point --
+    ~29,170 of 64,614 targets -- the coordinator holds **1.31 GB against run
+    one's 8.20 GB**, with 7.40 GB free rather than 1.40 GB, and throughput is
+    4,361/h against 1,810/h. The checkpoint is **53 MB in both**, so the data
+    is the same and the ~6.9 GB difference is entirely the retention.
+
+    Two things the rerun corrected in my reading of run one. The per-target
+    *analysis* median is **worse** in the rerun, 12.95 s against 10.51 s, and
+    that is not a regression: run one was download-bound, so only 3-6 analyses
+    ran at once and each had a core to itself, where the rerun saturates 15 on
+    16 logical CPUs. Per-target time rising is the price of the machine finally
+    being busy. And the throughput break at ~35% of the pool happens in *both*
+    runs at the same position, so it is a stretch of computationally harder
+    (multi-sector) targets in the target list -- not the archive, which is what
+    I attributed it to the first time, when memory pressure was masking it.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
