@@ -3562,6 +3562,44 @@ the current stack can settle.
     (multi-sector) targets in the target list -- not the archive, which is what
     I attributed it to the first time, when memory pressure was masking it.
 
+90. **The survey is reproducible to the bit, and the exporter fix is what makes
+    it affordable.** `results/campaign/full_pool_v7_rerun`, the same 64,614
+    targets and the same `kernel1:fe853e49…`, run again from a warm cache.
+
+    **Nothing moved.** The transition matrix against
+    `full_pool_v7_instant_wired` is entirely diagonal — 64,580
+    `rejected → rejected`, 34 `survivor → survivor`, **zero status changes** —
+    and a direct field comparison over all 64,614 targets finds
+    `period_days`, `depth_ppm`, `red_noise_adjusted_snr`, `observed_transits`,
+    `duration_hours`, `transit_time`, `status`, `screening_class`,
+    `rejection_reasons`, `vetting_tier`, `event_coverage_fraction` and
+    `positive_depth_event_fraction` **identical on every target**.
+
+    This is worth having explicitly rather than as an assumption. The whole
+    identity scheme — `kernel_version()` digesting module text so a calibration
+    can be said to describe today's code — presumes that the same kernel over
+    the same data returns the same answer. Correction 89 leaned on that
+    presumption when it attributed 383 lost survivors to a veto-set change
+    rather than to run-to-run variation. It now has a measurement behind it.
+
+    | | run 1 | rerun |
+    |---|---:|---:|
+    | elapsed | 53.3 h | **13.7 h** |
+    | average rate | 1,212/h | **4,704/h** |
+    | coordinator RSS, late run | 12.17 GB | **1.75 GB** |
+    | free RAM, late run | 1.46 GB | **6.66 GB** |
+    | errors | 20, cleared over 6 supervisor cycles | **0** |
+
+    The 3.9× is two effects and it is worth keeping them apart: a warm 142 GB
+    cache removed the MAST round-trip (download median 0.75 s against 2.3 s
+    cold), and the `dashboard.py` retention fix stopped the coordinator dragging
+    the machine into paging. Only the second is a repaired defect; the first is
+    just the cache being full, and a cold run will be slow again.
+
+    Zero errors, where run 1 needed six supervisor relaunches to clear 20 — all
+    of run 1's were `RemoteDisconnected` from MAST, and a warm cache has almost
+    no archive calls left to fail.
+
 ## Decisions taken at the P4 close (2026-08-07)
 
 The owner delegated the three open questions. What was decided, and what was
