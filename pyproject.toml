@@ -19,7 +19,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Astronomy",
 ]
 dependencies = [
-  "astropy>=6.0,<8",
+  "astropy>=6.0,<9",
   "astroquery>=0.4.7,<1",
   "fastapi>=0.116,<1",
   "filelock>=3.13,<4",
